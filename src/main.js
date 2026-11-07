@@ -2,7 +2,7 @@
 
 import './style.css';
 import { DESKS, findDesk } from './config/desks.js';
-import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
+import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection } from './progress/collection.js';
 import { cardHTML } from './ui/cardView.js';
@@ -665,7 +665,8 @@ function showZukan(tab = 'eraser') {
   const TABS = [
     { id: 'eraser', label: '消しゴム', items: REGULAR_ERASERS.filter((e) => e.kind !== 'chara') },
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
-    { id: 'gacha', label: '文房具', items: GACHA_ERASERS },
+    { id: 'special', label: 'とくべつ', items: SPECIAL_ERASERS },
+    { id: 'gacha', label: '文房具', items: STATIONERY_ERASERS },
     { id: 'card', label: 'カード', items: CARDS },
   ];
   const count = (t) =>
@@ -694,7 +695,7 @@ function showZukan(tab = 'eraser') {
 
   let note = 'CPUが使っている消しゴムを たおすと、自分も使えるようになるよ';
   if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを たおすと手に入るよ';
-  if (cur.id === 'gacha') note = `🎫 チケット ${collection.tickets()}まい。CPUにかつと もらえることがあるよ`;
+  if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}まい。ガチャで手に入るよ（CPUにかつと チケットが もらえることがあるよ）`;
   if (cur.id === 'card') note = '対戦で くばられたカードが うまっていくよ';
 
   const el = screen(
@@ -709,7 +710,7 @@ function showZukan(tab = 'eraser') {
      <p class="note">${note}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">もどる</button>
-       ${cur.id === 'gacha' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
+       ${cur.id === 'gacha' || cur.id === 'special' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
      </div>
      <button class="reset-link" data-act="reset">ずかんのデータを けす</button>`,
     'zukan-screen',
@@ -762,10 +763,17 @@ function showZukan(tab = 'eraser') {
 
 // ---------- ガチャ ----------
 const CAPSULE_COLORS = ['#ff6b6b', '#ffd166', '#4fc3f7', '#81c784', '#ba68c8', '#ff8a65'];
+// カプセルが出てきたときの ひとこと（中身のレア度の ヒント）
+const CAPSULE_HINT = {
+  rare: '✨ きんいろ！ ✨<br>',
+  superrare: '✨ にじいろ！？ ✨<br>',
+  ultra: '🌌 ギャラクシー！？ 🌌<br>',
+  legend: '👑 ま、まさか…レジェンド！？ 👑<br>',
+};
 
 function showGacha() {
   const tickets = collection.tickets();
-  // 文房具をぜんぶ集めたら、ふつうの消しゴムのガチャになる
+  // ガチャ限定（文房具・とくべつ消しゴム）をぜんぶ集めたら、ふつうの消しゴムのガチャになる
   const pool = collection.gachaPool();
   const isEraserGacha = pool.kind === 'eraser';
   const left = pool.items.length;
@@ -784,14 +792,14 @@ function showGacha() {
   if (left === 0) msg = 'ぜんぶ あつめた！すごい！ チケットは とっておけるよ（新しい消しゴムが ふえたら ひけるよ）';
 
   const el = screen(
-    `<h2 class="head">🎰 ${isEraserGacha ? 'けしごむガチャ' : 'ぶんぼうぐガチャ'}</h2>
-     ${isEraserGacha ? '<p class="note gacha-phase">🎉 文房具を ぜんぶ集めたから、まだ持っていない ふつうの消しゴムが出るよ</p>' : ''}
+    `<h2 class="head">🎰 ${isEraserGacha ? 'けしごむガチャ' : 'とくべつガチャ'}</h2>
+     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を ぜんぶ集めたから、まだ持っていない ふつうの消しゴムが出るよ</p>' : '<p class="note gacha-phase">文房具と とくべつ消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
      <p class="note">CPUにかつと チケットがもらえることがあるよ。${GAME.collection.pityMatches}戦するごとに かならず1まい、れんしょうチャレンジで${GAME.collection.streakBonusEvery}れんしょうすると ボーナスで1まい<br>
        おなじものは でないよ。お金は いらないよ</p>
      <div class="gacha-machine">
        <div class="gacha-dome">${capsules || '<span class="gacha-empty">からっぽ！</span>'}</div>
        <div class="gacha-body">
-         <div class="gacha-label">${isEraserGacha ? 'けしごむ' : 'ぶんぼうぐ'}</div>
+         <div class="gacha-label">${isEraserGacha ? 'けしごむ' : 'とくべつ'}</div>
          <button class="gacha-handle" data-act="pull" ${canPull ? '' : 'disabled'} aria-label="まわす"><span></span></button>
          <div class="gacha-out"></div>
        </div>
@@ -808,7 +816,7 @@ function showGacha() {
     'gacha-screen',
   );
   el.querySelector('[data-act=back]').onclick = showTitle;
-  el.querySelector('[data-act=zukan]').onclick = () => showZukan(isEraserGacha ? 'eraser' : 'gacha');
+  el.querySelector('[data-act=zukan]').onclick = () => showZukan(isEraserGacha ? 'eraser' : 'special');
 
   const handle = el.querySelector('[data-act=pull]');
   handle.onclick = () => {
@@ -855,7 +863,7 @@ function showGacha() {
         <button class="cap-big r-${rarity}" style="--c:${color}" aria-label="あける">
           <i class="cap-top"></i><i class="cap-bot"></i>
         </button>
-        <p class="cap-msg">${rarity === 'superrare' ? '✨ にじいろ！？ ✨<br>' : rarity === 'rare' ? '✨ きんいろ！ ✨<br>' : ''}タップして あけよう！</p>`;
+        <p class="cap-msg">${CAPSULE_HINT[rarity] || ''}タップして あけよう！</p>`;
       el.appendChild(stage);
       sfx.whoosh();
       const cap = stage.querySelector('.cap-big');
@@ -886,7 +894,8 @@ function showGacha() {
 
   function reveal(def) {
     setTimeout(() => sfx.rare(), 300);
-    if (def.rarity === 'superrare') setTimeout(() => sfx.rare(), 700);
+    const extra = { superrare: 1, ultra: 2, legend: 3 }[def.rarity] || 0; // レアなほど キラキラが ふえる
+    for (let k = 0; k < extra; k++) setTimeout(() => sfx.rare(), 700 + k * 380);
     const ov = openModal(
       el,
       `<div class="modal detail reveal ${rarityClass(def)}">

@@ -166,16 +166,15 @@ export class FlickInput {
     const pull = Math.hypot(dx, dy);
     const { maxPullPx, minPullPx } = GAME.input;
     const d = this.renderer.screenDeltaToWorld(dx, dy);
-    // フルーツンでこんらん中は、ほんとうに飛ぶ向き（反対）に矢印を出す
-    const sign = this.game.isConfused(this.drag.playerIndex) ? -1 : 1;
+    // （フルーツンでこんらん中でも 矢印はふつう。たまに反対に飛ぶのは Game が決める）
     this.aim = {
       playerIndex: this.drag.playerIndex,
-      dirX: d.x * sign, // 矢印の向き（ほんとうに飛ぶ向き）
-      dirY: d.y * sign,
-      rawX: d.x, // Game.flick にわたす向き（こんらんの反対は Game がする）
+      dirX: d.x, // 矢印の向き
+      dirY: d.y,
+      rawX: d.x, // Game.flick にわたす向き
       rawY: d.y,
       strength: pull < minPullPx ? 0 : Math.min(1, pull / maxPullPx),
-      spin: this._spin(d.x * sign, d.y * sign),
+      spin: this._spin(d.x, d.y),
     };
   }
 

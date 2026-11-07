@@ -79,13 +79,8 @@ export function planCpuShot(game, me, cfg) {
   // クリアン（すけすけ）は見えにくいので、ねらいがズレる
   const blur = best.t.effects.clear ? best.t.def.trait?.aimErrorDeg ?? 14 : 0;
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
-  let dirX = Math.cos(ang);
-  let dirY = Math.sin(ang);
-  // フルーツンで向きが反対になっているとき：半分くらいは気づいて、反対に弾く
-  if (game.isConfused(me) && Math.random() < (cfg.confuseNotice ?? 0.5)) {
-    dirX = -dirX;
-    dirY = -dirY;
-  }
+  const dirX = Math.cos(ang);
+  const dirY = Math.sin(ang);
   const spin = rand(cfg.spin ?? 0);
   return { dirX, dirY, strength, spin, target: best.t.playerIndex };
 }

@@ -68,11 +68,11 @@ export const collection = {
   matchesToPity: () => Math.max(1, GAME.collection.pityMatches - (data.matchesSinceTicket || 0)),
   /**
    * いまガチャから出るもの（まだ持っていないものだけ）。
-   * まずは文房具。文房具をぜんぶ集めたら、ふつうの消しゴム（CPU戦で手に入るもの）が出る
+   * まずはガチャ限定（文房具・とくべつ消しゴム）。ぜんぶ集めたら、ふつうの消しゴム（CPU戦で手に入るもの）が出る
    */
   gachaPool() {
-    const stationery = GACHA_ERASERS.filter((e) => !data.owned.includes(e.id));
-    if (stationery.length) return { kind: 'stationery', items: stationery, total: GACHA_ERASERS.length };
+    const limited = GACHA_ERASERS.filter((e) => !data.owned.includes(e.id));
+    if (limited.length) return { kind: 'gacha', items: limited, total: GACHA_ERASERS.length };
     return { kind: 'eraser', items: REGULAR_ERASERS.filter((e) => !data.owned.includes(e.id)), total: REGULAR_ERASERS.length };
   },
   gachaLeft: () => collection.gachaPool().items.length,
@@ -134,7 +134,7 @@ export const collection = {
 
   /**
    * ガチャを1回まわす。持っていないものだけが出る（ダブりなし。レアほど出にくい）。
-   * 文房具をぜんぶ集めたら、ふつうの消しゴムが出る。引けないときは null（チケットは へらない）
+   * ガチャ限定をぜんぶ集めたら、ふつうの消しゴムが出る。引けないときは null（チケットは へらない）
    */
   pullGacha() {
     const pool = collection.gachaPool().items;

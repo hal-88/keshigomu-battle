@@ -175,7 +175,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (!again) toast(online ? 'あなたのばん！' : `${p.name}のばん！`, '#fff');
     if (game.isConfused(game.turnIndex)) {
-      setHint('🍓 こんらん中！ ひっぱった ほうに 飛ぶよ（矢印を見てね）');
+      setHint('🍓 こんらん中！ 5回に1回くらい、反対に よわく 飛んじゃうよ');
     } else if (game.extrasOf(game.turnIndex).length) {
       setHint('2つに分かれているよ。弾くほうを さわってね');
     } else {
@@ -330,8 +330,12 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   }
 
   // ---- ゲームからの知らせ ----
-  on('flick', ({ playerIndex, strength }) => {
+  on('flick', ({ playerIndex, strength, backfire }) => {
     sfx.flick(strength);
+    if (backfire) {
+      sfx.boing();
+      toast('🍓 あっ！ はんたいに 飛んじゃった！', '#ff6f91');
+    }
     if (game.players[playerIndex].type === 'human') {
       flickedOnce.add(playerIndex);
       setHint(game.turn.curve ? '画面をなぞると 曲がるよ！' : '');
@@ -373,19 +377,60 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     renderer.addEffect({ type: 'text', x, y, text: 'セーフ！', color: '#4fc3f7', stroke: true, size: 26, dur: 1300 });
     later(300, () => toast(`かけらが落ちた！ でも ${p.name}は まだのこってる`, p.color));
   });
-  on('trait', ({ type, playerIndex, x, y, left }) => {
+  on('trait', ({ type, playerIndex, x, y, left, look, value, name, x2, y2 }) => {
     const p = game.players[playerIndex];
-    if (type === 'coverOff') {
+    const say = (text, color, size = 22, dur = 1300) => renderer.addEffect({ type: 'text', x, y, text, color, stroke: true, size, dur });
+    const ring = (color, r = 20, grow = 40, dur = 500, at = { x, y }) => renderer.addEffect({ type: 'ring', x: at.x, y: at.y, color, dur, r, grow });
+    if (type === 'coverOff' && look === 'neta') {
+      sfx.whoosh();
+      say('🍣 ネタが とんだ！', '#ff7043');
+      ring('#ff8a65');
+    } else if (type === 'coverOff') {
       sfx.whoosh();
       renderer.addEffect({ type: 'text', x, y, text: 'カバーが とれた！', color: '#26a69a', stroke: true, size: 22, dur: 1300 });
       renderer.addEffect({ type: 'ring', x, y, color: '#26a69a', dur: 500, r: 20, grow: 40 });
+    } else if (type === 'dice') {
+      sfx.tap();
+      say(`🎲 ${value}「${name}」`, '#455a64', 20, 1500);
+    } else if (type === 'boost') {
+      sfx.whoosh();
+      say('🚀 ブースト！', '#ff6d00', 24);
+    } else if (type === 'block') {
+      sfx.hit(4, true);
+      say('🧱 ブロック！', '#1e88e5', 20);
+    } else if (type === 'dodge') {
+      sfx.whoosh();
+      renderer.addEffect({ type: 'burst', x, y, color: '#b0bec5', dur: 450 });
+      say('💨 ドロン！', '#455a64', 26, 1400);
+      ring('#90a4ae', 14, 30, 400, { x: x2, y: y2 });
+    } else if (type === 'ghost') {
+      sfx.whoosh();
+      say('👻 すりぬけ！', '#7986cb', 26, 1400);
+    } else if (type === 'mirror') {
+      sfx.boing();
+      ring('#eceff1', 24, 50, 500);
+      say('🪞 はねかえし！', '#78909c', 26, 1400);
+    } else if (type === 'tail') {
+      sfx.hit(7);
+      say('🦖 しっぽ ペシッ！', '#43a047', 22);
+    } else if (type === 'corner') {
+      sfx.hit(10);
+      renderer.shake(250, 7);
+      say('✨ かどアタック！', '#1565c0', 26, 1400);
+    } else if (type === 'hatch') {
+      sfx.rare();
+      ring('#ffe082', 20, 60, 600);
+      say(`🥚 パカッ！ ${name}が 出てきた！`, '#f57f17', 22, 1800);
+    } else if (type === 'charge') {
+      sfx.warn();
+      toast(`${p.name}の ダイオウケシは ためている…💤`, '#fff');
     } else if (type === 'partOff') {
       sfx.hit(9, true);
       renderer.addEffect({ type: 'text', x, y, text: `パーツが とれた！（のこり${left}）`, color: '#ffca28', stroke: true, size: 20, dur: 1300 });
     } else if (type === 'confuse') {
       sfx.boing();
       renderer.addEffect({ type: 'text', x, y, text: '🍓 こんらん！', color: '#ff6f91', stroke: true, size: 24, dur: 1400 });
-      if (p.type === 'human') later(400, () => toast(`${p.name}は こんらん！ つぎは反対に飛ぶよ`, '#ff6f91'));
+      if (p.type === 'human') later(400, () => toast(`${p.name}は こんらん！ つぎは 反対に飛んじゃうかも`, '#ff6f91'));
     }
   });
 

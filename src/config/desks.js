@@ -49,6 +49,17 @@ export const DESKS = [
     look: { style: 'wax', top: '#ecc995', edge: '#ad7d4d', grain: '#d9b27a' },
   },
   {
+    id: 'night',
+    name: 'よるの教室',
+    desc: 'まっくら！ 光る消しゴムが 強くなる',
+    badge: 'くらい',
+    shape: { type: 'rect', w: 640, h: 420 },
+    frictionScale: 1.0,
+    startSpreadY: 0.34, seatTilt: 0.6,
+    dark: true, // くらい机（ヒカルンの ちくこう が はたらく）
+    look: { style: 'night', top: '#3b4568', edge: '#1f2540', grain: '#47527a' },
+  },
+  {
     id: 'giant',
     name: 'きょじんの机',
     desc: '超巨大！ひろびろ使える',

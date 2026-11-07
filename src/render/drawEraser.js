@@ -3,6 +3,7 @@
 import { eraserExtent } from '../logic/geometry.js';
 import { STATIONERY_ART } from './stationeryArt.js';
 import { ERASER_ART } from './eraserArt.js';
+import { SPECIAL_ART } from './specialArt.js';
 
 export function roundRectPath(ctx, x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -68,7 +69,7 @@ export function drawEraser(ctx, def, x, y, angle, { scale = 1, alpha = 1, shadow
   }
 
   // 文房具・とくせいのある消しゴム・キャラ：専用の絵で描く
-  const art = look.art && (STATIONERY_ART[look.art] || ERASER_ART[look.art]);
+  const art = look.art && (STATIONERY_ART[look.art] || ERASER_ART[look.art] || SPECIAL_ART[look.art]);
   if (art) {
     art(ctx, s, look, tv);
     ctx.restore();

@@ -18,7 +18,7 @@ import Matter from 'matter-js';
 import { PHYSICS } from '../config/physics.js';
 import { GAME } from '../config/game.js';
 import { drawRandomCard, findCard } from '../config/cards.js';
-import { findEraser } from '../config/erasers.js';
+import { findEraser, REGULAR_ERASERS } from '../config/erasers.js';
 import {
   deskSize, isInsideDesk, distanceToEdge, eraserExtent, edgeClearance,
   clampInside, shrinkShape, pointSegDist,
@@ -31,6 +31,8 @@ const BASE_DT = 1000 / 60;
 const GUARDED_CARDS = ['skip', 'swap', 'fan', 'quake', 'guruguru'];
 
 const traitOf = (e) => e.def?.trait || {};
+// フルーツンの「こんらん」の数値（反対に飛ぶ確率・強さ）
+const confuseParams = () => findEraser('fruit')?.trait || {};
 
 export class Game {
   /**
@@ -60,6 +62,7 @@ export class Game {
     this.debris = [];
     this.junk = [];
     this._junkQueue = [];
+    this._hatchQueue = []; // タマゴン：からが われるのを待っている
     this._nextJid = 1;
     this.pencils = [];
     this.waxZones = [];
@@ -165,11 +168,59 @@ export class Game {
       pushNext: null,
       squishAt: -1e9,
       lastBreakAt: -1e9,
+      // ガチャの とくべつ消しゴム
+      dice: 0, // サイコロン：いまの目（1〜6）
+      dicePower: 1,
+      defUsed: false, // ニンジャ・ユウレイ・カガミン：1回だけの守りを使ったか
+      ghost: false, // ユウレイケシ：すりぬけ中
+      ghostEnd: false, // ユウレイケシ：番が終わったので、重なっていなければ もどす
+      blockUsed: false, // ブロッケン
+      boostUntil: 0, // ロケッター
+      charged: true, // ダイオウケシ：ためてある（弾ける）
+      cornerUsed: false, // マッサラ
+      hatched: false, // タマゴン
+      lastIce: null, // アイスケシ：さいごに こおらせた場所
+      tailAt: 0, // キョウリュウ：しっぽで押す時間と相手
+      tailTarget: null,
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
+    if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
+    if (t.id === 'glow' && this.desk.dark) {
+      // ヒカルン：くらい机では ぜんぶアップ
+      e.traitMass = t.mass ?? 1.2;
+      e.maxSpeed *= t.power ?? 1.12;
+      e.frictionMul = t.slide ?? 0.9;
+    }
+    if (t.id === 'corner') {
+      // マッサラ：ぜんぶの力が すこし高い
+      const k = t.allUp ?? 1.06;
+      e.traitMass = k;
+      e.maxSpeed *= k;
+      e.frictionMul = 1 / k;
+    }
     body.plugin = { piece: e };
+    if (t.id === 'dice') this._rollDice(e, true);
     this._applyMass(e);
     return e;
+  }
+
+  /** サイコロン：サイコロをふって、その目の能力にする */
+  _rollDice(e, quiet = false) {
+    e.dice = 1 + Math.floor(Math.random() * 6);
+    this._applyDice(e);
+    if (!quiet) {
+      const f = traitOf(e).faces[e.dice - 1];
+      this._emit('trait', { type: 'dice', playerIndex: e.playerIndex, x: e.body.position.x, y: e.body.position.y, value: e.dice, name: f.name });
+    }
+  }
+
+  _applyDice(e) {
+    const f = traitOf(e).faces?.[e.dice - 1];
+    if (!f) return;
+    e.traitMass = f.mass ?? 1;
+    e.frictionMul = f.brake ?? 1;
+    e.dicePower = f.power ?? 1;
+    this._applyMass(e);
   }
 
   /** 重さ = バランスの重さ × とくせい × カード（動かない間は、あとで反映） */
@@ -196,26 +247,80 @@ export class Game {
     if (this.phase !== 'aim' || playerIndex !== this.turnIndex) return false;
     const e = this.erasers[playerIndex];
     if (!e.alive) return false;
+    const t = traitOf(e);
     const len = Math.hypot(dirX, dirY) || 1;
     let ux = dirX / len;
     let uy = dirY / len;
-    // フルーツン：あまいかおりで、向きが反対になる
+    let s = Math.max(0, Math.min(1, strength));
+    // フルーツン：こんらん中は、5回に1回くらい 反対の向きに よわく飛んでしまう
     const confused = e.confused;
+    let backfire = false;
     if (confused) {
-      ux = -ux;
-      uy = -uy;
       e.confused = false;
+      const c = confuseParams();
+      if (Math.random() < (c.backChance ?? 0.2)) {
+        ux = -ux;
+        uy = -uy;
+        s *= c.backPower ?? 0.3;
+        backfire = true;
+      }
     }
-    const s = Math.max(0, Math.min(1, strength));
-    const v = s * e.maxSpeed * this.turn.powerMul;
+    // キラリン：まぶしくて、向きが すこし ブレる
+    const glare = this.glareFor(playerIndex);
+    if (glare) {
+      const a = (Math.random() * 2 - 1) * glare;
+      [ux, uy] = [ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a)];
+    }
+    const v = s * e.maxSpeed * this.turn.powerMul * (e.dicePower || 1);
     Body.setVelocity(e.body, { x: ux * v, y: uy * v });
-    const spinScale = traitOf(e).id === 'spinny' ? traitOf(e).spinScale ?? 1.7 : 1;
-    Body.setAngularVelocity(e.body, Math.max(-1, Math.min(1, spin)) * PHYSICS.spin.maxAngular * s * spinScale);
+    const spinScale = t.id === 'spinny' ? t.spinScale ?? 1.7 : 1;
+    let w = Math.max(-1, Math.min(1, spin)) * PHYSICS.spin.maxAngular * s * spinScale;
+    // ドーナッツ：まん中を弾いても くるくる回る
+    if (t.autoSpin && Math.abs(w) < t.autoSpin * s) w = (w < 0 ? -1 : 1) * t.autoSpin * Math.max(0.4, s);
+    // ロケッター：強く弾くと まっすぐ突進
+    if (t.id === 'rocket' && s >= (t.minPower ?? 0.8) && !backfire) {
+      e.boostUntil = this.time + (t.ms ?? 520);
+      w = 0;
+      this._emit('trait', { type: 'boost', playerIndex, x: e.body.position.x, y: e.body.position.y });
+    }
+    Body.setAngularVelocity(e.body, w);
+    // ブロッケン：はじめて弾いたとき、うしろに ブロックを のこす
+    if (t.id === 'block' && !e.blockUsed) this._placeBlock(e, ux, uy);
+    // ダイオウケシ：弾いたら、つぎの自分の番は ためる番
+    if (t.id === 'charge') e.charged = false;
     this.turn.flicked = true;
     this.turn.flickAt = this.time;
     this._startMotion('moving');
-    this._emit('flick', { playerIndex, strength: s, confused });
+    this._emit('flick', { playerIndex, strength: s, confused, backfire });
     return true;
+  }
+
+  /** i 番目の人が弾くとき、まぶしさ（キラリン）でブレる角度。なければ 0 */
+  glareFor(i) {
+    let g = 0;
+    for (const o of this._allPieces()) {
+      const t = traitOf(o);
+      if (o.alive && o.playerIndex !== i && t.id === 'glare') g = Math.max(g, t.spread ?? 0.09);
+    }
+    return g;
+  }
+
+  /** ブロッケン：弾いた向きの うしろに、ブロックの壁を1こ置く */
+  _placeBlock(e, ux, uy) {
+    const t = traitOf(e);
+    const L = t.length ?? 58;
+    const W = t.width ?? 24;
+    const p = e.body.position;
+    const d = this.pieceExtent(e) + W / 2 + 4;
+    const q = { x: p.x - ux * d, y: p.y - uy * d };
+    if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < L / 2) return;
+    const hit = this._allPieces().some(
+      (o) => o.alive && o !== e && Math.hypot(o.body.position.x - q.x, o.body.position.y - q.y) < this.pieceExtent(o) + L / 2,
+    );
+    if (hit) return;
+    e.blockUsed = true;
+    this._addPencil(q.x, q.y, Math.atan2(uy, ux) + Math.PI / 2, { length: L, width: W, look: 'block', color: e.def.look.body });
+    this._emit('trait', { type: 'block', playerIndex: e.playerIndex, x: q.x, y: q.y });
   }
 
   isConfused(i) {
@@ -497,7 +602,7 @@ export class Game {
     });
     body.label = 'pencil';
     Composite.add(this.engine.world, body);
-    this.pencils.push({ body, length, width, look, alive: true, fall: null });
+    this.pencils.push({ body, length, width, look, color: prm.color || null, alive: true, fall: null });
   }
 
   _pencilEnds(pc) {
@@ -577,7 +682,10 @@ export class Game {
       this._applySteer(dt);
       this._applyDeskBrake(dt);
       Engine.update(this.engine, dt);
+      this._hatchEggs();
       this._spawnJunk();
+      this._iceTrail();
+      this._updateGhosts();
       this._checkFalls();
     }
     this._updateFalls(dt);
@@ -686,6 +794,47 @@ export class Game {
         this._accelerate(cur, ux * (t.accel ?? 0.12), uy * (t.accel ?? 0.12), dt);
       }
     }
+    const k = dt / BASE_DT;
+    for (const e of this._allPieces()) {
+      if (!e.alive || e.body.isStatic) continue;
+      const et = traitOf(e);
+      // ロケッター：ブースト中は まっすぐ 加速する（回らない）
+      if (e.boostUntil > this.time) {
+        const sp = e.body.speed;
+        if (sp > 0.5) {
+          const a = (et.accel ?? 0.32) * k;
+          const v2 = Math.min(e.maxSpeed * 1.35, sp + a) / sp;
+          Body.setVelocity(e.body, { x: e.body.velocity.x * v2, y: e.body.velocity.y * v2 });
+        }
+        Body.setAngularVelocity(e.body, 0);
+      }
+      // キョウリュウ：当てたすこしあとに、しっぽで もう1回 押す
+      if (e.tailTarget && this.time >= e.tailAt) {
+        const o = e.tailTarget;
+        e.tailTarget = null;
+        if (o.alive && !o.body.isStatic) {
+          const dx = o.body.position.x - e.body.position.x;
+          const dy = o.body.position.y - e.body.position.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const p = et.push ?? 3.2;
+          Body.setVelocity(o.body, { x: o.body.velocity.x + (dx / d) * p, y: o.body.velocity.y + (dy / d) * p });
+          this._emit('trait', { type: 'tail', playerIndex: e.playerIndex, x: o.body.position.x, y: o.body.position.y });
+        }
+      }
+      // ジシャクン：近くを動いている相手を、すこし 引きよせる
+      if (et.id === 'magnet' && (this.phase === 'moving' || this.phase === 'settling')) {
+        const R = et.range ?? 150;
+        for (const o of this._allPieces()) {
+          if (!o.alive || o.playerIndex === e.playerIndex || o.body.isStatic || o.body.speed < 0.4) continue;
+          const dx = e.body.position.x - o.body.position.x;
+          const dy = e.body.position.y - o.body.position.y;
+          const d = Math.hypot(dx, dy);
+          if (d > R || d < 1) continue;
+          const a = (et.accel ?? 0.12) * (1 - d / R) * k;
+          Body.setVelocity(o.body, { x: o.body.velocity.x + (dx / d) * a, y: o.body.velocity.y + (dy / d) * a });
+        }
+      }
+    }
   }
 
   // その場所のすべりやすさ（ワックスがけの中は小さくなる。クロケシは相手のワックスがきかない）
@@ -694,6 +843,7 @@ export class Game {
     let s = 1;
     for (const z of this.waxZones) {
       if (this._guarded(e, z.owner)) continue;
+      if (z.kind === 'ice' && z.by === e.playerIndex) continue; // アイスケシは 自分の こおりでは すべらない
       if ((x - z.x) ** 2 + (y - z.y) ** 2 <= z.r * z.r) s = Math.min(s, z.scale);
     }
     return s;
@@ -773,9 +923,77 @@ export class Game {
       // とくせい
       const pa = a.plugin?.piece;
       const pb = b.plugin?.piece;
+      // 守りのとくせい（ニンジャ・ユウレイ・カガミン）：ぶつかったこと自体を なかったことにする
+      if (pa && pb && (this._defend(pair, pa, pb, power) || this._defend(pair, pb, pa, power))) continue;
       if (pa) this._traitHit(pa, pb, power, x, y);
       if (pb) this._traitHit(pb, pa, power, x, y);
       this._emit('hit', { x, y, power, pencil: a.label === 'pencil' || b.label === 'pencil' });
+    }
+  }
+
+  /**
+   * e が相手 o に当てられたときの、1回だけの守り。使ったら true（このぶつかりは なかったことになる）
+   * ニンジャケシ：よこへ よける／ユウレイケシ：この番のあいだ すりぬける／カガミン：力を そのまま返す
+   */
+  _defend(pair, e, o, power) {
+    const t = traitOf(e);
+    if (!['dodge', 'ghost', 'mirror'].includes(t.id) || e.defUsed || !e.alive) return false;
+    if (o.playerIndex === e.playerIndex || power < (t.minPower ?? 2.5)) return false;
+    if (o.body.speed <= e.body.speed + 0.3) return false; // 当てられたほうのときだけ
+    e.defUsed = true;
+    pair.isActive = false; // このぶつかりは なし
+    const p = { x: e.body.position.x, y: e.body.position.y };
+    if (t.id === 'dodge') {
+      // 相手の進む向きと 直角に よける（机の外や ほかの消しゴムの上には よけない）
+      const sp = o.body.speed || 1;
+      const nx = -o.body.velocity.y / sp;
+      const ny = o.body.velocity.x / sp;
+      const d = this.pieceExtent(e) * 2 + this.pieceExtent(o) * 0.6;
+      let spot = null;
+      for (const s of [1, -1, 1.5, -1.5]) {
+        const q = { x: p.x + nx * d * s, y: p.y + ny * d * s };
+        if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < this.pieceExtent(e)) continue;
+        const busy = this._allPieces().some(
+          (x) => x.alive && x !== e && Math.hypot(x.body.position.x - q.x, x.body.position.y - q.y) < this.pieceExtent(x) + this.pieceExtent(e) + 4,
+        );
+        if (!busy) {
+          spot = q;
+          break;
+        }
+      }
+      if (spot) Body.setPosition(e.body, spot);
+      // よけきれないときも、こんかいは 動かない
+      Body.setVelocity(e.body, { x: 0, y: 0 });
+      // 相手は そのまま まっすぐ 進むので、すりぬけさせる
+      e.ghost = true;
+      e.ghostEnd = true;
+      e.body.collisionFilter.mask = 0;
+      this._emit('trait', { type: 'dodge', playerIndex: e.playerIndex, x: p.x, y: p.y, x2: e.body.position.x, y2: e.body.position.y });
+    } else if (t.id === 'ghost') {
+      e.ghost = true;
+      e.body.collisionFilter.mask = 0; // この番のあいだ、なににも ぶつからない
+      Body.setVelocity(e.body, { x: 0, y: 0 });
+      this._emit('trait', { type: 'ghost', playerIndex: e.playerIndex, x: p.x, y: p.y });
+    } else {
+      const r = t.reflect ?? 1;
+      Body.setVelocity(o.body, { x: -o.body.velocity.x * r, y: -o.body.velocity.y * r });
+      Body.setVelocity(e.body, { x: 0, y: 0 });
+      this._emit('trait', { type: 'mirror', playerIndex: e.playerIndex, x: p.x, y: p.y });
+    }
+    return true;
+  }
+
+  /** ユウレイ・ニンジャのすりぬけを もどす（番が終わって、だれとも重なっていなければ） */
+  _updateGhosts() {
+    for (const e of this._allPieces()) {
+      if (!e.ghost || !e.ghostEnd || !e.alive) continue;
+      const overlap = [...this._allPieces(), ...this.junk].some(
+        (o) => o !== e && o.alive && o.body && Matter.Collision.collides(e.body, o.body)?.collided,
+      ) || this.pencils.some((pc) => pc.alive && Matter.Collision.collides(e.body, pc.body)?.collided);
+      if (overlap) continue;
+      e.ghost = false;
+      e.ghostEnd = false;
+      e.body.collisionFilter.mask = 0xffffffff;
     }
   }
 
@@ -808,8 +1026,8 @@ export class Game {
           e.traitMass = t.afterMass ?? 0.8;
           e.frictionMul *= t.afterFriction ?? 0.85;
           this._applyMass(e);
-          if (t.drop) this._junkQueue.push({ from: e, other: o, x, y, ...t.drop, kind: 'cover' });
-          this._emit('trait', { type: 'coverOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
+          if (t.drop) this._junkQueue.push({ from: e, other: o, x, y, ...t.drop, kind: t.drop.look || 'cover' });
+          this._emit('trait', { type: 'coverOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y, look: t.drop?.look || 'cover' });
         }
         break;
       case 'parts': // ガッタイン：強く当たるとパーツが外れる
@@ -831,8 +1049,8 @@ export class Game {
           e.squishAt = this.time;
         }
         break;
-      case 'bouncy': // ポヨン：当たった相手を大きくはね返す
-        if (o && !o.body.isStatic) addPush(o, away(), Math.min(t.max ?? 8, (t.push ?? 0.5) * power));
+      case 'bouncy': // ポヨン・トゲトゲン：当たった相手を はね返す
+        if (o && !o.body.isStatic) addPush(o, away(), Math.min(t.max ?? 8, Math.max(t.min ?? 0, (t.push ?? 0.5) * power)));
         break;
       case 'twoTone': // ツートン：赤い側（前）は強く押す、青い側（後ろ）は動きにくい
         if (o) {
@@ -852,8 +1070,79 @@ export class Game {
           this._emit('trait', { type: 'confuse', playerIndex: o.playerIndex, x: o.body.position.x, y: o.body.position.y });
         }
         break;
+      case 'tail': // キョウリュウ：自分の番に当てたら、しっぽで もう1回（1番に1回）
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !this.turn.tailDone && power > 2) {
+          this.turn.tailDone = true;
+          e.tailAt = this.time + (t.delayMs ?? 220);
+          e.tailTarget = o;
+        }
+        break;
+      case 'corner': // マッサラ：さいしょに 相手に当てた 一撃だけ 超強力
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !e.cornerUsed && power > 2 && !o.body.isStatic) {
+          e.cornerUsed = true;
+          addPush(o, away(), Math.min(t.max ?? 9, (t.push ?? 0.8) * power));
+          this._emit('trait', { type: 'corner', playerIndex: e.playerIndex, x, y });
+        }
+        break;
+      case 'egg': // タマゴン：強く当たると からがわれて、ほかの消しゴムが出てくる
+        if (!e.hatched && power >= (t.breakPower ?? 6)) {
+          e.hatched = true;
+          this._hatchQueue.push(e);
+        }
+        break;
       default:
         break;
+    }
+  }
+
+  /** e が いま弾いている人の消しゴムか */
+  _isShooter(e) {
+    return this.phase === 'moving' && e.playerIndex === this.turnIndex;
+  }
+
+  /** タマゴン：からが われて、中から ランダムで ほかの消しゴムが出てくる */
+  _hatchEggs() {
+    const q = this._hatchQueue;
+    if (!q.length) return;
+    this._hatchQueue = [];
+    for (const egg of q) {
+      if (!egg.alive) continue;
+      const i = egg.playerIndex;
+      const pool = REGULAR_ERASERS;
+      const def = pool[Math.floor(Math.random() * pool.length)];
+      const b = egg.body;
+      const n = this._makePiece(def, i, b.position.x, b.position.y, b.angle);
+      Body.setVelocity(n.body, b.velocity);
+      Body.setAngularVelocity(n.body, b.angularVelocity);
+      // カードの効果などは そのまま 引きつぐ（大きさは もとにもどる）
+      for (const k of ['confused', 'hold', 'holdUntil', 'grip', 'gripPending', 'gripScale', 'anchorPending', 'clear']) n[k] = egg[k];
+      n.hatched = true;
+      n.isExtra = egg.isExtra;
+      Composite.remove(this.engine.world, b);
+      egg.alive = false;
+      if (this.erasers[i] === egg) this.erasers[i] = n;
+      else this.extras = this.extras.map((x) => (x === egg ? n : x));
+      // われた から（机にころがる）
+      for (const s of [1, -1]) {
+        this._junkQueue.push({ from: n, other: null, x: b.position.x + s * 30, y: b.position.y + s * 10, w: 22, h: 14, color: '#fff8e1', kind: 'shell' });
+      }
+      this._emit('trait', { type: 'hatch', playerIndex: i, x: b.position.x, y: b.position.y, name: def.name });
+    }
+  }
+
+  /** アイスケシ：自分が弾いて 通ったところを こおらせる（古いところから とける） */
+  _iceTrail() {
+    if (this.phase !== 'moving') return;
+    for (const e of this._allPieces()) {
+      const t = traitOf(e);
+      if (t.id !== 'ice' || !e.alive || e.playerIndex !== this.turnIndex || e.body.speed < 0.6) continue;
+      const p = e.body.position;
+      if (e.lastIce && Math.hypot(p.x - e.lastIce.x, p.y - e.lastIce.y) < (t.spacing ?? 34)) continue;
+      if (!isInsideDesk(this.desk, p.x, p.y)) continue;
+      e.lastIce = { x: p.x, y: p.y };
+      this.waxZones.push({ x: p.x, y: p.y, r: t.radius ?? 30, scale: t.scale ?? 0.45, owner: e.playerIndex, kind: 'ice', by: e.playerIndex });
+      const mine = this.waxZones.filter((z) => z.kind === 'ice' && z.by === e.playerIndex);
+      if (mine.length > (t.max ?? 14)) this.waxZones.splice(this.waxZones.indexOf(mine[0]), 1);
     }
   }
 
@@ -1081,6 +1370,8 @@ export class Game {
     if (traitOf(cur).id === 'clear' && cur.alive && this.turn.flicked) {
       for (const pc of [cur, ...this.extrasOf(this.turnIndex)]) pc.clear = true;
     }
+    // ユウレイケシ：番が終わったら すりぬけ おしまい（重なっていたら、はなれてから）
+    for (const pc of this._allPieces()) if (pc.ghost) pc.ghostEnd = true;
     // サドンデス：予告していたところがけずれる
     if (this.pendingShrink) {
       this.desk.shape = this.pendingShrink;
@@ -1102,6 +1393,14 @@ export class Game {
     for (let guard = 0; guard < n * 3; guard++) {
       next = (next + 1) % n;
       if (!this.erasers[next].alive) continue;
+      // ダイオウケシ：弾いたあとの番は「ためる」お休み
+      const nm = this.erasers[next];
+      if (traitOf(nm).id === 'charge' && !nm.charged) {
+        nm.charged = true;
+        this.turnCount++;
+        this._emit('trait', { type: 'charge', playerIndex: next, x: nm.body.position.x, y: nm.body.position.y });
+        continue;
+      }
       if (this.players[next].skipNext) {
         this.players[next].skipNext = false;
         this.turnCount++;
@@ -1141,6 +1440,7 @@ export class Game {
       if (e.sizeLeft === 0) this._setSize(e, null);
     }
     for (const pc of [e, ...this.extrasOf(i)]) pc.clear = false;
+    if (traitOf(e).id === 'dice') this._rollDice(e); // サイコロン：番のたびに サイコロ
     this._trySplit(i);
   }
 
@@ -1177,6 +1477,14 @@ export class Game {
       confused: e.confused,
       clear: e.clear,
       splitDone: e.splitDone,
+      dice: e.dice,
+      defUsed: e.defUsed,
+      ghost: e.ghost,
+      ghostEnd: e.ghostEnd,
+      blockUsed: e.blockUsed,
+      charged: e.charged,
+      cornerUsed: e.cornerUsed,
+      hatched: e.hatched,
     });
     return {
       v: 1,
@@ -1208,6 +1516,7 @@ export class Game {
           length: pc.length,
           width: pc.width,
           look: pc.look,
+          color: pc.color,
         })),
       junk: this.junk.filter((j) => j.alive).map((j) => this._junkPack(j)),
       nextJid: this._nextJid,
@@ -1270,8 +1579,18 @@ export class Game {
         confused: pk.confused,
         clear: pk.clear,
         splitDone: pk.splitDone,
+        dice: pk.dice || 0,
+        defUsed: !!pk.defUsed,
+        ghost: !!pk.ghost,
+        ghostEnd: !!pk.ghostEnd,
+        blockUsed: !!pk.blockUsed,
+        charged: pk.charged ?? true,
+        cornerUsed: !!pk.cornerUsed,
+        hatched: !!pk.hatched,
         isExtra: pk.extra,
       });
+      if (e.dice) e.dicePower = traitOf(e).faces?.[e.dice - 1]?.power ?? 1;
+      if (e.ghost) e.body.collisionFilter.mask = 0;
       if (pk.size && pk.size !== 1) {
         Body.scale(e.body, pk.size, pk.size);
         e.size = pk.size;
@@ -1296,6 +1615,7 @@ export class Game {
     for (const pc of st.pencils || []) this._addPencil(pc.x, pc.y, pc.angle, pc);
     this.junk = [];
     this._junkQueue = [];
+    this._hatchQueue = [];
     for (const j of st.junk || []) this._addJunk(j);
     this._nextJid = st.nextJid || this._nextJid;
     this.waxZones = (st.waxZones || []).map((z) => ({ ...z }));
@@ -1354,6 +1674,13 @@ export class Game {
         clearAlpha: t.alpha ?? 0.3,
         squish: Math.max(0, 1 - (this.time - e.squishAt) / 350),
         vibrating: t.id === 'vibrate',
+        camo: !!t.camo,
+        dice: e.dice,
+        boosting: e.boostUntil > this.time,
+        ghost: e.ghost,
+        defUsed: e.defUsed,
+        charging: t.id === 'charge' && !e.charged,
+        glowing: t.id === 'glow' && !!this.desk.dark,
       },
     };
   }
@@ -1369,6 +1696,7 @@ export class Game {
       pendingShrink: this.pendingShrink,
       waxZones: this.waxZones,
       curveActive: this.canSteer(this.turnIndex),
+      glare: this.phase === 'aim' ? this.glareFor(this.turnIndex) : 0, // キラリンで 矢印がゆれる
       time: this.time,
       pencils: this.pencils
         .filter((pc) => pc.alive || (pc.fall && pc.fall.t < GAME.fallAnimMs))
@@ -1379,6 +1707,7 @@ export class Game {
           length: pc.length,
           width: pc.width,
           look: pc.look,
+          color: pc.color,
           alive: pc.alive,
           fallProgress: pc.fall ? Math.min(1, pc.fall.t / GAME.fallAnimMs) : 0,
         })),

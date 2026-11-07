@@ -9,9 +9,10 @@
 // stats（ステータス）… パワー・バランス・スピード（各1〜5、合計9）
 // trait（とくせい）… その消しゴムだけの能力。id で種類、name と desc は画面に出す説明、
 //                    ほかの数字は強さ（しくみは logic/Game.js の「とくせい」のところ）
-// rarity … normal / rare / superrare。強さは変わらない。レアほど CPU が使うことが少なく、ガチャでも出にくい（ERASER_RARITY の weight）
-// kind … 'chara' はキャラ消しゴム（図鑑で分けて表示）
-// gacha … true ならガチャでしか手に入らない（文房具）。
+// rarity … normal / rare / superrare / ultra（SSR）/ legend（UR）。強さは変わらない。
+//          レアほど CPU が使うことが少なく、ガチャでも出にくい（ERASER_RARITY の weight）
+// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」（図鑑で分けて表示）
+// gacha … true ならガチャでしか手に入らない（文房具・とくべつ消しゴム）。
 //         それ以外は、はじめから持っている（START_ERASER_IDS）か、CPUにかつと手に入る
 
 // 消しゴムのレア度。weight は出やすさ（CPU が選ぶとき・ガチャ）
@@ -19,6 +20,8 @@ export const ERASER_RARITY = {
   normal: { label: 'ノーマル', weight: 3 },
   rare: { label: 'レア', weight: 1.2 },
   superrare: { label: 'スーパーレア', weight: 0.4 },
+  ultra: { label: 'ウルトラレア', weight: 0.15 }, // SSR
+  legend: { label: 'レジェンド', weight: 0.06 }, // UR
 };
 
 /** レア度の重みで1つえらぶ */
@@ -117,7 +120,7 @@ export const ERASERS = [
     shape: { type: 'rect', w: 58, h: 30, chamfer: 6 },
     look: { art: 'clear', body: '#bfe6ff' },
     stats: { power: 3, balance: 2, speed: 4 },
-    trait: { id: 'clear', name: 'すけすけ', desc: '弾いたあと、つぎの自分の番まで見えにくくなる（CPUのねらいがズレる）', aimErrorDeg: 14, alpha: 0.3 },
+    trait: { id: 'clear', name: 'すけすけ', desc: '弾いて止まると、つぎの自分の番まで 完全に見えなくなる（CPUのねらいもズレる）', aimErrorDeg: 22, alpha: 0 },
   },
   {
     id: 'kurokeshi', rarity: 'rare',
@@ -144,7 +147,11 @@ export const ERASERS = [
     shape: { type: 'rect', w: 52, h: 32, chamfer: 10 },
     look: { art: 'fruit', body: '#ffd1dc' },
     stats: { power: 2, balance: 3, speed: 4 },
-    trait: { id: 'confuse', name: 'あまいかおり', desc: '当たった相手は、つぎに弾くとき向きが反対になる' },
+    trait: {
+      id: 'confuse', name: 'あまいかおり',
+      desc: '当たった相手は こんらんする。つぎに弾くとき、5回に1回くらい 反対の向きに 弱く飛んでしまう',
+      backChance: 0.2, backPower: 0.3, // 反対に飛ぶ確率と、そのときの強さ
+    },
   },
   {
     id: 'pakatter', rarity: 'superrare',
@@ -420,6 +427,213 @@ export const ERASERS = [
     look: { art: 'marker', body: '#ffe94d' },
     stats: { power: 3, balance: 2, speed: 4 },
   },
+
+  // ---- ここからガチャ限定の「とくべつ消しゴム」（強さより クセと見た目で勝負。ステータスの合計は9のまま） ----
+  {
+    id: 'kirarin', rarity: 'rare', gacha: true, kind: 'special',
+    name: 'キラリン',
+    desc: 'ラメ入りの キラキラ消しゴム',
+    shape: { type: 'rect', w: 56, h: 30, chamfer: 6 },
+    look: { art: 'glitter', body: '#f8bbd0' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'glare', name: 'まぶしい', desc: 'まぶしくて、相手が弾く向きが すこし ブレる（矢印もゆれる）', spread: 0.09 },
+  },
+  {
+    id: 'korocoin', rarity: 'rare', gacha: true, kind: 'special',
+    name: 'コロコイン',
+    desc: '平たい 円ばん型',
+    shape: { type: 'circle', radius: 27 },
+    look: { art: 'coin', body: '#ffd54f' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'brake', name: 'スーッ', desc: '机の上を スーッと 長くすべる', scale: 0.86 },
+  },
+  {
+    id: 'saikoron', rarity: 'rare', gacha: true, kind: 'special',
+    name: 'サイコロン',
+    desc: 'サイコロの形の 消しゴム',
+    shape: { type: 'rect', w: 38, h: 38, chamfer: 7 },
+    look: { art: 'dice', body: '#ffffff' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'dice', name: 'サイコロ',
+      desc: '自分の番が来るたびに サイコロをふって、出た目で その番の能力が かわる',
+      // 出た目ごとの能力（mass＝重さ、brake＝ブレーキ、power＝弾く力の倍率）
+      faces: [
+        { name: 'ずっしり', mass: 1.5 },
+        { name: 'ふわふわ', mass: 0.7, power: 1.1 },
+        { name: 'パワー', power: 1.2 },
+        { name: 'すべすべ', brake: 0.75 },
+        { name: 'ピタッ', brake: 1.6 },
+        { name: 'ラッキー', mass: 1.2, power: 1.12 },
+      ],
+    },
+  },
+  {
+    id: 'sushikeshi', rarity: 'rare', gacha: true, kind: 'special',
+    name: 'スシケシ',
+    desc: 'おすしの形の 消しゴム（サーモン）',
+    shape: { type: 'rect', w: 58, h: 28, chamfer: 11 },
+    look: { art: 'sushi', body: '#fffaf0', neta: '#ff8a65' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'cover', name: 'ネタとび',
+      desc: 'はじめはネタがのっていて重い。強く当たると ネタが飛んで、シャリだけ 軽くなる（ネタは机にころがる）',
+      massScale: 1.3, breakPower: 7, afterMass: 0.9, afterFriction: 0.95,
+      drop: { w: 46, h: 14, color: '#ff8a65', look: 'neta' },
+    },
+  },
+  {
+    id: 'donut', rarity: 'rare', gacha: true, kind: 'special',
+    name: 'ドーナッツ',
+    desc: 'あなあきの ドーナツ型',
+    shape: { type: 'circle', radius: 26 },
+    look: { art: 'donut', body: '#e0a96d', icing: '#f48fb1' },
+    stats: { power: 3, balance: 2, speed: 4 },
+    trait: { id: 'spinny', name: 'くるりん', desc: '軽くて、いつも くるくる回りながら ぶつかる', spinScale: 1.5, damping: 0.25, autoSpin: 0.32 },
+  },
+  {
+    id: 'blocken', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'ブロッケン',
+    desc: 'つみかさねられる ブロック型',
+    shape: { type: 'rect', w: 56, h: 28, chamfer: 2 },
+    look: { art: 'brick', body: '#42a5f5' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: { id: 'block', name: 'ぶんしんブロック', desc: 'はじめて弾いたとき、うしろに ブロックを1こ のこして 壁にする（1回だけ）', length: 58, width: 24 },
+  },
+  {
+    id: 'rocketter', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'ロケッター',
+    desc: 'ロケットの形の 消しゴム',
+    shape: { type: 'rect', w: 66, h: 24, chamfer: 10 },
+    look: { art: 'rocket', body: '#eceff1' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'rocket', name: 'ブースト', desc: 'ぐーっと強く ひっぱって弾くと（8わり以上）、まっすぐ ロケット突進', minPower: 0.8, accel: 0.24, ms: 450 },
+  },
+  {
+    id: 'ninjakeshi', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'ニンジャケシ',
+    desc: 'にんじゃの 組み立て消しゴム',
+    shape: { type: 'rect', w: 44, h: 34, chamfer: 7 },
+    look: { art: 'ninja', body: '#37474f' },
+    stats: { power: 3, balance: 2, speed: 4 },
+    trait: { id: 'dodge', name: 'ぶんしんの術', desc: '1回だけ、当てられた しゅんかんに ドロンと よこへ よける', minPower: 3 },
+  },
+  {
+    id: 'hikarun', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'ヒカルン',
+    desc: 'くらいところで光る 蓄光消しゴム',
+    shape: { type: 'rect', w: 54, h: 30, chamfer: 8 },
+    look: { art: 'glow', body: '#d7ffd9', glow: '#76ff03' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'glow', name: 'ちくこう', desc: 'くらい「よるの教室」の机では、パワー・おもさ・すべりが ぜんぶ アップ', mass: 1.2, power: 1.12, slide: 0.9 },
+  },
+  {
+    id: 'irokawaru', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'イロカワール',
+    desc: 'あたたかさで 色がかわる消しゴム',
+    shape: { type: 'rect', w: 56, h: 30, chamfer: 8 },
+    look: { art: 'thermo', body: '#ba68c8' },
+    stats: { power: 3, balance: 2, speed: 4 },
+    trait: {
+      id: 'clear', camo: true, name: 'カメレオン',
+      desc: '弾いて止まると、つぎの自分の番まで 机の色に とけこんで 見えにくい',
+      aimErrorDeg: 12, alpha: 0.2,
+    },
+  },
+  {
+    id: 'togetogen', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'トゲトゲン',
+    desc: 'トゲトゲの形の 消しゴム',
+    shape: { type: 'polygon', sides: 8, radius: 27 },
+    look: { art: 'spiky', body: '#9ccc65' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: { id: 'bouncy', name: 'トゲトゲ', desc: 'さわった相手を、小さく はね返す（ゆっくり当たっても）', push: 0.15, min: 1.2, max: 3 },
+  },
+  {
+    id: 'jishakun', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'ジシャクン',
+    desc: 'じしゃく入り（という せってい）',
+    shape: { type: 'rect', w: 52, h: 30, chamfer: 4 },
+    look: { art: 'magnet', body: '#ef5350' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: { id: 'magnet', name: 'じりょく', desc: '近くを通る 相手の消しゴムを、すこし 引きよせる', range: 140, accel: 0.09 },
+  },
+  {
+    id: 'icekeshi', rarity: 'superrare', gacha: true, kind: 'special',
+    name: 'アイスケシ',
+    desc: 'アイスクリームの形の 消しゴム',
+    shape: { type: 'circle', radius: 25 },
+    look: { art: 'icecream', body: '#b3e5fc', scoop: '#f8bbd0' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'ice', name: 'こおりの道',
+      desc: '自分が弾いて 通ったところが こおって、相手が すべりやすくなる（自分は へいき。古いところから とける）',
+      radius: 30, scale: 0.45, spacing: 34, max: 14,
+    },
+  },
+  {
+    id: 'tamagon', rarity: 'ultra', gacha: true, kind: 'special',
+    name: 'タマゴン',
+    desc: 'たまごの形の 消しゴム。中に なにかいる…？',
+    shape: { type: 'circle', radius: 26 },
+    look: { art: 'egg', body: '#fff8e1' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'egg', name: 'なにがでるかな', desc: '強く当たると からが われて、中から ランダムで ほかの消しゴムが 出てくる', breakPower: 6 },
+  },
+  {
+    id: 'yureikeshi', rarity: 'ultra', gacha: true, kind: 'special',
+    name: 'ユウレイケシ',
+    desc: 'はんとうめいの おばけ消しゴム',
+    shape: { type: 'rect', w: 50, h: 34, chamfer: 15 },
+    look: { art: 'ghost', body: '#eef2ff' },
+    stats: { power: 3, balance: 2, speed: 4 },
+    trait: { id: 'ghost', name: 'すりぬけ', desc: '1回だけ、当てられた番のあいだ 相手が スーッと すりぬける', minPower: 2.5 },
+  },
+  {
+    id: 'kagamin', rarity: 'ultra', gacha: true, kind: 'special',
+    name: 'カガミン',
+    desc: 'かがみのような ケースつき',
+    shape: { type: 'rect', w: 56, h: 32, chamfer: 4 },
+    look: { art: 'mirror', body: '#cfd8dc' },
+    stats: { power: 2, balance: 4, speed: 3 },
+    trait: { id: 'mirror', name: 'はねかえし', desc: '1回だけ、当てられた力を そのまま相手に はね返す', minPower: 2.5, reflect: 1 },
+  },
+  {
+    id: 'kyoryu', rarity: 'ultra', gacha: true, kind: 'special',
+    name: 'キョウリュウ',
+    desc: 'きょうりゅうの 組み立て消しゴム',
+    shape: { type: 'rect', w: 62, h: 34, chamfer: 8 },
+    look: { art: 'dinokit', body: '#66bb6a' },
+    stats: { power: 4, balance: 3, speed: 2 },
+    trait: { id: 'tail', name: 'しっぽアタック', desc: '自分の番に 相手に当てると、しっぽで もう1回 ペシッと押す', push: 2.6, delayMs: 220 },
+  },
+  {
+    id: 'karappo', rarity: 'ultra', gacha: true, kind: 'special',
+    name: 'カラッポ',
+    desc: '中身のない ケースだけ（ネタ枠）',
+    shape: { type: 'rect', w: 82, h: 42, chamfer: 4 },
+    look: { art: 'emptycase', body: '#4fc3f7' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'light', name: 'からっぽ', desc: '中身がないので かるい。でも 大きくて けっこう じゃま', weight: 0.8 },
+  },
+  {
+    id: 'daioukeshi', rarity: 'legend', gacha: true, kind: 'special',
+    name: 'ダイオウケシ',
+    desc: '記念品サイズの 超きょだい消しゴム',
+    shape: { type: 'rect', w: 112, h: 62, chamfer: 8 },
+    look: { art: 'giant', body: '#fafafa', sleeve: '#7b1fa2' },
+    stats: { power: 3, balance: 5, speed: 1 },
+    trait: { id: 'charge', name: 'ためうち', desc: '超きょだいで、ほぼ落ちない。そのかわり 1回弾くと、つぎの自分の番は「ためる」お休みになる', weight: 1.6 },
+  },
+  {
+    id: 'massara', rarity: 'legend', gacha: true, kind: 'special',
+    name: 'マッサラ',
+    desc: '新品 みしよう。かどが ピンピン',
+    shape: { type: 'rect', w: 58, h: 30, chamfer: 0 },
+    look: { art: 'brandnew', body: '#ffffff', sleeve: '#1565c0' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'corner', name: 'かどアタック', desc: 'ぜんぶの力が すこし高い。さいしょに 相手に当てた 一撃だけ 超強力', allUp: 1.06, push: 0.8, max: 9 },
+  },
 ];
 
 // はじめから持っている消しゴム（図鑑）
@@ -427,5 +641,8 @@ export const START_ERASER_IDS = ['white-standard'];
 // ふつうの消しゴム（キャラもふくむ。CPU もこの中から選ぶ）と、ガチャ限定の文房具
 export const REGULAR_ERASERS = ERASERS.filter((e) => !e.gacha);
 export const GACHA_ERASERS = ERASERS.filter((e) => e.gacha);
+// ガチャの中の、文房具と とくべつ消しゴム（図鑑のページ分け）
+export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => e.kind !== 'special');
+export const SPECIAL_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'special');
 
 export const findEraser = (id) => ERASERS.find((e) => e.id === id);
