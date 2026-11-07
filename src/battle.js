@@ -1,0 +1,824 @@
+// 対戦画面。ロジック(Game)・描画(CanvasRenderer)・操作(FlickInput)・CPU・効果音・演出をつなぐ。
+//
+// オンラインのとき（online を渡す）
+//   ・自分の番：自分の端末で物理を計算し、動き（stream）を少しずつ送る。番が終わったら状態をまるごと送る
+//   ・ほかの人の番：自分では計算せず、とどいた動きをそのまま見せる（だから全員の画面で同じ動き・同じ演出）
+//   ・通信が切れた人の番は、残っている人のうち一番前の人が「脱落」にして先へ進める
+
+import { Game } from './logic/Game.js';
+import { CanvasRenderer } from './render/CanvasRenderer.js';
+import { FlickInput } from './input/FlickInput.js';
+import { planCpuShot, planCpuCard, chooseCpuPiece } from './ai/cpu.js';
+import { GAME } from './config/game.js';
+import { PHYSICS } from './config/physics.js';
+import { ONLINE } from './config/online.js';
+import { CARD_TYPES } from './config/cards.js';
+import { cardHTML, flipCardHTML } from './ui/cardView.js';
+import { sfx, isMuted, setMuted } from './audio/sfx.js';
+import { collection } from './progress/collection.js';
+import { packView, unpackView, packEvent, unpackEvent } from './online/viewCodec.js';
+
+// 名前を HTML に入れるときは、記号をそのまま文字として出す
+const esc = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+const PLACE_HINT = {
+  pencil: 'えんぴつを置くところを触って、そのままぐるっと向きを決めよう',
+  circle: 'つるつるにしたいところを タップ！',
+  eraser: 'ワープしたいところを タップ！',
+};
+
+// オンラインで、ほかの人の画面にも送る「できごと」（音や演出のため）
+const STREAM_EVENTS = new Set([
+  'flick', 'hit', 'fall', 'hold', 'card', 'split', 'pieceFall', 'trait',
+  'again', 'resume', 'skipped', 'shrinkWarn', 'shrink', 'newCard', 'nextCard',
+]);
+
+/**
+ * @param online オンラインのとき { session, myIndex, order, seq, state }
+ */
+export function createBattle(root, { desk, players, onEnd, onQuit, label = '', hideCpuCards = false, online = null }) {
+  root.innerHTML = `
+    <div class="hud">
+      <div class="turn-badge" data-el="turn"></div>
+      <div class="hud-mid">
+        <span class="turn-count" data-el="count"></span>
+        <span class="sd-badge" data-el="sd">サドンデス</span>
+      </div>
+      <div class="hud-right">
+        <button class="btn small ghost" data-el="sound" aria-label="音"></button>
+        <button class="btn small ghost" data-el="quit">やめる</button>
+      </div>
+    </div>
+    <div class="stage">
+      <canvas class="board"></canvas>
+      <div class="toast" data-el="toast"></div>
+      <div class="hint" data-el="hint"></div>
+      <button class="card-btn" data-el="cardBtn"></button>
+      ${online ? '<button class="stamp-btn" data-el="stampBtn" aria-label="スタンプ">💬</button><div class="stamp-palette" data-el="stamps"></div>' : ''}
+      <div class="banner" data-el="banner">
+        <span data-el="bannerText"></span>
+        <button class="btn small ghost" data-el="bannerCancel">やめる</button>
+      </div>
+      <div class="overlay" data-el="overlay"></div>
+    </div>`;
+  const $ = (name) => root.querySelector(`[data-el="${name}"]`);
+  const canvas = root.querySelector('canvas.board');
+
+  const game = new Game({ desk, players });
+  if (online?.state) game.importState(online.state);
+  const renderer = new CanvasRenderer(canvas);
+  const input = new FlickInput(canvas, renderer, game);
+  if (import.meta.env.DEV) window.__game = game; // 開発中の確認用
+
+  let destroyed = false;
+  let raf = 0;
+  let cpuAim = null;
+  let cpuSteerTarget = -1;
+  let slow = null; // スロー演出 { start, idx }
+  let overlayOpen = false;
+  let overShown = false;
+  const flickedOnce = new Set(); // 一度でも弾いた人（はじめての人にだけ説明を出す）
+  const timers = new Set();
+  const later = (ms, fn) => {
+    const id = setTimeout(() => {
+      timers.delete(id);
+      if (!destroyed) fn();
+    }, ms);
+    timers.add(id);
+  };
+
+  // ---- オンラインの準備 ----
+  const isMyTurn = () => !online || game.turnIndex === online.myIndex;
+  let remoteView = null; // ほかの人の番に、とどいた動きで作る「見た目の状態」
+  const shown = new Map(); // pid → 画面に出している位置（なめらかに動かすため）
+  // 画面に出す状態（ほかの人の番は、とどいた動き）
+  const currentState = () => (online && !isMyTurn() && remoteView ? remoteView : game.getState());
+  const posOf = (i) => currentState().erasers[i];
+
+  // ゲームのできごと：音や演出を出す。オンラインで自分が動かしているときは、みんなにも送る
+  const remoteHandlers = {};
+  const evQueue = [];
+  function on(name, fn) {
+    game.on(name, (data) => {
+      fn(data);
+      if (online && STREAM_EVENTS.has(name)) evQueue.push(packEvent(name, data));
+    });
+    (remoteHandlers[name] ||= []).push(fn);
+  }
+
+  // ---- 画面サイズ ----
+  const ro = new ResizeObserver(() => renderer.resize(desk));
+  ro.observe(canvas);
+  renderer.resize(desk);
+
+  // ---- 表示 ----
+  function updateHud(text) {
+    const p = game.players[game.turnIndex];
+    $('turn').textContent = text || `${p.name}のばん`;
+    $('turn').style.background = p.color;
+    $('count').textContent = `${label ? label + ' ' : ''}ターン ${game.turnCount}`;
+    $('sd').classList.toggle('show', game.turnCount >= GAME.suddenDeath.startTurn);
+  }
+
+  function toast(text, color = '#fff') {
+    const el = $('toast');
+    el.textContent = text;
+    el.style.color = color;
+    el.classList.remove('show');
+    void el.offsetWidth; // アニメーションをやり直すため
+    el.classList.add('show');
+  }
+
+  function setHint(text) {
+    $('hint').textContent = text || '';
+    $('hint').classList.toggle('show', !!text);
+  }
+
+  function updateSoundBtn() {
+    $('sound').textContent = isMuted() ? '🔇' : '🔊';
+  }
+  updateSoundBtn();
+  $('sound').addEventListener('click', () => {
+    setMuted(!isMuted());
+    updateSoundBtn();
+  });
+
+  function openOverlay(html) {
+    overlayOpen = true;
+    $('overlay').innerHTML = html;
+    $('overlay').classList.add('show');
+    return $('overlay');
+  }
+  function closeOverlay() {
+    overlayOpen = false;
+    $('overlay').classList.remove('show');
+    $('overlay').innerHTML = '';
+  }
+
+  // CPU（ないしょのとき）とオンラインの相手のカードは、使うまで見せない
+  const isSecret = (p) => (hideCpuCards && p.type === 'cpu') || p.type === 'remote';
+
+  // ---- ターンの始まり ----
+  function onTurnStart({ again = false } = {}) {
+    const p = game.players[game.turnIndex];
+    if (p.type === 'cpu') {
+      // カードが使えるかどうかは Game が判断する（じしんのあとも、おかわりの残りが使える）
+      runCpu(game.turnIndex, p, true);
+      return;
+    }
+    if (p.type === 'remote') {
+      // オンラインの相手の番：見ているだけ
+      if (!again) toast(`${p.name}のばん！`, '#fff');
+      setHint('');
+      return;
+    }
+    if (!again) toast(online ? 'あなたのばん！' : `${p.name}のばん！`, '#fff');
+    if (game.isConfused(game.turnIndex)) {
+      setHint('🍓 こんらん中！ ひっぱった ほうに 飛ぶよ（矢印を見てね）');
+    } else if (game.extrasOf(game.turnIndex).length) {
+      setHint('2つに分かれているよ。弾くほうを さわってね');
+    } else {
+      setHint(flickedOnce.has(game.turnIndex) ? '' : `${p.name}の消しゴムを ひっぱって はなそう！`);
+    }
+  }
+
+  // ---- カード（人） ----
+  function refreshCardBtn() {
+    const i = game.turnIndex;
+    const p = game.players[i];
+    const show =
+      p.type === 'human' && game.canUseCard(i) && !input.placement && !input.targeting &&
+      !overlayOpen && !input.drag;
+    const btn = $('cardBtn');
+    const key = show ? `${i}:${p.card.def.id}` : '';
+    if (show && btn.dataset.pi !== key) {
+      const def = p.card.def;
+      btn.dataset.pi = key;
+      btn.style.setProperty('--type', CARD_TYPES[def.type].color);
+      btn.innerHTML = `<span class="card-btn-icon">${def.icon}</span>
+        <span class="card-btn-text"><small>カードをつかう</small>${def.name}</span>`;
+    }
+    if (!show) btn.dataset.pi = '';
+    btn.classList.toggle('show', show);
+  }
+
+  $('cardBtn').addEventListener('click', () => {
+    const i = game.turnIndex;
+    if (!game.canUseCard(i)) return;
+    const def = game.players[i].card.def;
+    sfx.tap();
+    const ov = openOverlay(`
+      <div class="modal">
+        ${cardHTML(def, 'big')}
+        <div class="row">
+          <button class="btn ghost" data-act="cancel">やめる</button>
+          <button class="btn primary" data-act="use">つかう！</button>
+        </div>
+      </div>`);
+    ov.querySelector('[data-act=cancel]').onclick = closeOverlay;
+    ov.querySelector('[data-act=use]').onclick = () => {
+      closeOverlay();
+      const opps = game.opponentsOf(i, def.id); // クロケシのガードは えらべない
+      if (def.place) startPlacement(i, def);
+      else if (def.target && opps.length > 1) startTargeting(i, def, opps);
+      else {
+        const r = game.useCard(i, {});
+        if (!r.ok) toast(r.reason, '#ffd54f'); // たとえば「相手はガードしているよ」
+      }
+    };
+  });
+
+  // 相手が2人以上いるとき：だれに使うか、消しゴムをタップしてえらぶ
+  function startTargeting(i, def, candidates) {
+    input.setTargeting({
+      candidates,
+      onPick: (target) => {
+        endPlacement();
+        game.useCard(i, { target });
+      },
+    });
+    $('bannerText').textContent = `${def.name}：だれに つかう？ 相手の消しゴムを タップ！`;
+    $('banner').classList.add('show');
+    setHint('');
+  }
+
+  function startPlacement(i, def) {
+    input.setPlacement({
+      kind: def.place,
+      def,
+      playerIndex: i,
+      onPlace: (params) => {
+        const r = game.useCard(i, params);
+        if (r.ok) endPlacement();
+        else toast(r.reason, '#ffd54f');
+      },
+      onInvalid: (reason) => toast(reason || 'そこには置けないよ', '#ffd54f'),
+    });
+    $('bannerText').textContent = PLACE_HINT[def.place];
+    $('banner').classList.add('show');
+    setHint('');
+  }
+  function endPlacement() {
+    input.setPlacement(null);
+    input.setTargeting(null);
+    $('banner').classList.remove('show');
+  }
+  $('bannerCancel').addEventListener('click', endPlacement);
+
+  // ---- CPU ----
+  function runCpu(idx, p, allowCard) {
+    const cfg = GAME.cpu[p.level || 'normal'];
+    later(cfg.thinkMs, () => {
+      if (allowCard) {
+        const params = planCpuCard(game, idx, cfg);
+        if (params) {
+          announceCard(idx, () => {
+            game.useCard(idx, params);
+            // じしん・せんぷうき・ぐるぐるは止まってから（resume で続き）
+            if (game.phase !== 'aim' || game.turnIndex !== idx) return;
+            // おかわりで新しいカードが来たら、もう一度考える（新しいカードを見せてから）
+            if (game.canUseCard(idx)) later(params && game.players[idx].cardQueue?.length ? 2500 : 1200, () => runCpu(idx, p, true));
+            else later(500, () => cpuShoot(idx, cfg));
+          });
+          return;
+        }
+      }
+      cpuShoot(idx, cfg);
+    });
+  }
+
+  function cpuShoot(idx, cfg) {
+    if (game.phase !== 'aim' || game.turnIndex !== idx) return;
+    chooseCpuPiece(game, idx); // パカッターが分かれていたら、弾くほうをえらぶ
+    const plan = planCpuShot(game, idx, cfg);
+    cpuSteerTarget = plan.target ?? -1;
+    const start = performance.now();
+    cpuAim = { playerIndex: idx, dirX: plan.dirX, dirY: plan.dirY, strength: 0, spin: plan.spin || 0 };
+    const tick = () => {
+      if (destroyed) return;
+      const t = Math.min(1, (performance.now() - start) / cfg.aimShowMs);
+      cpuAim.strength = plan.strength * (1 - (1 - t) * (1 - t));
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        later(150, () => {
+          cpuAim = null;
+          game.flick(idx, plan.dirX, plan.dirY, plan.strength, plan.spin || 0);
+        });
+      }
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // CPU がカードを使うとき、めくれるカードで見せる
+  function announceCard(idx, done) {
+    const p = game.players[idx];
+    const ov = openOverlay(`
+      <div class="announce">
+        <div class="announce-title" style="color:${p.color}">${esc(p.name)}が カードをつかった！</div>
+        ${flipCardHTML(p.card.def)}
+      </div>`);
+    later(250, () => {
+      ov.querySelector('.flip')?.classList.add('open');
+      sfx.flip();
+    });
+    later(1700, () => {
+      closeOverlay();
+      done();
+    });
+  }
+
+  // ---- ゲームからの知らせ ----
+  on('flick', ({ playerIndex, strength }) => {
+    sfx.flick(strength);
+    if (game.players[playerIndex].type === 'human') {
+      flickedOnce.add(playerIndex);
+      setHint(game.turn.curve ? '画面をなぞると 曲がるよ！' : '');
+    }
+  });
+
+  on('hit', ({ x, y, power, pencil }) => {
+    sfx.hit(power, pencil);
+    renderer.addEffect({ type: 'burst', x, y, power, dur: 300 });
+  });
+
+  on('fall', ({ playerIndex, gone }) => {
+    const p = game.players[playerIndex];
+    if (gone) {
+      // オンラインで通信が切れて脱落
+      toast(`${p.name}は 通信が切れたので 脱落…`, p.color);
+      return;
+    }
+    sfx.fall();
+    toast(`${p.name}が おちた！`, p.color);
+    slow = { start: performance.now(), idx: playerIndex };
+  });
+
+  // ---- とくせい ----
+  on('split', ({ playerIndex, x, y, x2, y2 }) => {
+    const p = game.players[playerIndex];
+    sfx.crumble();
+    later(120, () => sfx.whoosh());
+    renderer.shake(250, 5);
+    renderer.addEffect({ type: 'ring', x, y, color: p.color, dur: 600, r: 20, grow: 50 });
+    renderer.addEffect({ type: 'ring', x: x2, y: y2, color: p.color, dur: 600, r: 20, grow: 50 });
+    renderer.addEffect({ type: 'text', x: (x + x2) / 2, y: (y + y2) / 2, text: 'パカッ！', color: '#ff9f43', stroke: true, size: 30, dur: 1300 });
+    toast(`${p.name}が 2つに分かれた！`, p.color);
+    if (p.type === 'human') setHint('どっちを弾くか、さわってえらべるよ');
+  });
+  on('pieceFall', ({ playerIndex, x, y }) => {
+    const p = game.players[playerIndex];
+    sfx.fall();
+    renderer.addEffect({ type: 'text', x, y, text: 'セーフ！', color: '#4fc3f7', stroke: true, size: 26, dur: 1300 });
+    later(300, () => toast(`かけらが落ちた！ でも ${p.name}は まだのこってる`, p.color));
+  });
+  on('trait', ({ type, playerIndex, x, y, left }) => {
+    const p = game.players[playerIndex];
+    if (type === 'coverOff') {
+      sfx.whoosh();
+      renderer.addEffect({ type: 'text', x, y, text: 'カバーが とれた！', color: '#26a69a', stroke: true, size: 22, dur: 1300 });
+      renderer.addEffect({ type: 'ring', x, y, color: '#26a69a', dur: 500, r: 20, grow: 40 });
+    } else if (type === 'partOff') {
+      sfx.hit(9, true);
+      renderer.addEffect({ type: 'text', x, y, text: `パーツが とれた！（のこり${left}）`, color: '#ffca28', stroke: true, size: 20, dur: 1300 });
+    } else if (type === 'confuse') {
+      sfx.boing();
+      renderer.addEffect({ type: 'text', x, y, text: '🍓 こんらん！', color: '#ff6f91', stroke: true, size: 24, dur: 1400 });
+      if (p.type === 'human') later(400, () => toast(`${p.name}は こんらん！ つぎは反対に飛ぶよ`, '#ff6f91'));
+    }
+  });
+
+  on('hold', ({ x, y }) => {
+    sfx.hold();
+    renderer.addEffect({ type: 'ring', x, y, color: '#4fc3f7', dur: 600, r: 30 });
+    renderer.addEffect({ type: 'text', x, y, text: 'ふみとどまった！', color: '#4fc3f7', stroke: true, size: 24, dur: 1400 });
+  });
+
+  on('card', ({ playerIndex, card, params, target }) => {
+    const me = posOf(playerIndex);
+    const color = CARD_TYPES[card.type].color;
+    sfx.card();
+    toast(`${card.icon} ${card.name}！`, color);
+    switch (card.id) {
+      case 'big':
+        sfx.big();
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 600, r: 40 });
+        renderer.shake(250, 4);
+        break;
+      case 'curve':
+        if (game.players[playerIndex].type === 'human') setHint('弾いたあと、画面をなぞると 曲がるよ！');
+        break;
+      case 'barrier':
+      case 'wax':
+        renderer.addEffect({ type: 'ring', x: params.x, y: params.y, color: '#fff', dur: 500, r: 30, grow: 80 });
+        if (card.id === 'wax') sfx.whoosh();
+        break;
+      case 'skip':
+        later(900, () => toast(`${game.players[target].name}は つぎ おやすみ！`, '#b39ddb'));
+        break;
+      case 'swap':
+      case 'teleport': {
+        sfx.whoosh();
+        const pts = card.id === 'swap' ? [me, posOf(target)] : [me];
+        pts.forEach((q) => renderer.addEffect({ type: 'ring', x: q.x, y: q.y, color, dur: 600, r: 20, grow: 50 }));
+        break;
+      }
+      case 'quake':
+        sfx.quake();
+        renderer.shake(1100, 7);
+        break;
+      case 'fan':
+        sfx.whoosh();
+        later(150, () => sfx.whoosh());
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color: '#b3e5fc', dur: 700, r: 30, grow: 300 });
+        break;
+      case 'guruguru':
+        sfx.whoosh();
+        currentState().erasers.forEach((q) => {
+          if (q.alive) renderer.addEffect({ type: 'text', x: q.x, y: q.y, text: '😵', size: 30, dur: 1200 });
+        });
+        break;
+      case 'fullpower':
+        sfx.big();
+        renderer.shake(250, 4);
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 600, r: 30, grow: 70 });
+        break;
+      case 'mini':
+        sfx.whoosh();
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 500, r: 50, grow: -40 });
+        break;
+      case 'ruler':
+        renderer.addEffect({ type: 'ring', x: params.x, y: params.y, color: '#fff', dur: 500, r: 40, grow: 120 });
+        break;
+      case 'okawari':
+        // 新しいカードは newCard で見せる
+        break;
+      case 'hazure':
+        later(150, () => sfx.boing());
+        renderer.addEffect({ type: 'text', x: me.x, y: me.y, text: '🙃', size: 60, dur: 1600 });
+        later(900, () => toast('ざんねん…', '#ffcc80'));
+        break;
+      default:
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 600, r: 30 });
+    }
+  });
+
+  // おかわり：新しいカードが何枚かめくれる
+  on('newCard', ({ playerIndex, cards }) => {
+    const p = game.players[playerIndex];
+    // ひとが はじめて手に入れたカードは NEW＋図鑑へ（CPU・オンラインの相手のおかわりは対象外）
+    const human = p.type === 'human';
+    const fresh = cards.map((c) => human && !collection.hasSeenCard(c.id));
+    if (human) collection.markCardsSeen(cards.map((c) => c.id));
+    // 相手のカードがないしょのときは、裏のまま見せる（使うときにめくれる）
+    const secret = isSecret(p);
+    const ov = openOverlay(`
+      <div class="announce">
+        <div class="announce-title" style="color:${p.color}">🎁 ${esc(p.name)}に カード${cards.length}枚！</div>
+        <div class="deal n${cards.length}">${cards
+          .map((c, k) =>
+            secret
+              ? '<div class="flip secret"><div class="card-back"><span>?</span></div></div>'
+              : flipCardHTML(c, '', { isNew: fresh[k] }),
+          )
+          .join('')}</div>
+        <div class="announce-note">${secret ? 'なにが出たかは ないしょ…' : 'じゅんばんに すぐ使えるよ'}</div>
+      </div>`);
+    ov.querySelectorAll('.flip:not(.secret)').forEach((f, k) => {
+      later(350 + k * 450, () => {
+        f.classList.add('open');
+        sfx.flip();
+        if (cards[k].rarity !== 'normal') later(350, () => sfx.rare());
+      });
+    });
+    later(1400 + cards.length * 450, closeOverlay);
+  });
+
+  // おかわりの2枚目以降：1枚使うと次のカードが出てくる
+  on('nextCard', ({ playerIndex, card }) => {
+    const p = game.players[playerIndex];
+    if (!isSecret(p)) later(1000, () => toast(`つぎのカード：${card.icon} ${card.name}`, CARD_TYPES[card.type].color));
+    if (p.type === 'human') setHint('もう1枚カードが使えるよ！');
+  });
+
+  on('again', () => {
+    updateHud(`${game.players[game.turnIndex].name}：もう1回！`);
+    toast('もう1回！', '#ffeb3b');
+    if (isMyTurn()) onTurnStart({ again: true });
+  });
+  on('resume', () => {
+    updateHud();
+    if (isMyTurn()) onTurnStart({ again: true });
+  });
+  on('skipped', ({ playerIndex }) => {
+    toast(`${game.players[playerIndex].name}は おやすみ…💤`, '#b39ddb');
+  });
+  on('shrinkWarn', ({ first }) => {
+    sfx.warn();
+    if (first) {
+      later(700, () => toast('サドンデス！ 机がけずれるぞ', '#ff5252'));
+    }
+  });
+  on('shrink', () => {
+    sfx.crumble();
+    renderer.shake(300, 4);
+  });
+
+  // 番が終わった（ここは自分の端末で計算したときだけ来る）
+  game.on('turn', () => {
+    if (online) commitState();
+    updateHud();
+    onTurnStart();
+  });
+  game.on('over', (result) => {
+    if (online) commitState();
+    showOver(result);
+  });
+
+  function showOver(result) {
+    if (overShown) return;
+    overShown = true;
+    $('turn').textContent = 'しょうぶあり！';
+    $('turn').style.background = '#444';
+    setHint('');
+    const w = result.winner;
+    later(500, () => {
+      if (w == null) sfx.draw();
+      else if (game.players[w].type === 'human') sfx.win();
+      else sfx.lose();
+    });
+    later(GAME.resultDelayMs, () => onEnd(result, game.players));
+  }
+
+  // ---- オンライン：送る・受けとる ----
+  let frameNo = 0;
+  let lastFrameAt = 0;
+  let streamCleared = false;
+  let lastActivity = performance.now(); // さいごに だれかが動いた時間（なにもしない人を見つけるため）
+
+  function sendFrame() {
+    if (!online) return;
+    const ev = evQueue.splice(0);
+    const frame = { seq: online.seq, k: frameNo++, view: packView(game.getState()), ev, at: Date.now() };
+    if (!streamCleared) {
+      // 自分の番のはじめに、前の人の動きを消してから送る
+      streamCleared = true;
+      online.session.clearStream().then(() => online.session.pushFrame(frame));
+    } else {
+      online.session.pushFrame(frame);
+    }
+  }
+
+  // 番が終わった状態を、みんなに送る
+  function commitState() {
+    sendFrame();
+    online.seq += 1;
+    frameNo = 0;
+    streamCleared = false;
+    online.session.writeState(online.seq, game.exportState());
+    lastActivity = performance.now();
+  }
+
+  // とどいた状態（ほかの人の番が終わった）
+  function applyRemoteState(g) {
+    if (!g || !g.state || g.seq <= online.seq) return;
+    online.seq = g.seq;
+    game.importState(g.state);
+    remoteView = null;
+    shown.clear();
+    frameNo = 0;
+    streamCleared = false;
+    lastActivity = performance.now();
+    endPlacement();
+    if (game.phase === 'over') {
+      showOver(game.result);
+      return;
+    }
+    updateHud();
+    onTurnStart();
+  }
+
+  // とどいた動き（ほかの人の番）
+  function applyFrame(f) {
+    if (!f || f.seq !== online.seq || isMyTurn()) return;
+    lastActivity = performance.now();
+    remoteView = unpackView(f.view, game.getState());
+    for (const e of f.ev || []) {
+      const [name, data] = unpackEvent(e);
+      if (name === 'flick' || name === 'again') cpuAim = null;
+      (remoteHandlers[name] || []).forEach((fn) => fn(data));
+    }
+  }
+
+  // 画面の消しゴムを、とどいた位置へなめらかに動かす
+  function smoothRemote(st) {
+    const k = 0.45;
+    const move = (e) => {
+      const prev = shown.get(e.pid);
+      if (prev && e.alive) {
+        let da = e.angle - prev.angle;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        e.x = prev.x + (e.x - prev.x) * k;
+        e.y = prev.y + (e.y - prev.y) * k;
+        e.angle = prev.angle + da * k;
+      }
+      shown.set(e.pid, { x: e.x, y: e.y, angle: e.angle });
+    };
+    const out = { ...st, erasers: st.erasers.map((e) => ({ ...e })), extras: st.extras.map((e) => ({ ...e })) };
+    out.erasers.forEach(move);
+    out.extras.forEach(move);
+    return out;
+  }
+
+  // ---- オンライン：スタンプ ----
+  let lastStampAt = 0;
+  if (online) {
+    $('stamps').innerHTML = ONLINE.stamps
+      .map((s) => `<button class="stamp" data-id="${s.id}">${s.icon}<span>${s.text}</span></button>`)
+      .join('');
+    $('stampBtn').addEventListener('click', () => $('stamps').classList.toggle('show'));
+    $('stamps').addEventListener('click', (e) => {
+      const b = e.target.closest('.stamp');
+      if (!b) return;
+      $('stamps').classList.remove('show');
+      const now = performance.now();
+      if (now - lastStampAt < ONLINE.stampCooldownMs) return;
+      lastStampAt = now;
+      online.session.sendStamp(b.dataset.id);
+    });
+  }
+  function showStamp({ uid, id }) {
+    const s = ONLINE.stamps.find((x) => x.id === id);
+    const i = online.order.indexOf(uid);
+    if (!s || i < 0) return;
+    const p = game.players[i];
+    const e = posOf(i);
+    sfx.tap();
+    if (e && e.alive) {
+      renderer.addEffect({ type: 'text', x: e.x, y: e.y - 30, text: `${s.icon}${s.text}`, color: p.color, stroke: true, size: 22, dur: 1800 });
+    } else {
+      toast(`${p.name}：${s.icon}${s.text}`, p.color);
+    }
+  }
+
+  // ---- オンライン：通信が切れた人・なにもしない人 ----
+  let members = {};
+  let offlineSince = 0;
+  function checkTimeouts() {
+    if (!online || game.phase === 'over' || overShown || isMyTurn()) return;
+    const cur = game.turnIndex;
+    const m = members[online.order[cur]];
+    const gone = !m || m.left || m.online === false;
+    const now = performance.now();
+    if (gone && !offlineSince) offlineSince = now;
+    if (!gone) offlineSince = 0;
+    const tooLongOffline = gone && now - offlineSince > (m?.left ? 0 : ONLINE.disconnectSec * 1000);
+    const idle = now - lastActivity > ONLINE.idleTurnSec * 1000;
+    if (!tooLongOffline && !idle) return;
+    // 残っている人のうち、一番前の人が脱落の手つづきをする（2人がいっしょにしないように）
+    const manager = online.order.findIndex(
+      (uid, i) => i !== cur && game.erasers[i].alive && members[uid] && !members[uid].left && members[uid].online !== false,
+    );
+    if (manager !== online.myIndex) return;
+    offlineSince = 0;
+    lastActivity = now;
+    game.eliminate(cur); // → 'turn' か 'over' が来て、状態がみんなに送られる
+  }
+
+  if (online) {
+    online.session.watchGame(applyRemoteState);
+    online.session.watchFrames(applyFrame);
+    online.session.watchStamps(showStamp);
+    online.session.watchRoom((room) => {
+      members = room?.members || {};
+    });
+    const iv = setInterval(checkTimeouts, 1000);
+    timers.add(iv);
+  }
+
+  // ---- やめるボタン（まちがえて押さないように2回押し） ----
+  let quitArmed = false;
+  $('quit').addEventListener('click', () => {
+    if (quitArmed) return onQuit();
+    quitArmed = true;
+    $('quit').textContent = 'もう一回押すとやめる';
+    later(2500, () => {
+      quitArmed = false;
+      $('quit').textContent = 'やめる';
+    });
+  });
+
+  // ---- カメラ：大きい机の自動ズーム ＋ 落ちたときのスロー＆ズーム ----
+  const ease = (t) => t * t * (3 - 2 * t);
+  let baseCam = { x: 0, y: 0, zoom: 1 };
+
+  function updateBaseCam() {
+    if (!desk.autoCamera) return;
+    if (input.drag || input.steerDrag) return; // 指で操作している間は動かさない
+    const ac = GAME.autoCamera;
+    let target = { x: 0, y: 0, zoom: 1 }; // 置く場所・相手をえらぶときは机ぜんたい
+    if (!input.placement && !input.targeting) {
+      const alive = currentState().erasers.filter((e) => e.alive);
+      if (alive.length) {
+        const xs = alive.map((e) => e.x);
+        const ys = alive.map((e) => e.y);
+        const m = ac.margin;
+        target = renderer.fitCamera(
+          Math.min(...xs) - m, Math.min(...ys) - m, Math.max(...xs) + m, Math.max(...ys) + m, ac.maxZoom,
+        );
+      }
+    }
+    const k = ac.follow;
+    baseCam = {
+      x: baseCam.x + (target.x - baseCam.x) * k,
+      y: baseCam.y + (target.y - baseCam.y) * k,
+      zoom: baseCam.zoom + (target.zoom - baseCam.zoom) * k,
+    };
+  }
+
+  function updateCamera(now) {
+    updateBaseCam();
+    if (slow && now - slow.start > GAME.slowmo.durationMs) slow = null;
+    if (!slow) {
+      renderer.setCamera(baseCam.x, baseCam.y, baseCam.zoom);
+      return 1;
+    }
+    const { durationMs: D, zoom, timeScale } = GAME.slowmo;
+    const t = now - slow.start;
+    const f = t < 250 ? ease(t / 250) : t > D - 300 ? ease((D - t) / 300) : 1;
+    const e = posOf(slow.idx);
+    const z = Math.max(zoom, baseCam.zoom * 1.4);
+    renderer.setCamera(
+      baseCam.x + (e.x - baseCam.x) * f,
+      baseCam.y + (e.y - baseCam.y) * f,
+      baseCam.zoom + (z - baseCam.zoom) * f,
+    );
+    return timeScale;
+  }
+
+  // ---- ループ ----
+  const STEP = PHYSICS.timeStep;
+  let last = performance.now();
+  let acc = 0;
+  function frame(now) {
+    if (destroyed) return;
+    const timeScale = updateCamera(now);
+    acc += Math.min(now - last, 250) * timeScale;
+    last = now;
+
+    // CPU のカーブ：ねらった相手のほうへ曲げる
+    const cur = game.players[game.turnIndex];
+    if (cur.type === 'cpu' && game.canSteer(game.turnIndex) && cpuSteerTarget >= 0) {
+      const me = posOf(game.turnIndex);
+      const t = posOf(cpuSteerTarget);
+      if (t.alive) game.steer(game.turnIndex, t.x - me.x, t.y - me.y);
+    }
+
+    if (isMyTurn()) {
+      // 自分で計算する（オンラインでは、自分の番のときだけ）
+      let n = 0;
+      while (acc >= STEP && n < 10) {
+        game.step(STEP);
+        acc -= STEP;
+        n++;
+      }
+      // オンライン：動いている間・できごとがあったときは、みんなに送る
+      if (online && game.phase !== 'over') {
+        const moving = game.phase !== 'aim' || evQueue.length;
+        if (moving && now - lastFrameAt >= ONLINE.frameMs) {
+          lastFrameAt = now;
+          lastActivity = now;
+          sendFrame();
+        }
+      }
+    } else {
+      acc = 0;
+    }
+
+    refreshCardBtn();
+    const st = online && !isMyTurn() && remoteView ? smoothRemote(remoteView) : game.getState();
+    renderer.draw(st, input.aim || cpuAim, now, input.preview, input.targeting?.candidates);
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+
+  updateHud();
+  if (game.phase === 'over') showOver(game.result);
+  else onTurnStart();
+
+  return {
+    destroy() {
+      destroyed = true;
+      cancelAnimationFrame(raf);
+      timers.forEach((t) => {
+        clearTimeout(t);
+        clearInterval(t);
+      });
+      timers.clear();
+      ro.disconnect();
+      input.detach();
+      online?.session.stopAll();
+    },
+  };
+}
