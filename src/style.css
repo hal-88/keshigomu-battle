@@ -1799,3 +1799,59 @@ canvas.board {
     padding: 6px 8px;
   }
 }
+
+/* まちあい室：消しゴムを えらびなおす */
+.eraser-picker {
+  background: #fff;
+  border-radius: 20px;
+  padding: 16px;
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 40px);
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  width: 100%;
+  overflow-y: auto;
+  max-height: 60dvh;
+  padding: 4px;
+}
+.picker-item {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  background: #faf6ee;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.picker-item canvas {
+  width: 100%;
+  height: 44px;
+}
+.picker-item.on {
+  border-color: var(--accent);
+  background: #fff;
+}
+.picker-item.r-rare {
+  box-shadow: 0 0 0 2px #f5b300 inset;
+}
+.picker-item.r-superrare {
+  box-shadow: 0 0 0 2px #ab47bc inset;
+}
+.reward.ticket.bonus {
+  background: #ffefe6;
+  border-color: #ff7043;
+}
+.note.gacha-phase {
+  margin-top: -8px;
+  color: #ff6b4a;
+}

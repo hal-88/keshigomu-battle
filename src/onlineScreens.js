@@ -12,6 +12,7 @@ import { drawEraserPreview } from './render/drawEraser.js';
 import { flipCardHTML } from './ui/cardView.js';
 import { collection } from './progress/collection.js';
 import { sfx } from './audio/sfx.js';
+import { rewardsHTML } from './ui/rewardView.js';
 import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers } from './online/room.js';
 
 const esc = (s) =>
@@ -183,6 +184,7 @@ export function setupOnline(ui) {
        <p class="note" data-el="status"></p>
        <div class="row">
          <button class="btn ghost" data-act="leave">へやを でる</button>
+         <button class="btn" data-act="changeEraser">🔄 消しゴムを かえる</button>
          <button class="btn big primary hidden" data-act="start">スタート！</button>
        </div>`,
       'lobby-screen',
@@ -277,6 +279,44 @@ export function setupOnline(ui) {
       gone = true;
       await session.leave();
       showMenu();
+    };
+
+    // まちあい室のまま、消しゴムをえらびなおす（スタートされたら、そのままカードの画面へ進む）
+    el.querySelector('[data-act=changeEraser]').onclick = () => {
+      const owned = collection.ownedErasers();
+      const ov = document.createElement('div');
+      ov.className = 'overlay fixed show';
+      ov.innerHTML = `
+        <div class="modal eraser-picker">
+          <div class="detail-name">つかう消しゴムを えらんでね</div>
+          <div class="picker-grid">
+            ${owned
+              .map(
+                (e) => `
+              <button class="picker-item r-${e.rarity || 'normal'} ${e.id === st.eraserId ? 'on' : ''}" data-id="${e.id}">
+                <canvas></canvas>
+                <span>${e.name}</span>
+              </button>`,
+              )
+              .join('')}
+          </div>
+          <button class="btn" data-act="close">とじる</button>
+        </div>`;
+      el.appendChild(ov);
+      whenFonts(() =>
+        ov.querySelectorAll('.picker-item').forEach((b) => drawEraserPreview(b.querySelector('canvas'), findEraser(b.dataset.id))),
+      );
+      ov.addEventListener('click', (ev) => {
+        const item = ev.target.closest('.picker-item');
+        if (item) {
+          st.eraserId = item.dataset.id;
+          session.updateMe({ eraserId: st.eraserId }); // みんなの まちあい室にも すぐ反映される
+          sfx.tap();
+          ov.remove();
+          return;
+        }
+        if (ev.target === ov || ev.target.closest('[data-act=close]')) ov.remove();
+      });
     };
   }
 
@@ -392,10 +432,13 @@ export function setupOnline(ui) {
       headline = `${esc(players[w].name)}の<br>かち！`;
       cls = 'lose named';
     }
+    // ごほうび：オンラインも「5戦するごとに かならずチケット」に数える（消しゴムは手に入らない）
+    const reward = collection.finishMatch({ won: w === myIndex });
     const el = screen(
       `<div class="result ${cls}">
          <div class="result-title" ${w != null && w !== myIndex ? `style="color:${players[w].color}"` : ''}>${headline}</div>
          ${w != null ? '<canvas class="result-eraser"></canvas>' : ''}
+         ${rewardsHTML(reward)}
          <ol class="ranking">
            ${result.ranking
              .map(

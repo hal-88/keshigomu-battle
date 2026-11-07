@@ -12,6 +12,7 @@ import { drawEraser, drawEraserPreview } from './render/drawEraser.js';
 import { flipCardHTML } from './ui/cardView.js';
 import { sfx, unlockAudio } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
+import { rewardsHTML } from './ui/rewardView.js';
 
 const MODES = [
   { id: 'cpu', name: 'CPU れんしょうチャレンジ', desc: 'つぎつぎ ちがう消しゴムのCPUと1対1。何連勝できるかな？', enabled: true },
@@ -548,38 +549,26 @@ function showResult(result, players) {
             .join('')}
          </ol>`
       : '';
-  // 図鑑のごほうび：ひとが CPU にかったら、CPU の消しゴムが手に入る＋チケットのチャンス
+  // 図鑑のごほうび（CPU がいる試合だけ）
+  //   CPU にかったら CPU の消しゴムが手に入る＋20%でチケット。勝っても負けても5戦ごとにチケット。
+  //   れんしょうチャレンジは3連勝ごとにボーナスのチケット
   const cpus = players.filter((p) => p.type === 'cpu');
+  const humanWon = w != null && players[w].type === 'human';
   let reward = null;
-  if (w != null && players[w].type === 'human' && cpus.length) {
-    reward = collection.recordCpuWin(cpus.map((p) => p.eraser.id));
+  if (cpus.length) {
+    reward = collection.finishMatch({
+      won: humanWon,
+      cpuWin: humanWon,
+      defeatedIds: cpus.map((p) => p.eraser.id),
+      streak: vsCpu && streak && humanWon ? streak.count + 1 : 0,
+    });
   }
-  const rewardHTML = !reward
-    ? ''
-    : `<div class="rewards">
-        ${reward.unlocked
-          .map(
-            (e) => `
-          <div class="reward new-eraser ${rarityClass(e)}">
-            <canvas class="reward-eraser" data-id="${e.id}"></canvas>
-            <div><b class="new">NEW!</b> ${rarityTag(e)} <b>${e.name}</b> が 使えるようになった！</div>
-          </div>`,
-          )
-          .join('')}
-        ${
-          reward.ticket
-            ? `<div class="reward ticket"><span class="big-ticket">🎫</span><div><b>ガチャチケット ゲット！</b><br>もっているチケット：${collection.tickets()}まい</div></div>`
-            : collection.gachaLeft() > collection.tickets()
-              ? `<div class="reward hint-ticket">🎫 あと <b>${collection.winsToPity()}</b> かいかつと チケットかくてい！</div>`
-              : ''
-        }
-      </div>`;
+  const rewardHTML = rewardsHTML(reward);
   // CPU 連勝チャレンジ：勝ったら つぎの相手へ、負けたら記録が止まる
   let streakHTML = '';
   let buttons = `
        <button class="btn big primary" data-act="again">もう一回</button>
        <button class="btn ghost" data-act="title">タイトルへ</button>`;
-  const humanWon = w != null && players[w].type === 'human';
   if (vsCpu && streak) {
     if (humanWon) {
       streak.count++;
@@ -770,9 +759,12 @@ const CAPSULE_COLORS = ['#ff6b6b', '#ffd166', '#4fc3f7', '#81c784', '#ba68c8', '
 
 function showGacha() {
   const tickets = collection.tickets();
-  const left = collection.gachaLeft();
+  // 文房具をぜんぶ集めたら、ふつうの消しゴムのガチャになる
+  const pool = collection.gachaPool();
+  const isEraserGacha = pool.kind === 'eraser';
+  const left = pool.items.length;
   const canPull = tickets > 0 && left > 0;
-  const capsules = Array.from({ length: left }, (_, i) => {
+  const capsules = Array.from({ length: Math.min(left, 16) }, (_, i) => {
     // 下からつみあがるように、少しずつずらして並べる
     const row = Math.floor(i / 4);
     const x = 10 + (i % 4) * 20 + (row % 2) * 9 + ((i * 7) % 5);
@@ -781,23 +773,24 @@ function showGacha() {
   }).join('');
   let msg = 'チケットが ないよ。CPUと たたかおう！';
   if (canPull) msg = 'ハンドルを タップして まわそう！';
-  if (left === 0) msg = 'ぜんぶ あつめた！すごい！';
+  if (left === 0) msg = 'ぜんぶ あつめた！すごい！ チケットは とっておけるよ（新しい消しゴムが ふえたら ひけるよ）';
 
   const el = screen(
-    `<h2 class="head">🎰 ぶんぼうぐガチャ</h2>
-     <p class="note">CPUにかつと チケットがもらえることがあるよ（${GAME.collection.pityWins}かい かつまでに かならず1まい）<br>
+    `<h2 class="head">🎰 ${isEraserGacha ? 'けしごむガチャ' : 'ぶんぼうぐガチャ'}</h2>
+     ${isEraserGacha ? '<p class="note gacha-phase">🎉 文房具を ぜんぶ集めたから、まだ持っていない ふつうの消しゴムが出るよ</p>' : ''}
+     <p class="note">CPUにかつと チケットがもらえることがあるよ。${GAME.collection.pityMatches}戦するごとに かならず1まい、れんしょうチャレンジで${GAME.collection.streakBonusEvery}れんしょうすると ボーナスで1まい<br>
        おなじものは でないよ。お金は いらないよ</p>
      <div class="gacha-machine">
        <div class="gacha-dome">${capsules || '<span class="gacha-empty">からっぽ！</span>'}</div>
        <div class="gacha-body">
-         <div class="gacha-label">ぶんぼうぐ</div>
+         <div class="gacha-label">${isEraserGacha ? 'けしごむ' : 'ぶんぼうぐ'}</div>
          <button class="gacha-handle" data-act="pull" ${canPull ? '' : 'disabled'} aria-label="まわす"><span></span></button>
          <div class="gacha-out"></div>
        </div>
      </div>
      <div class="gacha-info">
        <span>🎫 チケット <b>${tickets}</b>まい</span>
-       <span>のこり <b>${left}</b> / ${GACHA_ERASERS.length}</span>
+       <span>のこり <b>${left}</b> / ${pool.total}</span>
      </div>
      <p class="note gacha-msg">${msg}</p>
      <div class="row">
@@ -807,7 +800,7 @@ function showGacha() {
     'gacha-screen',
   );
   el.querySelector('[data-act=back]').onclick = showTitle;
-  el.querySelector('[data-act=zukan]').onclick = () => showZukan('gacha');
+  el.querySelector('[data-act=zukan]').onclick = () => showZukan(isEraserGacha ? 'eraser' : 'gacha');
 
   const handle = el.querySelector('[data-act=pull]');
   handle.onclick = () => {

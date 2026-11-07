@@ -23,7 +23,8 @@ export const GAME = {
   // 図鑑とガチャ（お金は使わない。チケットは遊んでもらうだけ）
   collection: {
     ticketChance: 0.2, // CPU にかったとき、ガチャチケットがもらえる確率
-    pityWins: 10, // この回数かつまでにもらえなかったら、かならず1枚
+    pityMatches: 5, // この回数 たたかうと（勝っても負けても）、かならず1枚（CPU戦・オンライン）
+    streakBonusEvery: 3, // CPU れんしょうチャレンジで、この回数 連勝するごとにボーナスで1枚
     cpuPickLockedChance: 0.6, // CPU が「まだ持っていない消しゴム」を選ぶ確率（出会えるように）
   },
 
