@@ -38,7 +38,7 @@ export class Game {
    * @param {object} opts.desk    desks.js の1項目
    * @param {Array}  opts.players [{ name, type: 'human'|'cpu', eraser, color, card }]
    */
-  constructor({ desk, players }) {
+  constructor({ desk, players, firstTurn = 0 }) {
     this.desk = { ...desk, shape: { ...desk.shape } }; // サドンデスで形が変わるのでコピー
     this.players = players.map((p, i) => ({
       ...p,
@@ -64,7 +64,7 @@ export class Game {
     this.pencils = [];
     this.waxZones = [];
 
-    this.turnIndex = 0; // いま弾く人
+    this.turnIndex = Math.max(0, Math.min(this.players.length - 1, firstTurn)); // いま弾く人（さいしょはルーレットで決めた人）
     this.turnCount = 1; // 全体で何ターン目か
     this.turn = this._newTurn();
     this.phase = 'aim';
@@ -92,11 +92,19 @@ export class Game {
     return { flicked: false, extraFlicks: 0, curve: null, steer: null, homing: null, powerMul: 1, flickAt: -1 };
   }
 
+  /** はじめの席。1人目は画面の下（手前）で、そこから時計回り（2人なら 手前と むこう） */
   _startPosition(i, n) {
     const { w, h } = deskSize(this.desk);
-    const a = Math.PI + (i / n) * Math.PI * 2; // 1人目は左から時計回り
+    const two = n === 2; // ななめの席・たての広がりは 2人のときだけ（3〜4人だと つまってしまう）
+    const a = Math.PI / 2 + (i / n) * Math.PI * 2 + (two ? this.desk.seatTilt ?? 0 : 0);
     const k = this.desk.startSpread ?? 0.3;
-    return { x: Math.cos(a) * w * k, y: Math.sin(a) * h * k, a };
+    const ky = two ? this.desk.startSpreadY ?? k : k;
+    return { x: Math.cos(a) * w * k, y: Math.sin(a) * h * ky, a };
+  }
+
+  /** i 番目の人の席が、机の上がわ（向こうがわ）か */
+  isFarSeat(i) {
+    return this._startPosition(i, this.players.length).y < -1;
   }
 
   /** 消しゴム1つ（かたまり）をつくって机に置く */

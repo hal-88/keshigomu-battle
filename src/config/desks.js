@@ -5,6 +5,9 @@
 // look … 天板(top)・ふち(edge)・模様(grain)の色。style は模様の種類（wood / steel / wax）
 // （なくてもよい）
 // startSpread … はじめの位置の広がり（机の大きさに対する割合、ふつうは 0.3）
+// 1人目は手前（画面の下）。そこから時計回りにすわる
+// startSpreadY … 2人のとき、たて方向だけ広がりを変える（なければ startSpread と同じ）
+// seatTilt    … 2人のとき、席をななめにずらす角度（ラジアン）。手前の左と むこうの右になる
 // autoCamera  … 大きい机で、カメラが消しゴムのいるあたりにズームする
 // suddenDeath … サドンデスの数値をこの机だけ変える（game.js の suddenDeath と同じ形）
 // badge       … 選ぶ画面の右上に出る文字
@@ -16,6 +19,7 @@ export const DESKS = [
     desc: 'ふつうの机。まずはここから',
     shape: { type: 'rect', w: 640, h: 420 },
     frictionScale: 1.0,
+    startSpreadY: 0.34, seatTilt: 0.6, // 手前の左と むこうの右（まっすぐ上下だと近すぎて、先攻が有利すぎる）
     look: { style: 'wood', top: '#e3c08e', edge: '#a87a4c', grain: '#cfa46d' },
   },
   {
@@ -24,6 +28,7 @@ export const DESKS = [
     desc: '細長くて、すぐ落ちる',
     shape: { type: 'rect', w: 780, h: 250 },
     frictionScale: 1.0,
+    seatTilt: 0.95, // 細長いので、手前の左と むこうの右に ななめに すわる（まっすぐ上下だと近すぎる）
     look: { style: 'steel', top: '#dfe5ea', edge: '#8f9ba5', grain: '#c7d0d8' },
   },
   {
@@ -40,6 +45,7 @@ export const DESKS = [
     desc: 'つるつるで、よくすべる',
     shape: { type: 'rect', w: 640, h: 420 },
     frictionScale: 0.75,
+    startSpreadY: 0.34, seatTilt: 0.6,
     look: { style: 'wax', top: '#ecc995', edge: '#ad7d4d', grain: '#d9b27a' },
   },
   {

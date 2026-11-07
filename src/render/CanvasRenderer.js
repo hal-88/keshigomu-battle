@@ -14,7 +14,8 @@ export class CanvasRenderer {
     this.dpr = 1;
     this.w = 0;
     this.h = 0;
-    this.view = { cx: 0, cy: 0, scale: 1, rot: 0 };
+    this.view = { cx: 0, cy: 0, scale: 1, rot: 0, swap: false };
+    this.flip = false; // true：机を180度回して見せる（オンラインで、自分の席を画面の下にする）
     this.cam = { x: 0, y: 0, zoom: 1 }; // スロー演出のズーム
     this.effects = [];
     this.shakeUntil = 0;
@@ -35,14 +36,16 @@ export class CanvasRenderer {
     const ww = ds.w + WORLD_MARGIN * 2;
     const wh = ds.h + WORLD_MARGIN * 2;
     const portrait = rect.height > rect.width * 1.05;
-    const rot = portrait && ds.w > ds.h ? Math.PI / 2 : 0;
-    const vw = rot ? wh : ww;
-    const vh = rot ? ww : wh;
+    const swap = portrait && ds.w > ds.h; // 机を90度回す（たてとよこが入れかわる）
+    const rot = (swap ? Math.PI / 2 : 0) + (this.flip ? Math.PI : 0);
+    const vw = swap ? wh : ww;
+    const vh = swap ? ww : wh;
     this.view = {
       cx: rect.width / 2,
       cy: rect.height / 2,
       scale: Math.min(rect.width / vw, rect.height / vh),
       rot,
+      swap,
     };
   }
 
@@ -55,15 +58,15 @@ export class CanvasRenderer {
    * 机の外が見えすぎないように、中心は机の中におさえる。
    */
   fitCamera(minX, minY, maxX, maxY, maxZoom = 2) {
-    const { scale, rot } = this.view;
+    const { scale, swap } = this.view;
     const bw = Math.max(1, maxX - minX);
     const bh = Math.max(1, maxY - minY);
-    const sw = rot ? bh : bw; // 画面のよこ方向に並ぶ机の長さ
-    const sh = rot ? bw : bh;
+    const sw = swap ? bh : bw; // 画面のよこ方向に並ぶ机の長さ
+    const sh = swap ? bw : bh;
     const zoom = Math.max(1, Math.min(maxZoom, this.w / (sw * scale), this.h / (sh * scale)));
     // 画面に見える机の半分の大きさ
-    const visX = (rot ? this.h : this.w) / (2 * scale * zoom);
-    const visY = (rot ? this.w : this.h) / (2 * scale * zoom);
+    const visX = (swap ? this.h : this.w) / (2 * scale * zoom);
+    const visY = (swap ? this.w : this.h) / (2 * scale * zoom);
     const limX = Math.max(0, this.deskHalf.x + WORLD_MARGIN - visX);
     const limY = Math.max(0, this.deskHalf.y + WORLD_MARGIN - visY);
     const clamp = (v, l) => Math.max(-l, Math.min(l, v));
@@ -723,8 +726,8 @@ export class CanvasRenderer {
   _drawMinimap(ctx, state) {
     const { rot } = this.view;
     const ds = deskSize(state.desk);
-    const sw = rot ? ds.h : ds.w; // 画面の向きでの机の大きさ
-    const sh = rot ? ds.w : ds.h;
+    const sw = this.view.swap ? ds.h : ds.w; // 画面の向きでの机の大きさ
+    const sh = this.view.swap ? ds.w : ds.h;
     const maxSide = Math.min(130, this.w * 0.3);
     const ms = maxSide / Math.max(sw, sh);
     const mw = sw * ms;
@@ -761,8 +764,8 @@ export class CanvasRenderer {
     }
     // いま見えているところ
     const z = this.zoomScale;
-    const hx = (rot ? this.h : this.w) / (2 * z);
-    const hy = (rot ? this.w : this.h) / (2 * z);
+    const hx = (this.view.swap ? this.h : this.w) / (2 * z);
+    const hy = (this.view.swap ? this.w : this.h) / (2 * z);
     ctx.strokeStyle = 'rgba(40,40,60,0.8)';
     ctx.lineWidth = 2 / ms;
     ctx.strokeRect(this.cam.x - hx, this.cam.y - hy, hx * 2, hy * 2);

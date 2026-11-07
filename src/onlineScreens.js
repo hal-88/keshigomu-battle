@@ -268,7 +268,9 @@ export function setupOnline(ui) {
           color: GAME.playerColors[i],
           card: drawRandomCard(),
         }));
-        const game = new Game({ desk: findDesk(room.meta.deskId), players });
+        // 先攻は へやを作った人の端末で決めて、みんなに送る（ルーレットは みんな同じ結果になる）
+        const firstTurn = Math.floor(Math.random() * players.length);
+        const game = new Game({ desk: findDesk(room.meta.deskId), players, firstTurn });
         await session.start(order, game.exportState());
       } catch (err) {
         starting = false;

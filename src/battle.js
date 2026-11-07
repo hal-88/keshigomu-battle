@@ -37,7 +37,7 @@ const STREAM_EVENTS = new Set([
 /**
  * @param online オンラインのとき { session, myIndex, order, seq, state }
  */
-export function createBattle(root, { desk, players, onEnd, onQuit, label = '', hideCpuCards = false, online = null }) {
+export function createBattle(root, { desk, players, onEnd, onQuit, label = '', hideCpuCards = false, online = null, firstTurn = 0 }) {
   root.innerHTML = `
     <div class="hud">
       <div class="turn-badge" data-el="turn"></div>
@@ -65,7 +65,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   const $ = (name) => root.querySelector(`[data-el="${name}"]`);
   const canvas = root.querySelector('canvas.board');
 
-  const game = new Game({ desk, players });
+  const game = new Game({ desk, players, firstTurn });
   if (online?.state) game.importState(online.state);
   const renderer = new CanvasRenderer(canvas);
   const input = new FlickInput(canvas, renderer, game);
@@ -810,9 +810,93 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   }
   raf = requestAnimationFrame(frame);
 
+  // ---- 先攻・後攻のルーレット ----
+  function showRoulette(done) {
+    const ps = game.players;
+    const n = ps.length;
+    const seg = 360 / n;
+    const winner = game.turnIndex; // ルーレットの前に決まっている（オンラインでは みんな同じ）
+    const nameOf = (p, i) => (online && i === online.myIndex ? 'あなた' : p.name);
+    const grad = ps.map((p, i) => `${p.color} ${i * seg}deg ${(i + 1) * seg}deg`).join(', ');
+    const ov = openOverlay(`
+      <div class="roulette-box">
+        <div class="roulette-title">${n === 2 ? 'どっちが さき？' : 'だれが さき？'}</div>
+        <div class="roulette">
+          <div class="roulette-pointer"></div>
+          <div class="roulette-wheel" style="background: conic-gradient(${grad})">
+            ${ps
+              .map(
+                (p, i) => `<div class="roulette-label" style="transform: rotate(${(i + 0.5) * seg}deg)"><span>${esc(nameOf(p, i))}</span></div>`,
+              )
+              .join('')}
+          </div>
+          <div class="roulette-hub">?</div>
+        </div>
+        <div class="roulette-result"></div>
+      </div>`);
+    const wheel = ov.querySelector('.roulette-wheel');
+    // 止まる角度：当たりの部分のまん中あたりが、上の▼に来るように（すこしずらして本物っぽく）
+    const jitter = (Math.random() - 0.5) * seg * 0.6;
+    const end = 360 * 5 - (winner + 0.5) * seg + jitter;
+    const SPIN_MS = 3000;
+    let finished = false;
+    let lastSeg = -1;
+    let tickRaf = 0;
+    // まわっている間、しきりを通るたびに カチッ
+    const tick = () => {
+      const m = getComputedStyle(wheel).transform;
+      if (m && m !== 'none') {
+        const [a, b] = m.slice(7, -1).split(',').map(Number);
+        const deg = ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+        const s = Math.floor(((360 - deg) % 360) / seg);
+        if (s !== lastSeg) {
+          if (lastSeg >= 0) sfx.tap();
+          lastSeg = s;
+        }
+      }
+      if (!finished) tickRaf = requestAnimationFrame(tick);
+    };
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(tickRaf);
+      const p = ps[winner];
+      ov.querySelector('.roulette-hub').textContent = '!';
+      const res = ov.querySelector('.roulette-result');
+      res.innerHTML = `<b style="color:${p.color}">${esc(nameOf(p, winner))}</b> の さきこう！`;
+      res.classList.add('show');
+      sfx.rare();
+      later(1300, () => {
+        closeOverlay();
+        done();
+      });
+    };
+    requestAnimationFrame(() => {
+      wheel.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.12, 0.7, 0.18, 1)`;
+      wheel.style.transform = `rotate(${end}deg)`;
+      tickRaf = requestAnimationFrame(tick);
+    });
+    wheel.addEventListener('transitionend', finish, { once: true });
+    later(SPIN_MS + 300, finish); // 画面がかくれていて transitionend が来ないときも すすむ
+  }
+
+  // オンラインで、自分の席が むこうがわなら 机を180度回して、自分を手前（画面の下）にする
+  if (online && game.isFarSeat(online.myIndex)) {
+    renderer.flip = true;
+    renderer.resize(desk);
+  }
+
   updateHud();
   if (game.phase === 'over') showOver(game.result);
-  else onTurnStart();
+  else if (game.turnCount === 1 && game.time === 0 && game.players.length > 1) {
+    // ルーレットが止まるまで、左上の「○○のばん」で答えがわからないようにする
+    $('turn').textContent = '🎡 だれが さき？';
+    $('turn').style.background = '#888';
+    showRoulette(() => {
+      updateHud();
+      onTurnStart();
+    });
+  } else onTurnStart();
 
   return {
     destroy() {

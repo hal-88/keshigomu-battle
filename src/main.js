@@ -495,6 +495,7 @@ function startBattle(players) {
     players,
     label: setup.mode === 'cpu' && streak ? `🔥${streak.count + 1}戦目` : '',
     hideCpuCards: setup.mode === 'cpu', // CPU のカードは使うまで ないしょ
+    firstTurn: Math.floor(Math.random() * players.length), // 先攻はルーレットで（結果はここで決める）
     onEnd: showResult,
     onQuit: showTitle,
   });
@@ -774,7 +775,9 @@ function showGacha() {
     const row = Math.floor(i / 4);
     const x = 10 + (i % 4) * 20 + (row % 2) * 9 + ((i * 7) % 5);
     const y = 68 - row * 20 + ((i * 5) % 6);
-    return `<span class="capsule" style="left:${x}%;top:${y}%;--c:${CAPSULE_COLORS[i % CAPSULE_COLORS.length]}"></span>`;
+    // まわすときに ガチャガチャ うごく向き・大きさ（1こずつ ちがう）
+    const mix = `--mx:${((i * 37) % 21) - 10}px;--my:${-8 - ((i * 13) % 14)}px;--mr:${((i * 53) % 120) - 60}deg;--d:${((i * 7) % 10) * 0.03}s`;
+    return `<span class="capsule" style="left:${x}%;top:${y}%;--c:${CAPSULE_COLORS[i % CAPSULE_COLORS.length]};${mix}"></span>`;
   }).join('');
   let msg = 'チケットが ないよ。CPUと たたかおう！';
   if (canPull) msg = 'ハンドルを タップして まわそう！';
@@ -812,33 +815,78 @@ function showGacha() {
     const def = collection.pullGacha();
     if (!def) return;
     handle.disabled = true;
-    handle.classList.add('turn');
-    sfx.whoosh();
-    setTimeout(() => sfx.hit(4), 450);
-    // カプセルが出てくる
+    el.querySelector('[data-act=back]').disabled = true;
+    el.querySelector('[data-act=zukan]').disabled = true;
+    const rarity = def.rarity || 'normal';
+    // カプセルの色：レアは金色、スーパーレアは にじ色（中身のヒント）
+    const normalColors = CAPSULE_COLORS.filter((c) => c !== '#ffd166');
+    const color = normalColors[Math.floor(Math.random() * normalColors.length)];
+    const msg = el.querySelector('.gacha-msg');
+    const machine = el.querySelector('.gacha-machine');
+    const dome = el.querySelector('.gacha-dome');
+
+    // 1) ハンドルを ぐるっと2回まわす。中のカプセルが ガチャガチャ うごく
+    handle.classList.add('spin');
+    dome.classList.add('mixing');
+    machine.classList.add('shaking');
+    msg.textContent = 'ガチャ… ガチャ…';
+    for (let k = 0; k < 8; k++) setTimeout(() => sfx.tap(), k * 200);
+    setTimeout(() => sfx.whoosh(), 300);
+
+    // 2) カプセルが ゴトンと 出てくる
     setTimeout(() => {
+      dome.classList.remove('mixing');
+      machine.classList.remove('shaking');
       const out = el.querySelector('.gacha-out');
-      const color = CAPSULE_COLORS[Math.floor(Math.random() * CAPSULE_COLORS.length)];
-      out.innerHTML = `<button class="capsule big drop" style="--c:${color}" aria-label="あける"></button>`;
+      out.innerHTML = `<span class="capsule big drop r-${rarity}" style="--c:${color}"></span>`;
       sfx.hit(8);
-      el.querySelector('.gacha-msg').textContent = 'カプセルを タップして あけよう！';
-      const cap = out.querySelector('.capsule');
+      msg.textContent = 'ゴトン！';
+      if (rarity !== 'normal') setTimeout(() => sfx.rare(), 250);
+    }, 1700);
+
+    // 3) カプセルが 画面のまん中へ ころがってくる → タップで あける
+    setTimeout(() => {
+      el.querySelector('.gacha-out').innerHTML = '';
+      const stage = document.createElement('div');
+      stage.className = `cap-stage r-${rarity}`;
+      stage.innerHTML = `
+        <div class="cap-rays"></div>
+        <div class="cap-flash"></div>
+        <button class="cap-big r-${rarity}" style="--c:${color}" aria-label="あける">
+          <i class="cap-top"></i><i class="cap-bot"></i>
+        </button>
+        <p class="cap-msg">${rarity === 'superrare' ? '✨ にじいろ！？ ✨<br>' : rarity === 'rare' ? '✨ きんいろ！ ✨<br>' : ''}タップして あけよう！</p>`;
+      el.appendChild(stage);
+      sfx.whoosh();
+      const cap = stage.querySelector('.cap-big');
       let opened = false;
       const open = () => {
         if (opened) return;
         opened = true;
-        cap.classList.add('open');
-        sfx.flip();
-        setTimeout(() => reveal(def), 350);
+        stage.querySelector('.cap-msg').textContent = '';
+        cap.classList.add('shake');
+        sfx.hit(5);
+        setTimeout(() => sfx.hit(6), 180);
+        setTimeout(() => {
+          cap.classList.remove('shake');
+          cap.classList.add('open');
+          stage.classList.add('open');
+          sfx.flip();
+          sfx.rare();
+          setTimeout(() => {
+            stage.remove();
+            reveal(def);
+          }, 700);
+        }, 520);
       };
       cap.onclick = open;
-      setTimeout(open, 2500); // さわらなくても開く
-    }, 900);
+      setTimeout(open, 4000); // さわらなくても開く
+    }, 2500);
   };
 
   function reveal(def) {
-    sfx.rare();
-    setTimeout(() => sfx.rare(), 400);
+    setTimeout(() => sfx.rare(), 300);
+    if (def.rarity === 'superrare') setTimeout(() => sfx.rare(), 700);
     const ov = openModal(
       el,
       `<div class="modal detail reveal ${rarityClass(def)}">

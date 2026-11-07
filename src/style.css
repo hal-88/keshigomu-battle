@@ -1891,3 +1891,273 @@ canvas.board {
   font-size: 14px;
   line-height: 1.6;
 }
+
+/* ---- 先攻・後攻のルーレット ---- */
+.roulette-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 18px 26px 22px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  animation: popIn 0.35s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.roulette-title {
+  font-size: 24px;
+  font-weight: 800;
+}
+.roulette {
+  position: relative;
+  width: min(260px, 60vw, 46vh);
+  aspect-ratio: 1;
+}
+.roulette-wheel {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 6px solid #fff;
+  box-shadow: 0 0 0 4px #333, inset 0 0 0 2px rgba(0, 0, 0, 0.15), 0 6px 0 4px rgba(0, 0, 0, 0.18);
+}
+.roulette-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.roulette-label span {
+  margin-top: 16%;
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(13px, 4.2vw, 19px);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0.25);
+  max-width: 34%;
+  text-align: center;
+  line-height: 1.15;
+  word-break: keep-all;
+}
+.roulette-pointer {
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  margin-left: -14px;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 26px solid #333;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2));
+}
+.roulette-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 22px;
+}
+.roulette-result {
+  min-height: 34px;
+  font-size: 22px;
+  font-weight: 800;
+  opacity: 0;
+}
+.roulette-result.show {
+  opacity: 1;
+  animation: popIn 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.roulette-result b {
+  font-size: 28px;
+}
+
+/* ---- ガチャを まわす演出 ---- */
+.gacha-handle.spin,
+.gacha-handle.spin:disabled {
+  animation: handleSpin 1.6s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+  filter: none;
+}
+@keyframes handleSpin {
+  to { transform: rotate(720deg); }
+}
+.gacha-dome.mixing .capsule {
+  animation: mix 0.22s ease-in-out var(--d, 0s) infinite alternate;
+}
+@keyframes mix {
+  to { transform: translate(var(--mx, 0), var(--my, -10px)) rotate(var(--mr, 30deg)); }
+}
+.gacha-machine.shaking {
+  animation: machineShake 0.2s linear infinite;
+}
+@keyframes machineShake {
+  25% { transform: rotate(-1.2deg); }
+  75% { transform: rotate(1.2deg); }
+}
+.capsule.big.r-rare {
+  background: linear-gradient(180deg, #ffe082 0, #ffb300 50%, #fff 50% 100%);
+  box-shadow: 0 0 14px 4px rgba(255, 193, 7, 0.8);
+}
+.capsule.big.r-superrare {
+  background: linear-gradient(180deg, transparent 50%, #fff 50%),
+    conic-gradient(#ff5252, #ffca28, #66bb6a, #42a5f5, #ab47bc, #ff5252);
+  box-shadow: 0 0 16px 6px rgba(255, 255, 255, 0.9), 0 0 26px 8px rgba(190, 90, 255, 0.6);
+}
+
+.cap-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  overflow: hidden;
+  background: rgba(20, 20, 35, 0.6);
+  animation: fadeIn 0.25s ease-out;
+}
+.cap-big {
+  position: relative;
+  z-index: 2;
+  width: 150px;
+  height: 150px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  animation: capIn 0.8s cubic-bezier(0.3, 1.4, 0.5, 1) both, capWiggle 1s ease-in-out 0.9s infinite;
+}
+.cap-top,
+.cap-bot {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  box-sizing: border-box;
+  border: 4px solid rgba(0, 0, 0, 0.18);
+}
+.cap-top {
+  top: 0;
+  border-bottom: none;
+  border-radius: 75px 75px 0 0;
+  background: var(--c);
+  box-shadow: inset 14px 14px 0 rgba(255, 255, 255, 0.3);
+}
+.cap-bot {
+  bottom: 0;
+  border-top: 4px solid rgba(0, 0, 0, 0.22);
+  border-radius: 0 0 75px 75px;
+  background: #fff;
+  box-shadow: inset -10px -10px 0 rgba(0, 0, 0, 0.06);
+}
+.cap-big.r-rare .cap-top {
+  background: linear-gradient(135deg, #fff3c4, #ffc107 45%, #ff8f00);
+}
+.cap-big.r-rare {
+  filter: drop-shadow(0 0 16px #ffd54f);
+}
+.cap-big.r-superrare .cap-top {
+  background: conic-gradient(from 30deg, #ff5252, #ffca28, #66bb6a, #42a5f5, #ab47bc, #ff5252);
+}
+.cap-big.r-superrare {
+  filter: drop-shadow(0 0 14px #fff) drop-shadow(0 0 22px #c77dff);
+}
+.cap-big.shake {
+  animation: capShake 0.13s linear 4;
+}
+.cap-big.open {
+  animation: none;
+}
+.cap-big.open .cap-top {
+  animation: capTopOff 0.6s ease-out forwards;
+}
+.cap-big.open .cap-bot {
+  animation: capBotOff 0.6s ease-out forwards;
+}
+@keyframes capIn {
+  from { transform: translate(38vw, 30vh) scale(0.3) rotate(540deg); }
+}
+@keyframes capWiggle {
+  25% { transform: rotate(-9deg); }
+  75% { transform: rotate(9deg); }
+}
+@keyframes capShake {
+  25% { transform: translateX(-7px) rotate(-12deg); }
+  75% { transform: translateX(7px) rotate(12deg); }
+}
+@keyframes capTopOff {
+  to { transform: translateY(-140px) rotate(-40deg); opacity: 0; }
+}
+@keyframes capBotOff {
+  to { transform: translateY(110px) rotate(25deg); opacity: 0; }
+}
+.cap-msg {
+  position: relative;
+  z-index: 2;
+  min-height: 2.6em;
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  animation: bob 1.2s ease-in-out infinite;
+}
+/* うしろで まわる光（レア以上は あける前から、ふつうは あけたときだけ） */
+.cap-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 640px;
+  height: 640px;
+  margin: -340px 0 0 -320px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.5) 0 9deg, transparent 9deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 15%, transparent 68%);
+  mask: radial-gradient(circle, #000 15%, transparent 68%);
+  opacity: 0;
+  animation: raysSpin 9s linear infinite;
+}
+.cap-stage.r-rare .cap-rays {
+  background: repeating-conic-gradient(rgba(255, 213, 79, 0.75) 0 9deg, transparent 9deg 22deg);
+  opacity: 0.8;
+}
+.cap-stage.r-superrare .cap-rays {
+  background: repeating-conic-gradient(#ff5252 0 6deg, transparent 6deg 15deg, #ffca28 15deg 21deg, transparent 21deg 30deg,
+    #66bb6a 30deg 36deg, transparent 36deg 45deg, #42a5f5 45deg 51deg, transparent 51deg 60deg);
+  opacity: 0.85;
+  animation-duration: 4s;
+}
+.cap-stage.open .cap-rays {
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+@keyframes raysSpin {
+  to { transform: rotate(360deg); }
+}
+.cap-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.cap-stage.open .cap-flash {
+  animation: capFlash 0.6s ease-out;
+}
+@keyframes capFlash {
+  20% { opacity: 0.9; }
+  to { opacity: 0; }
+}

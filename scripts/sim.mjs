@@ -15,6 +15,7 @@ const firstId = process.argv[5];
 const cfg = GAME.cpu.normal;
 const S = {
   turns: [], moveMs: [], wins: {}, games: {}, draws: 0, selfFalls: 0, timeouts: 0,
+  firstWins: 0, firstGames: 0, deskTurns: {},
   cards: {}, shrinks: 0, errors: 0, traits: {}, splits: 0, pieceFalls: 0,
 };
 const randomEraser = () => ERASERS[Math.floor(Math.random() * ERASERS.length)];
@@ -28,7 +29,8 @@ for (let m = 0; m < N; m++) {
     color: '',
     card: drawRandomCard(),
   }));
-  const g = new Game({ desk, players: ps });
+  const firstTurn = Math.floor(Math.random() * NP); // ルーレットと同じく、さいしょの人はランダム
+  const g = new Game({ desk, players: ps, firstTurn });
   for (const p of ps) S.games[p.eraser.name] = (S.games[p.eraser.name] || 0) + 1;
   if (m === 0) {
     const st = g.getState();
@@ -87,6 +89,11 @@ for (let m = 0; m < N; m++) {
     console.log('ERROR', desk.id, err.message, err.stack?.split('\n')[1]);
   }
   S.turns.push(g.turnCount);
+  (S.deskTurns[desk.id] ||= []).push(g.turnCount);
+  if (g.result?.winner != null) {
+    S.firstGames++;
+    if (g.result.winner === firstTurn) S.firstWins++;
+  }
   if (g.phase === 'over' && g.result.ranking.length !== NP && g.result.winner != null) console.log('RANKING MISMATCH', g.result.ranking);
   if (g.result?.winner == null) S.draws++;
   else {
@@ -99,6 +106,7 @@ const sorted = [...S.moveMs].sort((x, y) => x - y);
 console.log('試合数', N, '平均ターン数', avg(S.turns), '最大', Math.max(...S.turns), 'エラー', S.errors);
 console.log('動いている時間(ms) 平均', avg(S.moveMs), '中央', Math.round(sorted[sorted.length >> 1]), '最大', Math.round(sorted.at(-1)), 'タイムアウト', S.timeouts);
 console.log('自滅', S.selfFalls, 'ひきわけ', S.draws, 'けずれた回数', S.shrinks);
+console.log('先攻の勝率', Math.round((100 * S.firstWins) / Math.max(1, S.firstGames)) + '%', '机ごとの平均ターン', Object.fromEntries(Object.entries(S.deskTurns).map(([k, a]) => [k, avg(a)])));
 console.log('とくせい', S.traits, '分裂', S.splits, 'かけらが落ちた', S.pieceFalls);
 const rates = Object.entries(S.games)
   .map(([k, n]) => [k, Math.round((100 * (S.wins[k] || 0)) / n), n])
