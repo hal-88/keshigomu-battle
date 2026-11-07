@@ -279,6 +279,13 @@
 - GitHub Pages で公開するときは、Firebase の Authentication →設定 →承認済みドメイン に ○○.github.io を追加する。
 - Firebase の準備（ユーザーがする）：プロジェクト作成 → Realtime Database（シンガポール・ロックモード）→ Authentication で「匿名」をオン → ウェブアプリの firebaseConfig を online.js に貼る → Realtime Database の「ルール」に database.rules.json の中身を貼って公開。
 
+### アプリ化（PWA）
+- ホーム画面に置けるアプリにした（ストア配信はしない）。タイトル画面の「📲 アプリにする」で端末ごとのやり方（iPad＝Safari 共有→ホーム画面に追加／Chrome＝︙→アプリをインストール）を出す。アプリとして開いているときはボタンを出さない。
+- ファイル：`public/manifest.webmanifest`、`public/sw.js`（サービスワーカー）、`public/icons/`、`src/ui/installApp.js`、`index.html` の meta。
+- サービスワーカーは本番ビルドのときだけ登録（`npm run dev` では登録しない）。ページはネット優先・なければ保存分、プログラム・画像・フォントは保存分優先。Firebase の通信はさわらない。
+- 一度ひらけば、ネットなしでも CPU戦・1台でみんなで が遊べる（オンラインはネットが必要）。
+- 保存のしくみを大きく変えたときは `sw.js` の CACHE 名（keshigomu-v1）の数字を上げる。
+
 ### フェーズ5：一般公開に向けて
 - ランダムマッチ
 - 3D化の検討

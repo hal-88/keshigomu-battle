@@ -13,6 +13,9 @@ import { flipCardHTML } from './ui/cardView.js';
 import { sfx, unlockAudio } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
 import { rewardsHTML } from './ui/rewardView.js';
+import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
+
+setupPwa(); // アプリとしてホーム画面に置けるように（オフラインでも動く）
 
 const MODES = [
   { id: 'cpu', name: 'CPU れんしょうチャレンジ', desc: 'つぎつぎ ちがう消しゴムのCPUと1対1。何連勝できるかな？', enabled: true },
@@ -69,9 +72,11 @@ function showTitle() {
            collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
          }</button>
        </div>
+       ${isInstalled() ? '' : '<button class="install-link" data-act="install">📲 アプリにする（ホーム画面に置く）</button>'}
      </div>`,
     'title-screen',
   );
+  el.querySelector('[data-act=install]')?.addEventListener('click', () => showInstallGuide(el));
   const cv = el.querySelector('.title-art');
   whenFonts(() => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);

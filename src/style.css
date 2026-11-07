@@ -1855,3 +1855,39 @@ canvas.board {
   margin-top: -8px;
   color: #ff6b4a;
 }
+
+/* ---- アプリにする ---- */
+.install-link {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--sub);
+  background: rgba(255, 255, 255, 0.7);
+  border: 2px dashed #e0d3bd;
+  border-radius: 999px;
+  padding: 6px 16px;
+  margin-top: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.install-guide {
+  text-align: left;
+}
+.install-guide p {
+  margin: 0;
+  font-weight: 700;
+  font-size: 14px;
+}
+.install-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+.install-steps {
+  margin: 0;
+  padding-left: 22px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.6;
+}
