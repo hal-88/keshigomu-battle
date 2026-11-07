@@ -167,14 +167,16 @@ export class FlickInput {
     const { maxPullPx, minPullPx } = GAME.input;
     const d = this.renderer.screenDeltaToWorld(dx, dy);
     // （フルーツンでこんらん中でも 矢印はふつう。たまに反対に飛ぶのは Game が決める）
+    // さかさま（カード）のときは、ほんとうに飛ぶ向き（反対）に 矢印を出す
+    const sign = this.game.isReversed(this.drag.playerIndex) ? -1 : 1;
     this.aim = {
       playerIndex: this.drag.playerIndex,
-      dirX: d.x, // 矢印の向き
-      dirY: d.y,
+      dirX: d.x * sign, // 矢印の向き（ほんとうに飛ぶ向き）
+      dirY: d.y * sign,
       rawX: d.x, // Game.flick にわたす向き
       rawY: d.y,
       strength: pull < minPullPx ? 0 : Math.min(1, pull / maxPullPx),
-      spin: this._spin(d.x, d.y),
+      spin: this._spin(d.x * sign, d.y * sign),
     };
   }
 
@@ -194,6 +196,20 @@ export class FlickInput {
   _updatePreview(x, y, angle) {
     const pl = this.placement;
     const g = this.game;
+    // せきがえ：いま ならべている 消しゴムを、そこに置けるか
+    if (pl.kind === 'seat') {
+      const piece = g.pieceByPid(pl.pid);
+      const v = g.validateSeat(pl.pid, x, y, pl.chosen, pl.def.params?.edgeMargin ?? 60);
+      this.preview = {
+        kind: 'eraser', x, y, angle: piece.body.angle, ok: v.ok, reason: v.reason,
+        def: piece.def, size: piece.size, params: {},
+        chosen: pl.chosen.map((c) => {
+          const o = g.pieceByPid(c.pid);
+          return { x: c.x, y: c.y, angle: o.body.angle, def: o.def, size: o.size };
+        }),
+      };
+      return;
+    }
     const v = g.validatePlacement(pl.kind, { x, y, angle }, pl.playerIndex, pl.def);
     this.preview = {
       kind: pl.kind,

@@ -28,7 +28,7 @@ const { Engine, Bodies, Body, Composite, Events } = Matter;
 const BASE_DT = 1000 / 60;
 
 // 相手のカードのうち、クロケシ（ガード）にきかないもの
-const GUARDED_CARDS = ['skip', 'swap', 'fan', 'quake', 'guruguru'];
+const GUARDED_CARDS = ['skip', 'swap', 'fan', 'quake', 'guruguru', 'reverse', 'shrinkbeam', 'tilt', 'shuffle'];
 
 const traitOf = (e) => e.def?.trait || {};
 // フルーツンの「こんらん」の数値（反対に飛ぶ確率・強さ）
@@ -66,6 +66,9 @@ export class Game {
     this._nextJid = 1;
     this.pencils = [];
     this.waxZones = [];
+    this.tilt = null; // かたむき { x, y, untilTurn }
+    this.blackout = null; // ていでん { fromTurn, untilTurn }
+    this.blackHole = null; // ブラックホール { x, y, r, R, pull, untilTurn }
 
     this.turnIndex = Math.max(0, Math.min(this.players.length - 1, firstTurn)); // いま弾く人（さいしょはルーレットで決めた人）
     this.turnCount = 1; // 全体で何ターン目か
@@ -182,6 +185,19 @@ export class Game {
       lastIce: null, // アイスケシ：さいごに こおらせた場所
       tailAt: 0, // キョウリュウ：しっぽで押す時間と相手
       tailTarget: null,
+      // 2026-11-08 のカード
+      powerNext: 0, // ためうち：つぎの自分のターンの強さの倍率
+      invisLeft: 0, // とうめい：のこりの自分のターン
+      shield: false, // ふでばこ
+      extraLife: false, // もういっかい
+      reverseNext: false, // さかさま
+      airborne: false, // ジャンプ中
+      airUntil: 0,
+      pierceUntil: 0, // つらぬき
+      pierceSpeed: 0,
+      pierceDir: null,
+      curTurnPos: { x, y }, // まきもどし：いまのターンと、1つ前の自分のターンの はじめの場所
+      prevTurnPos: null,
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
     if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
@@ -265,6 +281,12 @@ export class Game {
         backfire = true;
       }
     }
+    // さかさま：向きが 反対（矢印も 反対に出ている）
+    if (e.reverseNext) {
+      e.reverseNext = false;
+      ux = -ux;
+      uy = -uy;
+    }
     // キラリン：まぶしくて、向きが すこし ブレる
     const glare = this.glareFor(playerIndex);
     if (glare) {
@@ -288,6 +310,13 @@ export class Game {
     if (t.id === 'block' && !e.blockUsed) this._placeBlock(e, ux, uy);
     // ダイオウケシ：弾いたら、つぎの自分の番は ためる番
     if (t.id === 'charge') e.charged = false;
+    // ジャンプ：しばらく 空中（ほかのものを 飛びこえる）
+    if (this.turn.jump) {
+      e.airborne = true;
+      e.airUntil = this.time + this.turn.jump;
+      e.body.collisionFilter.mask = 0;
+      this._emit('cardFx', { type: 'jump', playerIndex, x: e.body.position.x, y: e.body.position.y });
+    }
     this.turn.flicked = true;
     this.turn.flickAt = this.time;
     this._startMotion('moving');
@@ -325,6 +354,11 @@ export class Game {
 
   isConfused(i) {
     return !!this.erasers[i]?.confused;
+  }
+
+  /** さかさま中か（弾く向きが反対） */
+  isReversed(i) {
+    return !!this.erasers[i]?.reverseNext;
   }
 
   /** カーブのカード：動いている間に曲げたい向き（0,0 で止める） */
@@ -390,7 +424,37 @@ export class Game {
     return this.erasers
       .filter((e) => e.alive && e.playerIndex !== i)
       .filter((e) => !(cardId && GUARDED_CARDS.includes(cardId) && this._guarded(e, i)))
+      .filter((e) => cardId !== 'thief' || (this.players[e.playerIndex].card && !this.players[e.playerIndex].card.used))
       .map((e) => e.playerIndex);
+  }
+
+  /** せきがえで ならべなおす じゅんばん（自分のものが先、つぎに相手） */
+  seatOrder(i) {
+    const all = this._allPieces().filter((e) => e.alive);
+    return [...all.filter((e) => e.playerIndex === i), ...all.filter((e) => e.playerIndex !== i)].map((e) => e.pid);
+  }
+
+  pieceByPid(pid) {
+    return this._allPieces().find((e) => e.pid === pid) || null;
+  }
+
+  /** せきがえ：pid の消しゴムを (x, y) に置けるか（chosen はもう決めた場所 [{pid, x, y}]） */
+  validateSeat(pid, x, y, chosen = [], margin = 60) {
+    const e = this.pieceByPid(pid);
+    if (!e || !e.alive) return { ok: false, reason: 'その消しゴムは いないよ' };
+    const ext = this.pieceExtent(e);
+    if (!isInsideDesk(this.desk, x, y) || edgeClearance(this.desk, x, y) < margin) return { ok: false, reason: 'ふちに近すぎるよ' };
+    for (const c of chosen) {
+      if (c.pid === pid) continue;
+      const o = this.pieceByPid(c.pid);
+      if (o && Math.hypot(c.x - x, c.y - y) < ext + this.pieceExtent(o) + 4) return { ok: false, reason: 'ほかの消しゴムと重なるよ' };
+    }
+    for (const pc of this.pencils) {
+      if (!pc.alive) continue;
+      const [a, b] = this._pencilEnds(pc);
+      if (pointSegDist(x, y, a.x, a.y, b.x, b.y) < ext + pc.width / 2 + 2) return { ok: false, reason: 'えんぴつと重なるよ' };
+    }
+    return { ok: true };
   }
 
   /** 場所を選ぶカードで、そこに置けるか */
@@ -444,9 +508,25 @@ export class Game {
     const prm = def.params || {};
     let target = -1;
 
-    if (def.place) {
+    if (def.place === 'seat') {
+      const seats = params.seats || [];
+      const need = this.seatOrder(i);
+      if (seats.length !== need.length || !need.every((pid) => seats.some((c) => c.pid === pid))) {
+        return { ok: false, reason: 'ぜんぶの消しゴムの 場所を きめてね' };
+      }
+      for (const c of seats) {
+        const v = this.validateSeat(c.pid, c.x, c.y, seats, prm.edgeMargin ?? 60);
+        if (!v.ok) return v;
+      }
+    } else if (def.place) {
       const v = this.validatePlacement(def.place, params, i, def);
       if (!v.ok) return v;
+    }
+    if (def.id === 'rewind') {
+      const q = e.prevTurnPos;
+      if (!q) return { ok: false, reason: 'まだ もどる場所が ないよ' };
+      const v = this.validatePlacement('eraser', q, i, { params: { edgeMargin: 1 } });
+      if (!v.ok || !isInsideDesk(this.desk, q.x, q.y)) return { ok: false, reason: 'もどる場所に なにかがあるよ' };
     }
     if (def.target) {
       const opps = this.opponentsOf(i, def.id);
@@ -548,18 +628,172 @@ export class Game {
         }
         this._startMotion('settling');
         break;
+      // ---- 2026-11-08 のカード ----
+      case 'tameuchi':
+        e.powerNext = prm.powerScale ?? 2;
+        break;
+      case 'cushion':
+        this.turn.cushion = prm.bounce ?? 0.75;
+        break;
+      case 'pierce':
+        this.turn.pierce = true;
+        break;
+      case 'bowling':
+        this.turn.bowling = true;
+        break;
+      case 'invisible':
+        e.invisLeft = traitOf(e).id === 'clear' ? prm.clearTurns ?? 3 : prm.turns ?? 2;
+        break;
+      case 'pencase':
+        e.shield = true;
+        break;
+      case 'extralife':
+        e.extraLife = true;
+        break;
+      case 'crumbs':
+        this.waxZones.push({ x: params.x, y: params.y, r: prm.radius ?? 80, scale: prm.frictionScale ?? 2.4, owner: i, kind: 'crumbs' });
+        break;
+      case 'reverse':
+        this.erasers[target].reverseNext = true;
+        break;
+      case 'shrinkbeam': {
+        const o = this.erasers[target];
+        this._setSize(o, { sizeScale: prm.sizeScale ?? 0.6, massScale: prm.massScale ?? 0.6 });
+        o.sizeLeft = prm.turns ?? 2;
+        break;
+      }
+      case 'thief':
+        break; // うばうのは 下（カードを使ったあと）
+      case 'jump':
+        this.turn.jump = prm.airMs ?? 420;
+        break;
+      case 'center': {
+        // 机のまんなかへ すべらせる（止まったら そのまま弾ける）
+        const pos = e.body.position;
+        const dist = Math.hypot(pos.x, pos.y);
+        if (dist > 5 && !e.body.isStatic) {
+          const d = Math.min(dist * (prm.ratio ?? 0.5), prm.maxDist ?? 170);
+          const v = Math.sqrt(2 * PHYSICS.kineticDecel * this.desk.frictionScale * d) * 1.15;
+          Body.setVelocity(e.body, { x: (-pos.x / dist) * v, y: (-pos.y / dist) * v });
+          this._startMotion('settling');
+        }
+        break;
+      }
+      case 'rewind':
+        Body.setPosition(e.body, { x: e.prevTurnPos.x, y: e.prevTurnPos.y });
+        Body.setVelocity(e.body, { x: 0, y: 0 });
+        break;
+      case 'tilt': {
+        // いちばん ふちに近い相手のほうへ かたむける
+        let worst = null;
+        for (const o of this.erasers) {
+          if (!o.alive || o.playerIndex === i) continue;
+          const c = edgeClearance(this.desk, o.body.position.x, o.body.position.y);
+          if (!worst || c < worst.c) worst = { o, c };
+        }
+        const tp = worst ? worst.o.body.position : { x: 1, y: 0 };
+        const l = Math.hypot(tp.x, tp.y) || 1;
+        this.tilt = { x: tp.x / l, y: tp.y / l, untilTurn: this.turnCount + (prm.turns ?? 2), drift: prm.drift ?? 0.03 };
+        for (const o of this._allPieces()) {
+          if (!affected(o)) continue;
+          const k = (prm.push ?? 2.6) * (0.8 + Math.random() * 0.4);
+          Body.setVelocity(o.body, { x: o.body.velocity.x + this.tilt.x * k, y: o.body.velocity.y + this.tilt.y * k });
+        }
+        this._startMotion('settling');
+        break;
+      }
+      case 'blackout':
+        this.blackout = { fromTurn: this.turnCount + 1, untilTurn: this.turnCount + 2 };
+        break;
+      case 'roulette':
+        break; // 下で 1枚ひく
+      case 'shuffle': {
+        const list = this._allPieces().filter((o) => affected(o));
+        const spots = list.map((o) => ({ ...o.body.position }));
+        // ちがう場所になるまで まぜる
+        for (let t = 0; t < 10; t++) {
+          for (let k = spots.length - 1; k > 0; k--) {
+            const j = Math.floor(Math.random() * (k + 1));
+            [spots[k], spots[j]] = [spots[j], spots[k]];
+          }
+          if (spots.every((q, k) => q.x !== list[k].body.position.x || q.y !== list[k].body.position.y)) break;
+        }
+        const margin = prm.edgeMargin ?? 60;
+        list.forEach((o, k) => {
+          const q = edgeClearance(this.desk, spots[k].x, spots[k].y) < margin ? clampInside(this.desk, spots[k].x, spots[k].y, margin) : spots[k];
+          Body.setPosition(o.body, q);
+          Body.setVelocity(o.body, { x: 0, y: 0 });
+        });
+        this._startMotion('settling'); // 重なっていたら、すこし おしあって はなれる
+        break;
+      }
+      case 'blackhole': {
+        this.blackHole = {
+          x: 0, y: 0, r: prm.radius ?? 24, R: prm.range ?? 190, pull: prm.pull ?? 0.09,
+          untilTurn: this.turnCount + (prm.turns ?? 2),
+        };
+        for (const o of this._allPieces()) {
+          if (!o.alive || o.body.isStatic) continue;
+          const d = Math.hypot(o.body.position.x, o.body.position.y);
+          if (d > this.blackHole.R || d < 1) continue;
+          const v = (prm.push ?? 3.5) * (1 - d / this.blackHole.R);
+          Body.setVelocity(o.body, { x: (-o.body.position.x / d) * v, y: (-o.body.position.y / d) * v });
+        }
+        this._startMotion('settling');
+        break;
+      }
+      case 'seating':
+        for (const c of params.seats) {
+          const o = this.pieceByPid(c.pid);
+          if (!o) continue;
+          if (o.body.isStatic) {
+            Body.setStatic(o.body, false);
+            o.anchored = false;
+            o.anchorPending = true; // おもりは つづける
+            this._applyMass(o);
+          }
+          Body.setPosition(o.body, { x: c.x, y: c.y });
+          Body.setVelocity(o.body, { x: 0, y: 0 });
+          Body.setAngularVelocity(o.body, 0);
+        }
+        break;
       case 'hazure':
       default:
         break;
     }
 
     p.card.used = true;
+    // カードどろぼう：相手のカードを うばう（使うまえに 相手のカードを 見ておく）
+    let stolen = null;
+    if (def.id === 'thief') {
+      stolen = this.players[target].card.def;
+      this.players[target].card.used = true;
+    }
     this._emit('card', { playerIndex: i, card: def, params, target });
+
+    if (stolen) {
+      p.card = { def: stolen, used: false };
+      this._emit('newCard', { playerIndex: i, cards: [stolen], from: target });
+      return { ok: true };
+    }
+    // ルーレット：ほかのカードを1枚ひいて、すぐ使える
+    if (def.id === 'roulette') {
+      const c = drawRandomCard(['roulette', 'okawari']);
+      p.card = { def: c, used: false };
+      this._emit('newCard', { playerIndex: i, cards: [c], roulette: true });
+      return { ok: true };
+    }
+    // ためうち：このターンは おしまい（弾かない）
+    if (def.id === 'tameuchi') {
+      this._emit('cardFx', { type: 'charging', playerIndex: i, x: e.body.position.x, y: e.body.position.y });
+      this._endTurn();
+      return { ok: true };
+    }
 
     // おかわり：カードを何枚かひいて、このターンにそのまま使える（1枚使うと次のカードに）
     if (def.id === 'okawari') {
       const cards = [];
-      for (let k = 0; k < (prm.draw ?? 2); k++) cards.push(drawRandomCard(['okawari']));
+      for (let k = 0; k < (prm.draw ?? 2); k++) cards.push(drawRandomCard(['okawari', 'roulette']));
       p.card = { def: cards[0], used: false };
       p.cardQueue = cards.slice(1);
       this._emit('newCard', { playerIndex: i, cards });
@@ -686,6 +920,7 @@ export class Game {
       this._spawnJunk();
       this._iceTrail();
       this._updateGhosts();
+      this._updateAir();
       this._checkFalls();
     }
     this._updateFalls(dt);
@@ -795,8 +1030,31 @@ export class Game {
       }
     }
     const k = dt / BASE_DT;
+    const motion = this.phase === 'moving' || this.phase === 'settling';
     for (const e of this._allPieces()) {
       if (!e.alive || e.body.isStatic) continue;
+      // つらぬき：当てたあとも いきおいを たもつ
+      if (e.pierceUntil > this.time && e.pierceDir) {
+        const left = (e.pierceUntil - this.time) / (findCard('pierce')?.params?.ms ?? 600);
+        const want = e.pierceSpeed * (findCard('pierce')?.params?.keep ?? 0.9) * (0.4 + 0.6 * left);
+        if (e.body.speed < want) Body.setVelocity(e.body, { x: e.pierceDir.x * want, y: e.pierceDir.y * want });
+      }
+      // かたむき：動いている消しゴムは 低いほうへ すこし すべる（クロケシは へいき）
+      if (this.tilt && motion && e.body.speed > 0.3 && !this._guarded(e, -1)) {
+        const a = this.tilt.drift * k;
+        Body.setVelocity(e.body, { x: e.body.velocity.x + this.tilt.x * a, y: e.body.velocity.y + this.tilt.y * a });
+      }
+      // ブラックホール：近くで 動いている消しゴムを すいよせる
+      const bh = this.blackHole;
+      if (bh && motion && e.body.speed > 0.2) {
+        const dx = bh.x - e.body.position.x;
+        const dy = bh.y - e.body.position.y;
+        const d = Math.hypot(dx, dy);
+        if (d < bh.R && d > 1) {
+          const a = bh.pull * (1 - d / bh.R) * k;
+          Body.setVelocity(e.body, { x: e.body.velocity.x + (dx / d) * a, y: e.body.velocity.y + (dy / d) * a });
+        }
+      }
       const et = traitOf(e);
       // ロケッター：ブースト中は まっすぐ 加速する（回らない）
       if (e.boostUntil > this.time) {
@@ -840,13 +1098,16 @@ export class Game {
   // その場所のすべりやすさ（ワックスがけの中は小さくなる。クロケシは相手のワックスがきかない）
   _localFriction(e) {
     const { x, y } = e.body.position;
-    let s = 1;
+    let lo = 1; // つるつる（ワックス・こおり）
+    let hi = 1; // ざらざら（けしくず）
     for (const z of this.waxZones) {
       if (this._guarded(e, z.owner)) continue;
       if (z.kind === 'ice' && z.by === e.playerIndex) continue; // アイスケシは 自分の こおりでは すべらない
-      if ((x - z.x) ** 2 + (y - z.y) ** 2 <= z.r * z.r) s = Math.min(s, z.scale);
+      if ((x - z.x) ** 2 + (y - z.y) ** 2 > z.r * z.r) continue;
+      if (z.scale < 1) lo = Math.min(lo, z.scale);
+      else hi = Math.max(hi, z.scale);
     }
-    return s;
+    return lo * hi;
   }
 
   // 机とのこすれ：速さから毎コマ一定量を引く（遅くなるとピタッと止まる）
@@ -923,8 +1184,9 @@ export class Game {
       // とくせい
       const pa = a.plugin?.piece;
       const pb = b.plugin?.piece;
-      // 守りのとくせい（ニンジャ・ユウレイ・カガミン）：ぶつかったこと自体を なかったことにする
+      // 守りのとくせい（ニンジャ・ユウレイ・カガミン）・ふでばこ：ぶつかったこと自体を なかったことにする
       if (pa && pb && (this._defend(pair, pa, pb, power) || this._defend(pair, pb, pa, power))) continue;
+      if (pa && pb && this.phase === 'moving') this._cardHit(pair, pa, pb);
       if (pa) this._traitHit(pa, pb, power, x, y);
       if (pb) this._traitHit(pb, pa, power, x, y);
       this._emit('hit', { x, y, power, pencil: a.label === 'pencil' || b.label === 'pencil' });
@@ -936,6 +1198,20 @@ export class Game {
    * ニンジャケシ：よこへ よける／ユウレイケシ：この番のあいだ すりぬける／カガミン：力を そのまま返す
    */
   _defend(pair, e, o, power) {
+    // ふでばこ（カード）：1回だけ 当たりを ふせぐ
+    if (e.shield && e.alive && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed + 0.3 && power >= 1.5) {
+      e.shield = false;
+      pair.isActive = false;
+      const b = findCard('pencase')?.params?.bounce ?? 0.35;
+      Body.setVelocity(o.body, { x: -o.body.velocity.x * b, y: -o.body.velocity.y * b });
+      Body.setVelocity(e.body, { x: 0, y: 0 });
+      // はなれるまで すりぬけて、おしこまれないようにする
+      e.ghost = true;
+      e.ghostEnd = true;
+      e.body.collisionFilter.mask = 0;
+      this._emit('cardFx', { type: 'shield', playerIndex: e.playerIndex, x: e.body.position.x, y: e.body.position.y });
+      return true;
+    }
     const t = traitOf(e);
     if (!['dodge', 'ghost', 'mirror'].includes(t.id) || e.defUsed || !e.alive) return false;
     if (o.playerIndex === e.playerIndex || power < (t.minPower ?? 2.5)) return false;
@@ -983,6 +1259,47 @@ export class Game {
     return true;
   }
 
+  /** つらぬき・ボウリング（カード）のぶつかり */
+  _cardHit(pair, a, b) {
+    const shooter = this.turnIndex;
+    // つらぬき：弾いた消しゴムが 相手に当たっても いきおいが へらない
+    if (this.turn.pierce) {
+      for (const [me, o] of [[a, b], [b, a]]) {
+        if (me.playerIndex !== shooter || o.playerIndex === shooter || me.pierceUntil > this.time) continue;
+        const sp = me.body.speed;
+        if (sp < 1) continue;
+        me.pierceSpeed = sp;
+        me.pierceDir = { x: me.body.velocity.x / sp, y: me.body.velocity.y / sp };
+        me.pierceUntil = this.time + (findCard('pierce')?.params?.ms ?? 600);
+        this._emit('cardFx', { type: 'pierce', playerIndex: shooter, x: o.body.position.x, y: o.body.position.y });
+      }
+    }
+    // ボウリング：当てられた相手が ほかの相手に当たると、力が そのまま うつる
+    if (this.turn.bowling && a.playerIndex !== shooter && b.playerIndex !== shooter) {
+      const [fast, slow] = a.body.speed >= b.body.speed ? [a, b] : [b, a];
+      if (fast.body.speed > slow.body.speed + 1 && !slow.body.isStatic) {
+        pair.isActive = false;
+        Body.setVelocity(slow.body, { x: fast.body.velocity.x, y: fast.body.velocity.y });
+        Body.setVelocity(fast.body, { x: fast.body.velocity.x * 0.08, y: fast.body.velocity.y * 0.08 });
+        this._emit('cardFx', { type: 'bowling', playerIndex: shooter, x: slow.body.position.x, y: slow.body.position.y });
+      }
+    }
+  }
+
+  /** ジャンプ中なら、着地できるか（だれとも重なっていなければ 着地） */
+  _updateAir() {
+    for (const e of this._allPieces()) {
+      if (!e.airborne || !e.alive || this.time < e.airUntil) continue;
+      const overlap = [...this._allPieces(), ...this.junk].some(
+        (o) => o !== e && o.alive && o.body && Matter.Collision.collides(e.body, o.body)?.collided,
+      ) || this.pencils.some((pc) => pc.alive && Matter.Collision.collides(e.body, pc.body)?.collided);
+      if (overlap) continue;
+      e.airborne = false;
+      if (!e.ghost) e.body.collisionFilter.mask = 0xffffffff;
+      this._emit('cardFx', { type: 'land', playerIndex: e.playerIndex, x: e.body.position.x, y: e.body.position.y });
+    }
+  }
+
   /** ユウレイ・ニンジャのすりぬけを もどす（番が終わって、だれとも重なっていなければ） */
   _updateGhosts() {
     for (const e of this._allPieces()) {
@@ -993,7 +1310,7 @@ export class Game {
       if (overlap) continue;
       e.ghost = false;
       e.ghostEnd = false;
-      e.body.collisionFilter.mask = 0xffffffff;
+      if (!e.airborne) e.body.collisionFilter.mask = 0xffffffff;
     }
   }
 
@@ -1115,7 +1432,8 @@ export class Game {
       Body.setVelocity(n.body, b.velocity);
       Body.setAngularVelocity(n.body, b.angularVelocity);
       // カードの効果などは そのまま 引きつぐ（大きさは もとにもどる）
-      for (const k of ['confused', 'hold', 'holdUntil', 'grip', 'gripPending', 'gripScale', 'anchorPending', 'clear']) n[k] = egg[k];
+      for (const k of ['confused', 'hold', 'holdUntil', 'grip', 'gripPending', 'gripScale', 'anchorPending', 'clear',
+        'invisLeft', 'shield', 'extraLife', 'reverseNext', 'powerNext', 'curTurnPos', 'prevTurnPos']) n[k] = egg[k];
       n.hatched = true;
       n.isExtra = egg.isExtra;
       Composite.remove(this.engine.world, b);
@@ -1208,9 +1526,41 @@ export class Game {
   _checkFalls() {
     let fell = false;
     for (const e of this._allPieces()) {
-      if (!e.alive) continue;
+      if (!e.alive || e.airborne) continue; // ジャンプ中は 空中なので まだ落ちない
       const p = e.body.position;
-      if (isInsideDesk(this.desk, p.x, p.y)) continue;
+      const bh = this.blackHole;
+      const inHole = bh && Math.hypot(p.x - bh.x, p.y - bh.y) < bh.r;
+      if (isInsideDesk(this.desk, p.x, p.y) && !inHole) continue;
+
+      // クッション（カード）：弾いた消しゴムが ふちで1回 はね返る
+      if (!inHole && this.turn.cushion && e.playerIndex === this.turnIndex && this.phase === 'moving') {
+        const q = clampInside(this.desk, p.x, p.y, 3);
+        let nx = p.x - q.x;
+        let ny = p.y - q.y;
+        const nl = Math.hypot(nx, ny) || 1;
+        nx /= nl;
+        ny /= nl;
+        const v = e.body.velocity;
+        const dot = v.x * nx + v.y * ny;
+        const b = this.turn.cushion;
+        Body.setPosition(e.body, q);
+        Body.setVelocity(e.body, { x: (v.x - 2 * dot * nx) * b, y: (v.y - 2 * dot * ny) * b });
+        this.turn.cushion = 0;
+        this._emit('cardFx', { type: 'cushion', playerIndex: e.playerIndex, x: q.x, y: q.y });
+        continue;
+      }
+      // もういっかい（カード）：1回だけ まんなかに もどってくる
+      if (e.extraLife && !e.isExtra && !this.extras.some((x) => x.alive && x.playerIndex === e.playerIndex)) {
+        const spot = this._freeSpotNear(0, 0, e);
+        if (spot) {
+          e.extraLife = false;
+          Body.setPosition(e.body, spot);
+          Body.setVelocity(e.body, { x: 0, y: 0 });
+          Body.setAngularVelocity(e.body, 0);
+          this._emit('cardFx', { type: 'revive', playerIndex: e.playerIndex, x: spot.x, y: spot.y, fx: p.x, fy: p.y });
+          continue;
+        }
+      }
 
       // ふみとどまり：ふちで止まる（しばらくは何度押されても止まる）
       if (!e.isExtra && (e.hold || this.time < e.holdUntil)) {
@@ -1271,6 +1621,24 @@ export class Game {
       Composite.remove(this.engine.world, j.body);
     }
     return fell;
+  }
+
+  /** (x, y) の近くで、e を置ける あいている場所（机のまんなか・ブラックホールの外） */
+  _freeSpotNear(x, y, e) {
+    const ext = this.pieceExtent(e);
+    const bh = this.blackHole;
+    for (let r = 0; r < 260; r += 20) {
+      for (let a = 0; a < Math.PI * 2; a += r ? 0.5 : 7) {
+        const q = { x: x + Math.cos(a) * r, y: y + Math.sin(a) * r };
+        if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < ext + 10) continue;
+        if (bh && Math.hypot(q.x - bh.x, q.y - bh.y) < bh.r + ext + 10) continue;
+        const busy = this._allPieces().some(
+          (o) => o.alive && o !== e && Math.hypot(o.body.position.x - q.x, o.body.position.y - q.y) < ext + this.pieceExtent(o) + 6,
+        );
+        if (!busy) return q;
+      }
+    }
+    return null;
   }
 
   _dropPencilsOutside() {
@@ -1413,6 +1781,13 @@ export class Game {
     this.turnCount++;
     this.turn = this._newTurn();
     this.phase = 'aim';
+    // かたむき・ていでん・ブラックホールの おわり
+    if (this.tilt && this.turnCount >= this.tilt.untilTurn) this.tilt = null;
+    if (this.blackout && this.turnCount >= this.blackout.untilTurn) this.blackout = null;
+    if (this.blackHole && this.turnCount >= this.blackHole.untilTurn) {
+      this.blackHole = null;
+      this._emit('cardFx', { type: 'holeClose', playerIndex: next, x: 0, y: 0 });
+    }
     this._startTurnFor(next);
 
     const sd = { ...GAME.suddenDeath, ...this.desk.suddenDeath };
@@ -1441,6 +1816,17 @@ export class Game {
     }
     for (const pc of [e, ...this.extrasOf(i)]) pc.clear = false;
     if (traitOf(e).id === 'dice') this._rollDice(e); // サイコロン：番のたびに サイコロ
+    // カードの効果：ふでばこは おしまい・とうめいは のこりを へらす・ためうちは パワー
+    e.shield = false;
+    if (e.invisLeft > 0) e.invisLeft--;
+    if (e.powerNext) {
+      this.turn.powerMul *= e.powerNext;
+      e.powerNext = 0;
+      this._emit('cardFx', { type: 'powerReady', playerIndex: i, x: e.body.position.x, y: e.body.position.y });
+    }
+    // まきもどし：ターンの はじめの場所を おぼえておく
+    e.prevTurnPos = e.curTurnPos;
+    e.curTurnPos = { x: e.body.position.x, y: e.body.position.y };
     this._trySplit(i);
   }
 
@@ -1485,6 +1871,13 @@ export class Game {
       charged: e.charged,
       cornerUsed: e.cornerUsed,
       hatched: e.hatched,
+      powerNext: e.powerNext,
+      invisLeft: e.invisLeft,
+      shield: e.shield,
+      extraLife: e.extraLife,
+      reverseNext: e.reverseNext,
+      curTurnPos: e.curTurnPos,
+      prevTurnPos: e.prevTurnPos,
     });
     return {
       v: 1,
@@ -1520,6 +1913,9 @@ export class Game {
         })),
       junk: this.junk.filter((j) => j.alive).map((j) => this._junkPack(j)),
       nextJid: this._nextJid,
+      tilt: this.tilt,
+      blackout: this.blackout,
+      blackHole: this.blackHole,
       waxZones: this.waxZones,
     };
   }
@@ -1587,6 +1983,13 @@ export class Game {
         charged: pk.charged ?? true,
         cornerUsed: !!pk.cornerUsed,
         hatched: !!pk.hatched,
+        powerNext: pk.powerNext || 0,
+        invisLeft: pk.invisLeft || 0,
+        shield: !!pk.shield,
+        extraLife: !!pk.extraLife,
+        reverseNext: !!pk.reverseNext,
+        curTurnPos: pk.curTurnPos || { x: pk.x, y: pk.y },
+        prevTurnPos: pk.prevTurnPos || null,
         isExtra: pk.extra,
       });
       if (e.dice) e.dicePower = traitOf(e).faces?.[e.dice - 1]?.power ?? 1;
@@ -1613,6 +2016,9 @@ export class Game {
 
     this.pencils = [];
     for (const pc of st.pencils || []) this._addPencil(pc.x, pc.y, pc.angle, pc);
+    this.tilt = st.tilt || null;
+    this.blackout = st.blackout || null;
+    this.blackHole = st.blackHole || null;
     this.junk = [];
     this._junkQueue = [];
     this._hatchQueue = [];
@@ -1663,6 +2069,12 @@ export class Game {
         grip: !!e.grip || e.gripPending,
         confused: e.confused,
         clear: e.clear,
+        invisible: e.invisLeft > 0,
+        shield: e.shield,
+        extraLife: e.extraLife,
+        reversed: e.reverseNext,
+        airborne: e.airborne,
+        power: e.powerNext > 0,
       },
       // とくせいの見た目（描画用）
       trait: {
@@ -1697,6 +2109,9 @@ export class Game {
       waxZones: this.waxZones,
       curveActive: this.canSteer(this.turnIndex),
       glare: this.phase === 'aim' ? this.glareFor(this.turnIndex) : 0, // キラリンで 矢印がゆれる
+      tilt: this.tilt,
+      blackout: this.isBlackout(),
+      blackHole: this.blackHole,
       time: this.time,
       pencils: this.pencils
         .filter((pc) => pc.alive || (pc.fall && pc.fall.t < GAME.fallAnimMs))
@@ -1724,6 +2139,11 @@ export class Game {
             },
       ),
     };
+  }
+
+  /** ていでん中か */
+  isBlackout() {
+    return !!this.blackout && this.turnCount >= this.blackout.fromTurn && this.turnCount < this.blackout.untilTurn;
   }
 
   /** CPU が計算に使う物理の値 */

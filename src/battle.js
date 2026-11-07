@@ -30,7 +30,7 @@ const PLACE_HINT = {
 
 // オンラインで、ほかの人の画面にも送る「できごと」（音や演出のため）
 const STREAM_EVENTS = new Set([
-  'flick', 'hit', 'fall', 'hold', 'card', 'split', 'pieceFall', 'trait',
+  'flick', 'hit', 'fall', 'hold', 'card', 'split', 'pieceFall', 'trait', 'cardFx',
   'again', 'resume', 'skipped', 'shrinkWarn', 'shrink', 'newCard', 'nextCard',
 ]);
 
@@ -90,6 +90,9 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
 
   // ---- オンラインの準備 ----
   const isMyTurn = () => !online || game.turnIndex === online.myIndex;
+  // この画面を見ている人（オンラインは自分。ひとが1人だけなら その人。みんなで1台なら -1）
+  const humans = players.map((p, i) => (p.type === 'human' ? i : -1)).filter((i) => i >= 0);
+  const viewerIndex = online ? online.myIndex : humans.length === 1 ? humans[0] : -1;
   let remoteView = null; // ほかの人の番に、とどいた動きで作る「見た目の状態」
   const shown = new Map(); // pid → 画面に出している位置（なめらかに動かすため）
   // 画面に出す状態（ほかの人の番は、とどいた動き）
@@ -174,7 +177,11 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       return;
     }
     if (!again) toast(online ? 'あなたのばん！' : `${p.name}のばん！`, '#fff');
-    if (game.isConfused(game.turnIndex)) {
+    if (game.isReversed(game.turnIndex)) {
+      setHint('🔃 さかさま！ ひっぱる向きが 反対になるよ（矢印のほうに飛ぶ）');
+    } else if (game.turn.powerMul >= 2) {
+      setHint('🔋 パワーが たまった！ 2倍の強さで 弾けるよ');
+    } else if (game.isConfused(game.turnIndex)) {
       setHint('🍓 こんらん中！ 5回に1回くらい、反対に よわく 飛んじゃうよ');
     } else if (game.extrasOf(game.turnIndex).length) {
       setHint('2つに分かれているよ。弾くほうを さわってね');
@@ -220,7 +227,8 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     ov.querySelector('[data-act=use]').onclick = () => {
       closeOverlay();
       const opps = game.opponentsOf(i, def.id); // クロケシのガードは えらべない
-      if (def.place) startPlacement(i, def);
+      if (def.place === 'seat') startSeating(i, def);
+      else if (def.place) startPlacement(i, def);
       else if (def.target && opps.length > 1) startTargeting(i, def, opps);
       else {
         const r = game.useCard(i, {});
@@ -255,10 +263,45 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       },
       onInvalid: (reason) => toast(reason || 'そこには置けないよ', '#ffd54f'),
     });
-    $('bannerText').textContent = PLACE_HINT[def.place];
+    $('bannerText').textContent = def.placeHint || PLACE_HINT[def.place];
     $('banner').classList.add('show');
     setHint('');
   }
+  // せきがえ：ぜんぶの消しゴムを、1こずつ タップで ならべなおす
+  function startSeating(i, def) {
+    const order = game.seatOrder(i);
+    const chosen = [];
+    const next = () => {
+      const k = chosen.length;
+      if (k >= order.length) {
+        endPlacement();
+        const r = game.useCard(i, { seats: chosen });
+        if (!r.ok) toast(r.reason, '#ffd54f');
+        return;
+      }
+      const piece = game.pieceByPid(order[k]);
+      const owner = game.players[piece.playerIndex];
+      input.setPlacement({
+        kind: 'seat',
+        def,
+        pid: order[k],
+        chosen,
+        playerIndex: i,
+        onPlace: ({ x, y }) => {
+          chosen.push({ pid: order[k], x, y });
+          sfx.tap();
+          next();
+        },
+        onInvalid: (reason) => toast(reason || 'そこには置けないよ', '#ffd54f'),
+      });
+      const who = piece.playerIndex === i ? 'じぶん' : owner.name;
+      $('bannerText').textContent = `🪑 せきがえ（${k + 1}/${order.length}）：${who}の ${piece.def.name}を おくところを タップ！`;
+      $('banner').classList.add('show');
+      setHint('');
+    };
+    next();
+  }
+
   function endPlacement() {
     input.setPlacement(null);
     input.setTargeting(null);
@@ -434,6 +477,40 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
   });
 
+  on('cardFx', ({ type, playerIndex, x, y }) => {
+    const p = game.players[playerIndex];
+    const say = (text, color, size = 22, dur = 1300) => renderer.addEffect({ type: 'text', x, y, text, color, stroke: true, size, dur });
+    if (type === 'charging') {
+      say('🔋 ためている…', '#ef5350');
+    } else if (type === 'powerReady') {
+      sfx.big();
+      say('🔋 パワー2倍！', '#ef5350', 24);
+    } else if (type === 'jump') {
+      sfx.whoosh();
+      say('🦘 ジャンプ！', '#10b981');
+    } else if (type === 'land') {
+      sfx.hit(3);
+    } else if (type === 'cushion') {
+      sfx.boing();
+      say('↩️ ポヨン！', '#ef5350');
+    } else if (type === 'pierce') {
+      say('🚂 つらぬき！', '#ef5350');
+    } else if (type === 'bowling') {
+      sfx.hit(8);
+      say('🎳 ストライク！', '#ef5350');
+    } else if (type === 'shield') {
+      sfx.hold();
+      renderer.addEffect({ type: 'ring', x, y, color: '#3b82f6', dur: 500, r: 30, grow: 30 });
+      say('🛡️ ふでばこで ガード！', '#3b82f6', 22, 1400);
+    } else if (type === 'revive') {
+      sfx.rare();
+      renderer.addEffect({ type: 'ring', x, y, color: '#ffd54f', dur: 700, r: 20, grow: 60 });
+      say(`🔁 ${p.name} もういっかい！`, '#f59e0b', 24, 1600);
+    } else if (type === 'holeClose') {
+      toast('ブラックホールが とじた', '#b39ddb');
+    }
+  });
+
   on('hold', ({ x, y }) => {
     sfx.hold();
     renderer.addEffect({ type: 'ring', x, y, color: '#4fc3f7', dur: 600, r: 30 });
@@ -497,7 +574,52 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         renderer.addEffect({ type: 'ring', x: params.x, y: params.y, color: '#fff', dur: 500, r: 40, grow: 120 });
         break;
       case 'okawari':
+      case 'roulette':
+      case 'thief':
         // 新しいカードは newCard で見せる
+        break;
+      case 'tameuchi':
+        sfx.big();
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 900, r: 50, grow: -40 });
+        break;
+      case 'invisible':
+        sfx.whoosh();
+        renderer.addEffect({ type: 'text', x: me.x, y: me.y, text: '🌫️', size: 50, dur: 1200 });
+        break;
+      case 'pencase':
+      case 'extralife':
+        renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 700, r: 20, grow: 40 });
+        break;
+      case 'crumbs':
+        sfx.crumble();
+        renderer.addEffect({ type: 'ring', x: params.x, y: params.y, color: '#a1887f', dur: 500, r: 30, grow: 60 });
+        break;
+      case 'reverse':
+        later(900, () => toast(`${game.players[target].name}は つぎ さかさま！`, '#b39ddb'));
+        break;
+      case 'shrinkbeam': {
+        sfx.whoosh();
+        const t = posOf(target);
+        renderer.addEffect({ type: 'ring', x: t.x, y: t.y, color, dur: 500, r: 50, grow: -40 });
+        break;
+      }
+      case 'tilt':
+        sfx.quake();
+        renderer.shake(500, 3);
+        break;
+      case 'blackout':
+        sfx.warn();
+        later(900, () => toast('つぎの ターンは ていでん…🔌', '#ffe082'));
+        break;
+      case 'shuffle':
+      case 'seating':
+        sfx.whoosh();
+        later(150, () => sfx.whoosh());
+        renderer.shake(300, 3);
+        break;
+      case 'blackhole':
+        sfx.quake();
+        renderer.addEffect({ type: 'ring', x: 0, y: 0, color: '#311b92', dur: 900, r: 200, grow: -180 });
         break;
       case 'hazure':
         later(150, () => sfx.boing());
@@ -510,7 +632,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   });
 
   // おかわり：新しいカードが何枚かめくれる
-  on('newCard', ({ playerIndex, cards }) => {
+  on('newCard', ({ playerIndex, cards, from, roulette }) => {
     const p = game.players[playerIndex];
     // ひとが はじめて手に入れたカードは NEW＋図鑑へ（CPU・オンラインの相手のおかわりは対象外）
     const human = p.type === 'human';
@@ -520,7 +642,13 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const secret = isSecret(p);
     const ov = openOverlay(`
       <div class="announce">
-        <div class="announce-title" style="color:${p.color}">🎁 ${esc(p.name)}に カード${cards.length}枚！</div>
+        <div class="announce-title" style="color:${p.color}">${
+          from != null
+            ? `🦹 ${esc(p.name)}が ${esc(game.players[from].name)}の カードを うばった！`
+            : roulette
+              ? `🎰 ルーレット！ ${esc(p.name)}に でたのは…`
+              : `🎁 ${esc(p.name)}に カード${cards.length}枚！`
+        }</div>
         <div class="deal n${cards.length}">${cards
           .map((c, k) =>
             secret
@@ -528,7 +656,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
               : flipCardHTML(c, '', { isNew: fresh[k] }),
           )
           .join('')}</div>
-        <div class="announce-note">${secret ? 'なにが出たかは ないしょ…' : 'じゅんばんに すぐ使えるよ'}</div>
+        <div class="announce-note">${secret ? 'なにが出たかは ないしょ…' : cards.length > 1 ? 'じゅんばんに すぐ使えるよ' : 'すぐに 使えるよ（あとで 使ってもいい）'}</div>
       </div>`);
     ov.querySelectorAll('.flip:not(.secret)').forEach((f, k) => {
       later(350 + k * 450, () => {
@@ -850,7 +978,22 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
 
     refreshCardBtn();
     const st = online && !isMyTurn() && remoteView ? smoothRemote(remoteView) : game.getState();
-    renderer.draw(st, input.aim || cpuAim, now, input.preview, input.targeting?.candidates);
+    st.viewer = viewerIndex; // とうめい（カード）：自分のは うすく見える
+    st.online = !!online;
+    // せきがえ中は、もう決めた場所を いつも見せる（さわっていないときも）
+    let preview = input.preview;
+    const seat = input.placement?.kind === 'seat' ? input.placement : null;
+    if (seat && !preview) {
+      preview = {
+        kind: 'eraser', chosenOnly: true,
+        chosen: seat.chosen.map((c) => {
+          const o = game.pieceByPid(c.pid);
+          return { x: c.x, y: c.y, angle: o.body.angle, def: o.def, size: o.size };
+        }),
+      };
+    }
+    if (seat) st.seatMoved = seat.chosen.map((c) => c.pid); // 元の場所は うすくする
+    renderer.draw(st, input.aim || cpuAim, now, preview, input.targeting?.candidates);
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);

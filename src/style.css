@@ -2279,3 +2279,30 @@ canvas.board {
   background: #fff8e1;
   animation-duration: 1s;
 }
+
+/* ---- カードの ウルトラレア・レジェンド ---- */
+.card.ultra {
+  border-color: transparent;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px) padding-box,
+    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.8) 0 1px, transparent 2px) padding-box,
+    linear-gradient(#fbf8ff, #ece4ff) padding-box,
+    conic-gradient(from var(--spin, 0deg), #311b92, #7c4dff, #00e5ff, #ff4081, #7c4dff, #311b92) border-box;
+  animation: ultraGlow 1.4s ease-in-out infinite, spinBorder 2s linear infinite;
+}
+.card.ultra .card-rarity {
+  color: #5e35b1;
+}
+.card.legend {
+  border-color: transparent;
+  background:
+    linear-gradient(#fffdf3, #fff3c4) padding-box,
+    conic-gradient(from var(--spin, 0deg), #000, #ffd54f, #fff8e1, #ff8f00, #000, #ffd54f, #000) border-box;
+  animation: legendGlow 1.1s ease-in-out infinite, spinBorder 1.6s linear infinite;
+}
+.card.legend .card-rarity {
+  color: #000;
+  background: #ffd54f;
+  border-radius: 999px;
+  padding: 0 6px;
+}

@@ -4,7 +4,7 @@ import { CARD_TYPES, RARITY } from '../config/cards.js';
 
 export function cardHTML(def, extraClass = '') {
   const type = CARD_TYPES[def.type];
-  const rarityClass = { rare: 'rare', superrare: 'rare superrare' }[def.rarity] || '';
+  const rarityClass = { rare: 'rare', superrare: 'rare superrare', ultra: 'rare ultra', legend: 'rare legend' }[def.rarity] || '';
   return `
     <div class="card ${rarityClass} ${extraClass}" style="--type:${type.color}">
       <div class="card-top">

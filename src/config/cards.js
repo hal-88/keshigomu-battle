@@ -1,8 +1,9 @@
 // 能力カードの設定。ここに1項目追加すれば、カードが増える（効果のしくみは logic/Game.js の useCard）。
 //
 // type   … attack(攻め) / defense(守り) / hinder(妨害) / move(移動) / fun(おたのしみ)
-// rarity … normal / rare / superrare（RARITY の weight の比で出やすさが決まる）
-// place  … 使うときに机の上の場所を選ぶカード（pencil / circle / eraser）
+// rarity … normal / rare / superrare / ultra / legend（RARITY の weight の比で出やすさが決まる）
+// place  … 使うときに机の上の場所を選ぶカード（pencil / circle / eraser / seat＝せきがえ）
+// placeHint … 場所を選ぶときに出す説明（なければ battle.js の PLACE_HINT）
 // target … 相手を1人選ぶカード
 // params … 効果の強さなどの数値
 
@@ -18,6 +19,8 @@ export const RARITY = {
   normal: { label: 'ノーマル', weight: 3 },
   rare: { label: 'レア', weight: 1 },
   superrare: { label: 'スーパーレア', weight: 0.35 },
+  ultra: { label: 'ウルトラレア', weight: 0.15 }, // SSR
+  legend: { label: 'レジェンド', weight: 0.06 }, // UR
 };
 
 export const CARDS = [
@@ -122,6 +125,107 @@ export const CARDS = [
   {
     id: 'hazure', name: 'ハズレ', icon: '🙃', type: 'fun', rarity: 'normal',
     desc: 'なにも起きない…',
+  },
+
+  // ---- 2026-11-08 に ふやしたカード ----
+  {
+    id: 'tameuchi', name: 'ためうち', icon: '🔋', type: 'attack', rarity: 'normal',
+    desc: 'このターンは弾かずに パワーをためる。つぎの自分のターン 2倍の強さで弾ける',
+    params: { powerScale: 2 },
+  },
+  {
+    id: 'cushion', name: 'クッション', icon: '↩️', type: 'attack', rarity: 'normal',
+    desc: '弾いたあと、机のふちで1回だけ はね返れる（落ちない）',
+    params: { bounce: 0.75 },
+  },
+  {
+    id: 'pierce', name: 'つらぬき', icon: '🚂', type: 'attack', rarity: 'normal',
+    desc: '当てた相手を おしたまま、止まらずに 進みつづける',
+    params: { keep: 0.9, ms: 600 },
+  },
+  {
+    id: 'bowling', name: 'ボウリング', icon: '🎳', type: 'attack', rarity: 'rare',
+    desc: '当てた相手が ほかの相手に当たったとき、力が弱まらない',
+  },
+  {
+    id: 'invisible', name: 'とうめい', icon: '🌫️', type: 'defense', rarity: 'rare',
+    desc: '自分のターン2回分、相手から見えなくなる（ぶつかることはできる）。クリアンが使うと3回分',
+    params: { turns: 2, clearTurns: 3 },
+  },
+  {
+    id: 'pencase', name: 'ふでばこ', icon: '🛡️', type: 'defense', rarity: 'normal',
+    desc: 'つぎの自分のターンまで、ふでばこで まもる。1回だけ 当たりをふせぐ',
+    params: { bounce: 0.35 },
+  },
+  {
+    id: 'extralife', name: 'もういっかい', icon: '🔁', type: 'defense', rarity: 'ultra',
+    desc: 'このゲーム中、落ちても1回だけ 机のまんなかに もどってくる',
+  },
+  {
+    id: 'crumbs', name: 'けしくず', icon: '🍪', type: 'hinder', rarity: 'normal',
+    desc: '机に消しカスをまく。通ると スピードが落ちる（さいごまで）',
+    place: 'circle',
+    placeHint: '消しカスを まきたいところを タップ！',
+    params: { radius: 80, frictionScale: 2.4 },
+  },
+  {
+    id: 'reverse', name: 'さかさま', icon: '🔃', type: 'hinder', rarity: 'normal',
+    desc: '相手のつぎのターン、弾く向きが 反対になる',
+    target: 'opponent',
+  },
+  {
+    id: 'shrinkbeam', name: 'ちぢめビーム', icon: '🔦', type: 'hinder', rarity: 'normal',
+    desc: '相手1人を、相手のターン2回分 小さく軽くして 飛ばされやすくする',
+    target: 'opponent',
+    params: { sizeScale: 0.6, massScale: 0.6, turns: 2 },
+  },
+  {
+    id: 'thief', name: 'カードどろぼう', icon: '🦹', type: 'hinder', rarity: 'superrare',
+    desc: '相手の まだ使っていないカードを1枚うばって、自分のものにする',
+    target: 'opponent',
+  },
+  {
+    id: 'jump', name: 'ジャンプ', icon: '🦘', type: 'move', rarity: 'normal',
+    desc: '弾いたとき、とちゅうで ほかの消しゴムや かべを 飛びこえる',
+    params: { airMs: 420 },
+  },
+  {
+    id: 'center', name: 'まんなかへ', icon: '🎯', type: 'move', rarity: 'normal',
+    desc: '机のまんなかの方へ すこし もどってから弾ける',
+    params: { ratio: 0.5, maxDist: 170 },
+  },
+  {
+    id: 'rewind', name: 'まきもどし', icon: '⏪', type: 'move', rarity: 'rare',
+    desc: '自分の場所を、1つ前の自分のターンのはじめの場所に もどす',
+  },
+  {
+    id: 'tilt', name: 'かたむき', icon: '📐', type: 'fun', rarity: 'normal',
+    desc: '机が いちばん落ちそうな相手のほうへ かたむく（2ターン）。みんな少しずつ すべる',
+    params: { turns: 2, push: 2.6, drift: 0.03 },
+  },
+  {
+    id: 'blackout', name: 'ていでん', icon: '🔌', type: 'fun', rarity: 'normal',
+    desc: 'つぎの人のターンのあいだ 画面がまっくらになって、みんな見えにくい',
+  },
+  {
+    id: 'roulette', name: 'ルーレット', icon: '🎰', type: 'fun', rarity: 'normal',
+    desc: 'ほかのカードの中から ランダムで1枚が出て、すぐに使える',
+  },
+  {
+    id: 'shuffle', name: 'シャッフル', icon: '🔀', type: 'fun', rarity: 'rare',
+    desc: 'みんなの場所が ランダムに入れかわる（ふちの近くには行かない）',
+    params: { edgeMargin: 60 },
+  },
+  {
+    id: 'blackhole', name: 'ブラックホール', icon: '🕳️', type: 'fun', rarity: 'ultra',
+    desc: '机のまんなかに2ターン 穴があく。近くの消しゴムを すいこむ（自分も！）',
+    params: { turns: 2, radius: 24, range: 190, pull: 0.09, push: 3.5 },
+  },
+  {
+    id: 'seating', name: 'せきがえ', icon: '🪑', type: 'fun', rarity: 'legend',
+    desc: '机の上の消しゴムを ぜんぶ 好きな場所に ならべなおせる（ふちの近くはダメ）',
+    place: 'seat',
+    params: { edgeMargin: 60 },
   },
 ];
 

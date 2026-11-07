@@ -121,6 +121,7 @@ export class CanvasRenderer {
    */
   draw(state, aim, now, placement = null, targets = null) {
     const ctx = this.ctx;
+    this._state = state; // とうめいの 見え方に つかう
     const { cx, cy, rot } = this.view;
     const z = this.zoomScale;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -159,6 +160,8 @@ export class CanvasRenderer {
 
     this._drawDesk(ctx, state.desk);
     for (const zone of state.waxZones) this._drawWax(ctx, zone, now);
+    if (state.tilt) this._drawTilt(ctx, state, now);
+    if (state.blackHole) this._drawBlackHole(ctx, state.blackHole, now);
     if (state.pendingShrink) this._drawShrinkWarning(ctx, state.desk, state.pendingShrink, now);
 
     // 自分のばんの消しゴムの下に光る輪（分かれたパカッターは、どっちも弾けるので両方）
@@ -189,10 +192,16 @@ export class CanvasRenderer {
       // ブルブル：いつも少しふるえている
       const jx = e.trait.vibrating ? Math.sin(now / 23 + e.playerIndex) * 0.9 : 0;
       const jy = e.trait.vibrating ? Math.cos(now / 29 + e.playerIndex) * 0.9 : 0;
-      // クリアン：すけすけのときは 完全に見えない／イロカワール：机の色に とけこむ
+      // クリアン：すけすけのときは 完全に見えない／イロカワール：机の色に とけこむ／とうめい（カード）
       if (this._hidden(e)) continue;
-      const alpha = e.trait.clear ? e.trait.clearAlpha : 1;
-      drawEraser(ctx, e.def, e.x + jx, e.y + jy, e.angle, { scale: e.size, alpha, tv: e.trait, shadow: !e.trait.clear });
+      let alpha = e.trait.clear ? e.trait.clearAlpha : 1;
+      if (e.effects.invisible) alpha = Math.min(alpha, 0.4);
+      if (state.seatMoved?.includes(e.pid)) alpha = Math.min(alpha, 0.25); // せきがえで 場所を決めたもの
+      // ジャンプ中：空中なので 大きく見えて、かげが はなれる
+      const air = e.effects.airborne ? 1.25 : 1;
+      if (air > 1) this._drawAirShadow(ctx, e);
+      drawEraser(ctx, e.def, e.x + jx, e.y + jy, e.angle, { scale: e.size * air, alpha, tv: e.trait, shadow: !e.trait.clear && air === 1 });
+      if (e.effects.shield) this._drawShield(ctx, e, now);
       if (e.trait.clear && e.trait.camo) this._drawCamo(ctx, e, state.desk);
       // 分かれたかけらには、持ち主の色の輪
       if (e.isExtra) this._drawPieceRing(ctx, e, state.players[e.playerIndex].color);
@@ -206,9 +215,10 @@ export class CanvasRenderer {
 
     ctx.restore();
 
+    if (state.blackout) this._drawBlackout(ctx, state, now);
     this._drawLabels(ctx, state, now);
     this._drawScreenEffects(ctx, now);
-    if (state.desk.autoCamera && this.cam.zoom > 1.1) this._drawMinimap(ctx, state);
+    if (state.desk.autoCamera && this.cam.zoom > 1.1 && !state.blackout) this._drawMinimap(ctx, state);
     if (aim) this._drawGauge(ctx, aim);
   }
 
@@ -249,7 +259,15 @@ export class CanvasRenderer {
 
   /** 見えなくなっている消しゴム（クリアンの すけすけ） */
   _hidden(e) {
-    return e.trait?.clear && !e.trait.camo && (e.trait.clearAlpha ?? 0.3) <= 0.01;
+    if (e.trait?.clear && !e.trait.camo && (e.trait.clearAlpha ?? 0.3) <= 0.01) return true;
+    // とうめい（カード）：見ている人が 持ち主なら うすく見える。みんなで1台なら 持ち主の番だけ 見える
+    if (e.effects?.invisible) {
+      const st = this._state || {};
+      if (st.viewer === e.playerIndex) return false;
+      if (!st.online && st.turnIndex === e.playerIndex) return false;
+      return true;
+    }
+    return false;
   }
 
   // イロカワール：机の色を うすく かさねて、とけこんで見えるようにする
@@ -372,6 +390,7 @@ export class CanvasRenderer {
 
   _drawWax(ctx, z, now) {
     if (z.kind === 'ice') return this._drawIce(ctx, z, now);
+    if (z.kind === 'crumbs' || (z.scale && z.scale > 1)) return this._drawCrumbs(ctx, z);
     ctx.save();
     const g = ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.r);
     g.addColorStop(0, 'rgba(255,255,255,0.65)');
@@ -393,6 +412,163 @@ export class CanvasRenderer {
       const tw = 0.5 + 0.5 * Math.sin(now / 300 + i * 1.7);
       this._sparkle(ctx, z.x + Math.cos(a) * r, z.y + Math.sin(a) * r, 4 + 5 * tw, `rgba(255,255,255,${0.4 + 0.6 * tw})`);
     }
+    ctx.restore();
+  }
+
+  // けしくず：消しカスが ちらばっている
+  _drawCrumbs(ctx, z) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(120,90,60,0.12)';
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = 'rgba(120,90,60,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (let i = 0; i < 34; i++) {
+      const a = i * 2.39996;
+      const r = z.r * Math.sqrt(((i * 37) % 100) / 100);
+      const x = z.x + Math.cos(a) * r;
+      const y = z.y + Math.sin(a) * r;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(i * 1.7);
+      ctx.fillStyle = i % 3 ? 'rgba(235,225,215,0.95)' : 'rgba(150,140,130,0.9)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 3.5 + (i % 3), 1.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // かたむき：ひくいほうへ 矢印
+  _drawTilt(ctx, state, now) {
+    const t = state.tilt;
+    const { w, h } = deskSize(state.desk);
+    const a = Math.atan2(t.y, t.x);
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.08 * Math.sin(now / 250);
+    ctx.fillStyle = '#1e3a8a';
+    const step = 150;
+    for (let gx = -w / 2 + step / 2; gx < w / 2; gx += step) {
+      for (let gy = -h / 2 + step / 2; gy < h / 2; gy += step) {
+        ctx.save();
+        ctx.translate(gx, gy);
+        ctx.rotate(a);
+        const off = ((now / 25) % 30) - 15;
+        ctx.beginPath();
+        ctx.moveTo(off - 14, -16);
+        ctx.lineTo(off + 10, 0);
+        ctx.lineTo(off - 14, 16);
+        ctx.lineTo(off - 6, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ブラックホール：まんなかの あな
+  _drawBlackHole(ctx, bh, now) {
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.lineDashOffset = -now / 40;
+    ctx.strokeStyle = 'rgba(80,40,160,0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(bh.x, bh.y, bh.R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const g = ctx.createRadialGradient(bh.x, bh.y, 0, bh.x, bh.y, bh.r * 2.6);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.38, 'rgba(10,0,30,0.95)');
+    g.addColorStop(0.6, 'rgba(90,40,180,0.5)');
+    g.addColorStop(1, 'rgba(90,40,180,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(bh.x, bh.y, bh.r * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    // うずまき
+    ctx.strokeStyle = 'rgba(180,140,255,0.6)';
+    ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      for (let i = 0; i <= 30; i++) {
+        const r = bh.r * 2.4 * (1 - i / 30);
+        const a = (i / 30) * Math.PI * 2.5 + (k * Math.PI * 2) / 3 + now / 300;
+        const x = bh.x + Math.cos(a) * r;
+        const y = bh.y + Math.sin(a) * r;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ふでばこ：まわりを かこむ 青い箱
+  _drawShield(ctx, e, now) {
+    const r = eraserExtent(e.def) * e.size + 9;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.angle);
+    ctx.globalAlpha = 0.75 + 0.2 * Math.sin(now / 200);
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    roundRectPath(ctx, -r * 1.15, -r * 0.8, r * 2.3, r * 1.6, 8);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    roundRectPath(ctx, -r * 1.15 + 4, -r * 0.8 + 4, r * 2.3 - 8, r * 1.6 - 8, 6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ジャンプ中の かげ（地面に はなれて うつる）
+  _drawAirShadow(ctx, e) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(40,25,10,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(e.x + 10, e.y + 16, eraserExtent(e.def) * e.size * 0.9, eraserExtent(e.def) * e.size * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ていでん：画面が まっくら（弾く人のまわりだけ すこし見える。光る消しゴムは 光る）
+  _drawBlackout(ctx, state, now) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(5,6,20,0.9)';
+    ctx.beginPath();
+    ctx.rect(0, 0, this.w, this.h);
+    const cur = state.erasers[state.turnIndex];
+    if (cur && cur.alive) {
+      const p = this.worldToScreen(cur.x, cur.y);
+      const r = (eraserExtent(cur.def) * cur.size + 30) * this.zoomScale;
+      ctx.moveTo(p.x + r, p.y);
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2, true);
+    }
+    ctx.fill('evenodd');
+    // 光る消しゴム（ヒカルン）は くらくても 見える
+    for (const e of [...state.erasers, ...state.extras]) {
+      if (!e.alive || !e.trait?.glowing) continue;
+      const p = this.worldToScreen(e.x, e.y);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 40 * this.zoomScale);
+      g.addColorStop(0, 'rgba(180,255,120,0.9)');
+      g.addColorStop(1, 'rgba(118,255,3,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 40 * this.zoomScale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,240,180,0.85)';
+    ctx.font = '800 16px "M PLUS Rounded 1c", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔌 ていでん中…', this.w / 2, 70 + Math.sin(now / 300) * 3);
     ctx.restore();
   }
 
@@ -701,6 +877,13 @@ export class CanvasRenderer {
     ctx.save();
     ctx.globalAlpha = 0.6 + 0.2 * Math.sin(now / 150);
     if (pl.kind === 'eraser') {
+      for (const c of pl.chosen || []) {
+        drawEraser(ctx, c.def, c.x, c.y, c.angle || 0, { scale: c.size || 1, shadow: false, alpha: 0.85 });
+      }
+      if (pl.chosenOnly) {
+        ctx.restore();
+        return;
+      }
       drawEraser(ctx, pl.def, pl.x, pl.y, pl.angle || 0, { scale: pl.size || 1, shadow: false });
       ctx.globalAlpha = 1;
       ctx.strokeStyle = okColor;
@@ -794,6 +977,7 @@ export class CanvasRenderer {
     ctx.textBaseline = 'middle';
     for (const e of state.erasers) {
       if (!e.alive || this._hidden(e)) continue;
+      if (state.blackout && e.playerIndex !== state.turnIndex) continue;
       const player = state.players[e.playerIndex];
       const p = this.worldToScreen(e.x, e.y);
       const isTurn = state.phase === 'aim' && state.turnIndex === e.playerIndex;
@@ -807,6 +991,11 @@ export class CanvasRenderer {
       if (e.effects.clear && !e.trait.camo) text += ' 👻';
       if (e.trait.dice) text += ' 🎲' + e.trait.dice;
       if (e.trait.charging) text += ' 💤ためる';
+      if (e.effects.invisible) text += ' 🌫️';
+      if (e.effects.shield) text += ' 🛡️';
+      if (e.effects.extraLife) text += ' 🔁';
+      if (e.effects.reversed) text += ' 🔃さかさま';
+      if (e.effects.power) text += ' 🔋';
       if (e.effects.anchor) text += ' ⚓';
       if (e.effects.hold) text += ' 🦶';
       const tw = ctx.measureText(text).width + 18;

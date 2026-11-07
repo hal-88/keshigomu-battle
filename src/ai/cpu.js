@@ -77,12 +77,61 @@ export function planCpuShot(game, me, cfg) {
   strength = Math.max(0.25, Math.min(1, strength));
 
   // クリアン（すけすけ）は見えにくいので、ねらいがズレる
-  const blur = best.t.effects.clear ? best.t.def.trait?.aimErrorDeg ?? 14 : 0;
+  let blur = best.t.effects.clear ? best.t.def.trait?.aimErrorDeg ?? 14 : 0;
+  if (best.t.effects.invisible) blur = Math.max(blur, 22); // とうめい（カード）
+  if (game.isBlackout()) blur += 18; // ていでんで くらい
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
-  const dirX = Math.cos(ang);
-  const dirY = Math.sin(ang);
+  // さかさま：反対に飛ぶと わかっているので、反対に ひっぱる
+  const rev = game.isReversed(me) ? -1 : 1;
+  const dirX = Math.cos(ang) * rev;
+  const dirY = Math.sin(ang) * rev;
   const spin = rand(cfg.spin ?? 0);
   return { dirX, dirY, strength, spin, target: best.t.playerIndex };
+}
+
+/**
+ * せきがえ（CPU）：自分は まんなか、相手は ふちの近く（ゆるされる ぎりぎり）に ならべる
+ * @returns {{ seats: Array<{pid, x, y}> } | null}
+ */
+function planSeats(game, me) {
+  const margin = (game.players[me].card.def.params?.edgeMargin ?? 60) + 6;
+  const seats = [];
+  const tryPlace = (pid, cands) => {
+    for (const q of cands) {
+      if (game.validateSeat(pid, q.x, q.y, seats, margin - 6).ok) {
+        seats.push({ pid, x: q.x, y: q.y });
+        return true;
+      }
+    }
+    return false;
+  };
+  const ring = (r, n, off = 0) => Array.from({ length: n }, (_, k) => {
+    const a = off + (k / n) * Math.PI * 2;
+    return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+  });
+  // 机の上の、ふちから margin くらいの点（ぐるっと）
+  const nearEdge = [];
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    for (let r = 600; r > 0; r -= 6) {
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (game.edgeClearance(x, y) >= margin) {
+        nearEdge.push({ x, y });
+        break;
+      }
+    }
+  }
+  nearEdge.sort(() => Math.random() - 0.5);
+  for (const pid of game.seatOrder(me)) {
+    const piece = game.pieceByPid(pid);
+    const mine = piece.playerIndex === me;
+    const ok = mine
+      ? tryPlace(pid, [{ x: 0, y: 0 }, ...ring(70, 8), ...ring(130, 12)])
+      : tryPlace(pid, nearEdge);
+    if (!ok) return null;
+  }
+  return { seats };
 }
 
 /** パカッターが分かれているとき、どっちのかけらで弾くか決める（えらんだほうがメインになる） */
@@ -166,6 +215,49 @@ export function planCpuCard(game, me, cfg) {
       }
       return null;
     }
+    // ---- 2026-11-08 のカード ----
+    case 'cushion':
+    case 'pencase':
+      // 自分が ふちに近いときに使う
+      return myEdge < 130 || chance() ? {} : null;
+    case 'extralife':
+    case 'roulette':
+      return {}; // いつ使っても得
+    case 'center':
+      return myEdge < 120 ? {} : null;
+    case 'rewind': {
+      // いまの場所が あぶなくて、まえの場所が 安全なとき
+      const q = game.erasers[me].prevTurnPos;
+      if (!q || myEdge > 110 || game.edgeClearance(q.x, q.y) < myEdge + 40) return null;
+      return game.validatePlacement('eraser', q, me, { params: { edgeMargin: 1 } }).ok ? {} : null;
+    }
+    case 'crumbs':
+      // 自分のまわりに まいて、ぶつかってくる相手を おそくする
+      return myEdge < 160 || chance() ? ok({ x: my.x, y: my.y }) : null;
+    case 'reverse':
+    case 'shrinkbeam': {
+      const opps = game.opponentsOf(me, def.id);
+      if (!opps.length || !chance()) return null;
+      return { target: opps.includes(opp.playerIndex) ? opp.playerIndex : opps[0] };
+    }
+    case 'thief': {
+      const opps = game.opponentsOf(me, 'thief');
+      return opps.length ? { target: opps[0] } : null;
+    }
+    case 'shuffle':
+      return myEdge < oppEdge - 40 ? {} : null;
+    case 'blackhole': {
+      // 相手が まんなかの近くにいて、自分は はなれているとき
+      const R = def.params?.range ?? 190;
+      const meFar = Math.hypot(my.x, my.y) > R + 40;
+      const oppNear = st.erasers.some((t) => t.alive && t.playerIndex !== me && Math.hypot(t.x, t.y) < R * 0.8);
+      return meFar && oppNear ? {} : null;
+    }
+    case 'seating':
+      return planSeats(game, me);
+    case 'tameuchi':
+      // ねらえる相手が遠いときに ためる
+      return best.D > 260 && chance() ? {} : null;
     case 'curve':
     case 'rapid':
     case 'big':
