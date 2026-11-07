@@ -12,6 +12,7 @@
 //   this.erasers[i] … i 番目の人の「メイン」の消しゴム
 //   this.extras     … パカッターが分かれたときの「かけら」（メインが落ちたら、かけらがメインになる）
 //   this.debris     … 落ちていくところ（演出用）
+//   this.junk       … 外れたパーツ・カバー（だれのものでもない。机の上にころがっていて、ぶつかれる）
 
 import Matter from 'matter-js';
 import { PHYSICS } from '../config/physics.js';
@@ -29,7 +30,7 @@ const BASE_DT = 1000 / 60;
 // 相手のカードのうち、クロケシ（ガード）にきかないもの
 const GUARDED_CARDS = ['skip', 'swap', 'fan', 'quake', 'guruguru'];
 
-const traitOf = (e) => e.def.trait || {};
+const traitOf = (e) => e.def?.trait || {};
 
 export class Game {
   /**
@@ -57,6 +58,9 @@ export class Game {
     });
     this.extras = [];
     this.debris = [];
+    this.junk = [];
+    this._junkQueue = [];
+    this._nextJid = 1;
     this.pencils = [];
     this.waxZones = [];
 
@@ -424,6 +428,11 @@ export class Game {
           Body.setVelocity(o.body, { x: Math.cos(a) * v, y: Math.sin(a) * v });
           Body.setAngularVelocity(o.body, (Math.random() - 0.5) * 0.15);
         }
+        for (const j of this.junk) {
+          if (!j.alive) continue;
+          const a = Math.random() * Math.PI * 2;
+          Body.setVelocity(j.body, { x: Math.cos(a) * 3, y: Math.sin(a) * 3 });
+        }
         this._startMotion('settling');
         break;
       case 'hazure':
@@ -490,6 +499,68 @@ export class Game {
     return [{ x: x - c, y: y - s }, { x: x + c, y: y + s }];
   }
 
+  // ---- 外れたパーツ・カバー ----
+  /** 机の上にころがるもの（パーツ・カバー）を1つ置く */
+  _addJunk({ x, y, angle = 0, w, h, color, kind, vx = 0, vy = 0, av = 0, jid }) {
+    const body = Bodies.rectangle(x, y, w, h, {
+      angle,
+      frictionAir: 0.05,
+      restitution: 0.4,
+      friction: 0.3,
+      chamfer: { radius: Math.min(3, Math.min(w, h) / 2 - 0.5) },
+    });
+    Body.setMass(body, (w * h) / 300); // 小さくて軽い（消しゴムは 4〜5）
+    Body.setVelocity(body, { x: vx, y: vy });
+    Body.setAngularVelocity(body, av);
+    body.label = 'junk';
+    Composite.add(this.engine.world, body);
+    const j = { jid: jid ?? this._nextJid++, kind, w, h, color, body, alive: true, fall: null };
+    this.junk.push(j);
+    return j;
+  }
+
+  /** ぶつかったときに外れたものを、物理の計算が終わってから机に置く */
+  _spawnJunk() {
+    const q = this._junkQueue;
+    if (!q.length) return;
+    this._junkQueue = [];
+    for (const d of q) {
+      const e = d.from;
+      if (!e.alive) continue;
+      const p = e.body.position;
+      // 当たった相手と反対のがわ（なければ当たったところのほう）に、はじき出す
+      let ax = p.x - (d.other ? d.other.body.position.x : d.x);
+      let ay = p.y - (d.other ? d.other.body.position.y : d.y);
+      if (!d.other) [ax, ay] = [-ax, -ay];
+      const base = Math.atan2(ay, ax) || 0;
+      const w = d.w * e.size;
+      const h = d.h * e.size;
+      const r = Math.hypot(w, h) / 2;
+      let spot = null;
+      for (const da of [0.6, -0.6, 1.2, -1.2, 0, 2, -2, Math.PI]) {
+        const a = base + da;
+        const dist = this.pieceExtent(e) + r + 3;
+        const q2 = { x: p.x + Math.cos(a) * dist, y: p.y + Math.sin(a) * dist, a };
+        const hit =
+          this._allPieces().some((o) => o.alive && o !== e && Math.hypot(o.body.position.x - q2.x, o.body.position.y - q2.y) < this.pieceExtent(o) + r) ||
+          this.junk.some((j) => j.alive && Math.hypot(j.body.position.x - q2.x, j.body.position.y - q2.y) < r + Math.hypot(j.w, j.h) / 2);
+        if (!hit) {
+          spot = q2;
+          break;
+        }
+      }
+      if (!spot) continue; // すきまがなければ、こなごなになった（置かない）
+      const sp = 1.5 + Math.min(4, e.body.speed * 0.5);
+      this._addJunk({
+        x: spot.x, y: spot.y, angle: e.body.angle + (Math.random() - 0.5),
+        w, h, color: d.color, kind: d.kind,
+        vx: e.body.velocity.x * 0.5 + Math.cos(spot.a) * sp,
+        vy: e.body.velocity.y * 0.5 + Math.sin(spot.a) * sp,
+        av: (Math.random() - 0.5) * 0.3,
+      });
+    }
+  }
+
   // ---- 時間を進める ----
   step(dt) {
     this.time += dt;
@@ -498,6 +569,7 @@ export class Game {
       this._applySteer(dt);
       this._applyDeskBrake(dt);
       Engine.update(this.engine, dt);
+      this._spawnJunk();
       this._checkFalls();
     }
     this._updateFalls(dt);
@@ -506,7 +578,7 @@ export class Game {
 
     if (this.phase === 'moving' || this.phase === 'settling') {
       this._movingMs += dt;
-      const moving = this._allPieces().some(
+      const moving = [...this._allPieces(), ...this.junk].some(
         (e) =>
           e.alive && !e.body.isStatic &&
           (e.body.speed > PHYSICS.stopSpeed ||
@@ -659,6 +731,19 @@ export class Game {
         Body.setAngularVelocity(b, w2);
       }
     }
+    // 外れたパーツ・カバーも、こすれて止まる（ワックスの上はよくすべる）
+    for (const j of this.junk) {
+      if (!j.alive) continue;
+      const b = j.body;
+      const brake = k * this.desk.frictionScale * this._localFriction(j) * 1.5;
+      const s = b.speed;
+      if (s > 0) {
+        const r = Math.max(0, s - PHYSICS.kineticDecel * brake) / s;
+        Body.setVelocity(b, { x: b.velocity.x * r, y: b.velocity.y * r });
+      }
+      const w = b.angularVelocity;
+      if (w !== 0) Body.setAngularVelocity(b, Math.sign(w) * Math.max(0, Math.abs(w) - PHYSICS.angularDecel * brake * 2));
+    }
   }
 
   _onCollision(ev) {
@@ -715,6 +800,7 @@ export class Game {
           e.traitMass = t.afterMass ?? 0.8;
           e.frictionMul *= t.afterFriction ?? 0.85;
           this._applyMass(e);
+          if (t.drop) this._junkQueue.push({ from: e, other: o, x, y, ...t.drop, kind: 'cover' });
           this._emit('trait', { type: 'coverOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
         }
         break;
@@ -724,7 +810,10 @@ export class Game {
           e.lastBreakAt = this.time;
           e.traitMass *= t.massStep ?? 0.82;
           e.frictionMul *= t.frictionStep ?? 0.9;
+          e.maxSpeed *= t.speedStep ?? 1;
           this._applyMass(e);
+          const drop = t.drops?.[e.parts];
+          if (drop) this._junkQueue.push({ from: e, other: o, x, y, ...drop, kind: 'part' });
           this._emit('trait', { type: 'partOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y, left: e.parts });
         }
         break;
@@ -875,6 +964,15 @@ export class Game {
       this.fallOrder.push(i);
       this._emit('fall', { playerIndex: i, x: p.x, y: p.y });
     }
+    // 外れたパーツ・カバーが机から落ちた（勝ち負けには関係ない）
+    for (const j of this.junk) {
+      if (!j.alive) continue;
+      const p = j.body.position;
+      if (isInsideDesk(this.desk, p.x, p.y)) continue;
+      j.alive = false;
+      j.fall = { t: 0, x: p.x, y: p.y, angle: j.body.angle, vx: j.body.velocity.x, vy: j.body.velocity.y, av: j.body.angularVelocity };
+      Composite.remove(this.engine.world, j.body);
+    }
     return fell;
   }
 
@@ -892,7 +990,7 @@ export class Game {
 
   _updateFalls(dt) {
     const k = dt / BASE_DT;
-    for (const e of [...this.erasers, ...this.debris]) {
+    for (const e of [...this.erasers, ...this.debris, ...this.junk]) {
       const f = e.fall;
       if (!f || f.t > GAME.fallAnimMs * 2) continue;
       f.t += dt;
@@ -903,6 +1001,7 @@ export class Game {
       f.vy *= 0.92;
     }
     this.debris = this.debris.filter((e) => e.fall.t <= GAME.fallAnimMs * 2);
+    this.junk = this.junk.filter((j) => j.alive || j.fall.t <= GAME.fallAnimMs * 2);
     for (const pc of this.pencils) if (pc.fall && pc.fall.t <= GAME.fallAnimMs * 2) pc.fall.t += dt;
   }
 
@@ -1057,6 +1156,7 @@ export class Game {
       cardMass: e.cardMass,
       traitMass: e.traitMass,
       frictionMul: e.frictionMul,
+      maxSpeed: e.maxSpeed,
       anchored: e.anchored,
       anchorPending: e.anchorPending,
       hold: e.hold,
@@ -1101,7 +1201,16 @@ export class Game {
           width: pc.width,
           look: pc.look,
         })),
+      junk: this.junk.filter((j) => j.alive).map((j) => this._junkPack(j)),
+      nextJid: this._nextJid,
       waxZones: this.waxZones,
+    };
+  }
+
+  _junkPack(j) {
+    return {
+      jid: j.jid, kind: j.kind, w: j.w, h: j.h, color: j.color,
+      x: j.body.position.x, y: j.body.position.y, angle: j.body.angle,
     };
   }
 
@@ -1140,6 +1249,7 @@ export class Game {
         cardMass: pk.cardMass,
         traitMass: pk.traitMass,
         frictionMul: pk.frictionMul,
+        maxSpeed: pk.maxSpeed ?? e.maxSpeed,
         sizeLeft: pk.sizeLeft,
         anchorPending: pk.anchorPending,
         hold: pk.hold,
@@ -1176,6 +1286,10 @@ export class Game {
 
     this.pencils = [];
     for (const pc of st.pencils || []) this._addPencil(pc.x, pc.y, pc.angle, pc);
+    this.junk = [];
+    this._junkQueue = [];
+    for (const j of st.junk || []) this._addJunk(j);
+    this._nextJid = st.nextJid || this._nextJid;
     this.waxZones = (st.waxZones || []).map((z) => ({ ...z }));
   }
 
@@ -1263,6 +1377,15 @@ export class Game {
       erasers: this.erasers.map((e) => this._pieceView(e)),
       extras: this.extras.filter((e) => e.alive).map((e) => this._pieceView(e)),
       debris: this.debris.map((e) => this._pieceView(e)),
+      junk: this.junk.map((j) =>
+        j.alive
+          ? { ...this._junkPack(j), alive: true, fallProgress: 0 }
+          : {
+              jid: j.jid, kind: j.kind, w: j.w, h: j.h, color: j.color,
+              x: j.fall.x, y: j.fall.y, angle: j.fall.angle,
+              alive: false, fallProgress: Math.min(1, j.fall.t / GAME.fallAnimMs),
+            },
+      ),
     };
   }
 

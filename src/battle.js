@@ -615,7 +615,8 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   function smoothRemote(st) {
     const k = 0.45;
     const move = (e) => {
-      const prev = shown.get(e.pid);
+      const key = e.pid ?? 'j' + e.jid; // 外れたパーツは jid
+      const prev = shown.get(key);
       if (prev && e.alive) {
         let da = e.angle - prev.angle;
         da = Math.atan2(Math.sin(da), Math.cos(da));
@@ -623,11 +624,17 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         e.y = prev.y + (e.y - prev.y) * k;
         e.angle = prev.angle + da * k;
       }
-      shown.set(e.pid, { x: e.x, y: e.y, angle: e.angle });
+      shown.set(key, { x: e.x, y: e.y, angle: e.angle });
     };
-    const out = { ...st, erasers: st.erasers.map((e) => ({ ...e })), extras: st.extras.map((e) => ({ ...e })) };
+    const out = {
+      ...st,
+      erasers: st.erasers.map((e) => ({ ...e })),
+      extras: st.extras.map((e) => ({ ...e })),
+      junk: (st.junk || []).map((j) => ({ ...j })),
+    };
     out.erasers.forEach(move);
     out.extras.forEach(move);
+    out.junk.forEach(move);
     return out;
   }
 

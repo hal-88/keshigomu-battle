@@ -55,6 +55,7 @@ export function packView(st) {
     erasers: st.erasers.map(packPiece),
     extras: st.extras.map(packPiece),
     debris: st.debris.map(packPiece),
+    junk: (st.junk || []).map((j) => ({ ...j, x: r1(j.x), y: r1(j.y), angle: r3(j.angle), fallProgress: r3(j.fallProgress) })),
   };
 }
 
@@ -71,6 +72,7 @@ export function unpackView(v, base) {
     erasers: (v.erasers || []).map(unpackPiece),
     extras: (v.extras || []).map(unpackPiece),
     debris: (v.debris || []).map(unpackPiece),
+    junk: v.junk || [],
     curveActive: false,
   };
 }

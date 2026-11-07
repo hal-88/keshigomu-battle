@@ -149,6 +149,10 @@ export class CanvasRenderer {
       const p = e.fallProgress;
       drawEraser(ctx, e.def, e.x, e.y, e.angle, { scale: e.size * (1 - 0.55 * p), alpha: 1 - p, shadow: false, tv: e.trait });
     }
+    for (const j of state.junk || []) {
+      if (j.alive || j.fallProgress >= 1) continue;
+      this._drawJunk(ctx, j, 1 - 0.55 * j.fallProgress, 1 - j.fallProgress);
+    }
 
     this._drawDesk(ctx, state.desk);
     for (const zone of state.waxZones) this._drawWax(ctx, zone, now);
@@ -174,6 +178,7 @@ export class CanvasRenderer {
     for (const pc of state.pencils) {
       if (pc.alive) this._drawPencil(ctx, pc.x, pc.y, pc.angle, pc.length, pc.width, 1, pc.look);
     }
+    for (const j of state.junk || []) if (j.alive) this._drawJunk(ctx, j, 1, 1);
 
     for (const e of [...state.erasers, ...state.extras]) {
       if (!e.alive) continue;
@@ -361,6 +366,49 @@ export class CanvasRenderer {
     ctx.quadraticCurveTo(x, y, x - s, y);
     ctx.quadraticCurveTo(x, y, x, y - s);
     ctx.fill();
+  }
+
+  // 外れたパーツ（ガッタイン）・カバー（ガードン）
+  _drawJunk(ctx, j, scale, alpha) {
+    const { w, h } = j;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(j.x, j.y);
+    ctx.rotate(j.angle);
+    ctx.scale(scale, scale);
+    if (alpha >= 1) {
+      ctx.fillStyle = 'rgba(50,30,10,0.22)';
+      ctx.beginPath();
+      roundRectPath(ctx, -w / 2 + 2, -h / 2 + 3, w, h, 3);
+      ctx.fill();
+    }
+    ctx.fillStyle = j.color;
+    ctx.beginPath();
+    roundRectPath(ctx, -w / 2, -h / 2, w, h, 3);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(-w / 2 + 2, -h / 2 + 1.5, w - 4, Math.max(1.5, h * 0.2));
+    if (j.kind === 'cover') {
+      // カバーの口（中がからっぽ）
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(w / 2 - 4, -h / 2 + 2, 2, h - 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = `800 ${h * 0.55}px "M PLUS Rounded 1c", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('ガード', -2, 1, w * 0.75);
+    } else {
+      // パーツのつなぎ目のポッチ
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      const r = Math.min(w, h) * 0.18;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   _drawPencil(ctx, x, y, angle, L, W, scale = 1, look = 'pencil') {

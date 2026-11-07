@@ -168,8 +168,9 @@ export const ERASERS = [
     stats: { power: 3, balance: 3, speed: 3 },
     trait: {
       id: 'cover', name: 'カバー',
-      desc: 'カバーがあるあいだは重い。強く当たるとカバーが外れて、軽くすべりやすくなる',
+      desc: 'カバーがあるあいだは重い。強く当たるとカバーが外れて、軽くすべりやすくなる。外れたカバーは机にころがる',
       massScale: 1.3, breakPower: 7, afterMass: 0.95, afterFriction: 0.95,
+      drop: { w: 50, h: 16, color: '#26a69a' }, // 外れたカバー（机の上にころがる）
     },
   },
   {
@@ -221,8 +222,14 @@ export const ERASERS = [
     stats: { power: 2, balance: 5, speed: 2 },
     trait: {
       id: 'parts', name: 'パーツ',
-      desc: '強く当たるとパーツが外れて、軽く速くなる（3回まで）',
-      count: 3, breakPower: 7, massStep: 0.93, frictionStep: 0.97,
+      desc: '強く当たるとパーツが外れて、軽く・速く・強くなる（3回まで）。外れたパーツは机にころがる',
+      count: 3, breakPower: 7, massStep: 0.93, frictionStep: 0.97, speedStep: 1.08,
+      // 外れたパーツ（のこりの数の番号のものが外れる：ぼうし→右うで→左うで）
+      drops: [
+        { w: 10, h: 22, color: '#42a5f5' },
+        { w: 10, h: 22, color: '#ef5350' },
+        { w: 22, h: 10, color: '#ffca28' },
+      ],
     },
   },
   {
