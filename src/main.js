@@ -947,6 +947,15 @@ function showZukan(tab = 'eraser') {
       ? t.items.filter((c) => collection.hasSeenCard(c.id)).length
       : t.items.filter((e) => collection.owns(e.id)).length;
   const total = (t) => (t.id === 'fav' ? GAME.collection.maxFavorites : t.items.length);
+  // それぞれの ページで レア度の じゅん（ノーマル → レジェンド）。同じ レア度は 今までの じゅん。お気に入りは 登録した じゅん
+  const RANK = { normal: 0, rare: 1, superrare: 2, ultra: 3, legend: 4, champion: 5 };
+  for (const t of TABS) {
+    if (t.id === 'fav') continue;
+    t.items = t.items
+      .map((item, i) => ({ item, i }))
+      .sort((a, b) => (RANK[a.item.rarity || 'normal'] ?? 0) - (RANK[b.item.rarity || 'normal'] ?? 0) || a.i - b.i)
+      .map((x) => x.item);
+  }
   const cur = TABS.find((t) => t.id === tab);
 
   const cell = (item) => {
