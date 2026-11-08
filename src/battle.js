@@ -35,7 +35,9 @@ const STREAM_EVENTS = new Set([
 ]);
 
 /**
- * @param online オンラインのとき { session, myIndex, order, seq, state }
+ * @param online オンラインのとき { session, myIndex, order, seq, state, cpuOwner, spectator }
+ *               cpuOwner … この端末が CPU の番も 計算して 送る（トーナメントの 人と CPU の試合）
+ *               spectator … 観戦（myIndex は -1。見ているだけ）
  */
 export function createBattle(root, { desk, players, onEnd, onQuit, label = '', hideCpuCards = false, online = null, firstTurn = 0 }) {
   root.innerHTML = `
@@ -89,7 +91,9 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   };
 
   // ---- オンラインの準備 ----
-  const isMyTurn = () => !online || game.turnIndex === online.myIndex;
+  const isMyTurn = () =>
+    !online || game.turnIndex === online.myIndex || (!!online.cpuOwner && game.players[game.turnIndex]?.type === 'cpu');
+  const spectator = !!online?.spectator;
   // この画面を見ている人（オンラインは自分。ひとが1人だけなら その人。みんなで1台なら -1）
   const humans = players.map((p, i) => (p.type === 'human' ? i : -1)).filter((i) => i >= 0);
   const viewerIndex = online ? online.myIndex : humans.length === 1 ? humans[0] : -1;
@@ -173,7 +177,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     if (p.type === 'remote') {
       // オンラインの相手の番：見ているだけ
       if (!again) toast(`${p.name}の番！`, '#fff');
-      setHint('');
+      setHint(spectator ? '👀 観戦中（スタンプで 応援できるよ）' : '');
       return;
     }
     if (!again) toast(online ? 'あなたの番！' : `${p.name}の番！`, '#fff');
@@ -838,7 +842,12 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   function showStamp({ uid, id }) {
     const s = ONLINE.stamps.find((x) => x.id === id);
     const i = online.order.indexOf(uid);
-    if (!s || i < 0) return;
+    if (!s) return;
+    if (i < 0) {
+      // 観戦している人からの 応援
+      if (uid !== online.session.uid || spectator) toast(`👀 観客：${s.icon}${s.text}`, '#fff');
+      return;
+    }
     const p = game.players[i];
     const e = posOf(i);
     sfx.tap();
@@ -867,7 +876,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const manager = online.order.findIndex(
       (uid, i) => i !== cur && game.erasers[i].alive && members[uid] && !members[uid].left && members[uid].online !== false,
     );
-    if (manager !== online.myIndex) return;
+    if (manager < 0 || manager !== online.myIndex) return; // 観戦している人（myIndex -1）は なにもしない
     offlineSince = 0;
     lastActivity = now;
     game.eliminate(cur); // → 'turn' か 'over' が来て、状態がみんなに送られる
@@ -1077,7 +1086,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   }
 
   // オンラインで、自分の席が むこうがわなら 机を180度回して、自分を手前（画面の下）にする
-  if (online && game.isFarSeat(online.myIndex)) {
+  if (online && online.myIndex >= 0 && game.isFarSeat(online.myIndex)) {
     renderer.flip = true;
     renderer.resize(desk);
   }

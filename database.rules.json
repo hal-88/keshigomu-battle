@@ -21,6 +21,7 @@
             "joinedAt": { ".validate": "newData.isNumber()" },
             "online": { ".validate": "newData.isBoolean()" },
             "left": { ".validate": "newData.isBoolean()" },
+            "wins": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9999" },
             "$other": { ".validate": false }
           }
         },

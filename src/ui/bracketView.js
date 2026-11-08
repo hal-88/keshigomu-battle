@@ -29,7 +29,7 @@ export function bracketHTML(br, { me = -1, fresh = new Set(), now = null } = {})
     return `
       <div class="${cls}">
         <canvas class="br-eraser" data-id="${def.id}"></canvas>
-        <div class="br-name"><b>${esc(e.name)}</b><small>${def.name}</small></div>
+        <div class="br-name"><b>${esc(e.name)}${e.wins ? ` <span class="name-trophy">🏆${e.wins}</span>` : ''}</b><small>${def.name}</small></div>
       </div>`;
   };
   const cols = br.rounds

@@ -16,7 +16,7 @@ const fresh = () => ({
   wins: 0,
   pulls: 0,
   bestStreak: 0, // CPU 連勝チャレンジのベスト記録
-  trophies: [], // トーナメントで優勝した記録 [{ date, size, eraserId }]
+  trophies: [], // トーナメントで優勝した記録 [{ date, size, cup, name, usedEraserId, eraserId }]
 });
 
 function load() {
@@ -162,7 +162,7 @@ export const collection = {
    * トーナメントで優勝したとき：優勝限定の消しゴムを ランダムで1つ（まだ持っていないもの）
    * @returns {{ eraser: object|null, wins: number }} eraser は もらえた消しゴム（ぜんぶ持っていたら null）
    */
-  winTournament({ size = 8 } = {}) {
+  winTournament({ size = 8, cup = 'CPU杯', name = 'あなた', usedEraserId = null } = {}) {
     const left = CHAMPION_ERASERS.filter((e) => !data.owned.includes(e.id));
     const eraser = left.length ? left[Math.floor(Math.random() * left.length)] : null;
     if (eraser) {
@@ -171,9 +171,22 @@ export const collection = {
     }
     const d = new Date();
     const date = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-    data.trophies = [...(data.trophies || []), { date, size, eraserId: eraser?.id || null }];
+    // 優勝した記録（消しゴムに 刻まれる：大会名・名前・日付）
+    data.trophies = [...(data.trophies || []), { date, size, cup, name, usedEraserId, eraserId: eraser?.id || null }];
     save();
     return { eraser, wins: data.trophies.length };
+  },
+  /**
+   * 消しゴムに 刻まれた 記録（新しいものから）
+   * kind: 'win'（その消しゴムで 優勝）/ 'reward'（優勝の ごほうびで もらった）
+   */
+  engravings(eraserId) {
+    return (data.trophies || [])
+      .flatMap((t) => [
+        ...(t.usedEraserId === eraserId ? [{ ...t, kind: 'win' }] : []),
+        ...(t.eraserId === eraserId ? [{ ...t, kind: 'reward' }] : []),
+      ])
+      .reverse();
   },
   /** トーナメントで優勝した回数 */
   tournamentWins: () => (data.trophies || []).length,

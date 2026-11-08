@@ -52,7 +52,7 @@ export function sortedMembers(room) {
 }
 
 /** 部屋をつくる。あいことばを返す */
-export async function createRoom({ name, eraserId, deskId, mode = 'battle' }) {
+export async function createRoom({ name, eraserId, deskId, mode = 'battle', wins = 0 }) {
   const db = await getDb();
   for (let tries = 0; tries < 30; tries++) {
     const code = randomCode();
@@ -60,7 +60,7 @@ export async function createRoom({ name, eraserId, deskId, mode = 'battle' }) {
     if (meta && db.now() - meta.createdAt < ONLINE.roomExpireHours * 3600e3) continue; // 使われている
     await db.set(P(code), {
       meta: { createdAt: db.now(), host: db.uid, status: 'lobby', deskId, mode },
-      members: { [db.uid]: { name: cleanName(name), eraserId, joinedAt: db.now(), online: true } },
+      members: { [db.uid]: { name: cleanName(name), eraserId, joinedAt: db.now(), online: true, wins } },
     });
     return code;
   }
@@ -68,7 +68,7 @@ export async function createRoom({ name, eraserId, deskId, mode = 'battle' }) {
 }
 
 /** あいことばで部屋に入る */
-export async function joinRoom(code, { name, eraserId }) {
+export async function joinRoom(code, { name, eraserId, wins = 0 }) {
   const db = await getDb();
   code = String(code).trim();
   const room = await db.get(P(code));
@@ -82,6 +82,7 @@ export async function joinRoom(code, { name, eraserId }) {
     eraserId,
     joinedAt: already ? room.members[db.uid].joinedAt : db.now(),
     online: true,
+    wins, // トーナメントで 優勝した回数（名前の横に 🏆）
   });
   return code;
 }

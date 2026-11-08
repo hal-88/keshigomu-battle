@@ -2503,3 +2503,84 @@ canvas.board {
 .br-slot.gone .br-name b::after {
   content: ' 📴';
 }
+
+/* ---- 観戦 ---- */
+.watch-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 760px;
+}
+.watch-title {
+  width: 100%;
+  text-align: center;
+  font-weight: 800;
+  color: var(--sub);
+}
+.watch-btn {
+  background: #eef6ff;
+  border: 2px solid #90caf9;
+}
+
+/* ---- 刻印（優勝の記録） ---- */
+.engraves {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.engrave {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #5d4300;
+  background: linear-gradient(180deg, #fff3c4, #ffd54f 55%, #e0a800);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 0 rgba(120, 80, 0, 0.35);
+  letter-spacing: 0.04em;
+}
+.engrave small {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+.engrave.reward {
+  background: linear-gradient(180deg, #ffffff, #e3f2fd 60%, #bbdefb);
+  color: #0d47a1;
+}
+.engrave-more {
+  color: var(--sub);
+}
+.engrave-note {
+  font-weight: 800;
+  color: #b8860b;
+}
+.win-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 800;
+  color: #5d4300;
+  background: linear-gradient(90deg, #ffe082, #ffca28);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.title-trophy {
+  font-weight: 800;
+  color: #8a6100;
+  background: linear-gradient(90deg, #fff3c4, #ffd54f, #fff3c4);
+  border-radius: 999px;
+  padding: 3px 14px;
+  box-shadow: 0 2px 0 rgba(120, 80, 0, 0.25);
+}
+.name-trophy {
+  font-size: 0.85em;
+  color: #b8860b;
+  white-space: nowrap;
+}

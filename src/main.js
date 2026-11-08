@@ -17,6 +17,7 @@ import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
 import { makeBracket, setWinner, readyMatches, matchOf, isOut, champion, roundName } from './tournament/bracket.js';
 import { runAutoMatchAsync } from './tournament/autoMatch.js';
 import { bracketHTML } from './ui/bracketView.js';
+import { engraveHTML, winBadgeHTML, plateHTML, myPlayerName } from './ui/engraveView.js';
 
 setupPwa(); // アプリとしてホーム画面に置けるように（オフラインでも動く）
 
@@ -69,6 +70,7 @@ function showTitle() {
        <canvas class="title-art"></canvas>
        <h1 class="title">消しゴム<span>バトル</span></h1>
        <p class="subtitle">弾いて、ぶつけて、机から落とせ！</p>
+       ${collection.tournamentWins() ? `<div class="title-trophy">🏆 優勝 ${collection.tournamentWins()}回</div>` : ''}
        <button class="btn big primary" data-act="start">始める</button>
        <div class="row title-sub">
          <button class="btn" data-act="zukan">📖 図鑑 <small>${collection.ownedErasers().length}/${ERASERS.length}</small></button>
@@ -360,6 +362,7 @@ function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
          <button class="choice eraser-choice ${rarityClass(e)} ${e.id === selected ? 'selected' : ''}" data-id="${e.id}">
            ${rarityTag(e)}
            ${e.champion ? '<div class="badge gacha">🏆優勝</div>' : e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
+           ${winBadgeHTML(e.id)}
            <canvas class="eraser-thumb"></canvas>
            <div class="choice-name">${e.name}</div>
            <div class="choice-desc">${e.desc}</div>
@@ -799,15 +802,17 @@ function showChampion() {
   let reward = null;
   if (isMe && !tour.rewarded) {
     tour.rewarded = true;
-    reward = collection.winTournament({ size: br.size });
+    reward = collection.winTournament({ size: br.size, cup: 'CPU杯', name: myPlayerName(), usedEraserId: winner.eraserId });
   }
   const def = findEraser(winner.eraserId);
+  const lastTrophy = isMe ? collection.engravings(winner.eraserId).find((t) => t.kind === 'win') : null;
   const el = screen(
     `<div class="result champion-result ${isMe ? 'win' : ''}">
        <div class="champ-trophy">🏆</div>
        <div class="result-title">${isMe ? '優勝！' : `優勝は ${esc(winner.name)}`}</div>
        <canvas class="result-eraser"></canvas>
        <p class="result-sub">${def.name}で 優勝！</p>
+       ${lastTrophy ? `<div class="engrave-note">${def.name}に 刻まれた！</div>${plateHTML(lastTrophy)}` : ''}
        ${
          reward?.eraser
            ? `<div class="reward champ-reward">
@@ -864,6 +869,7 @@ function eraserDetail(el, def) {
        <div class="detail-desc">${def.desc}</div>
        ${traitLine(def)}
        <div class="stats">${statMeters(def.stats)}</div>
+       ${engraveHTML(def.id)}
        <button class="btn" data-act="close">閉じる</button>
      </div>`,
   );

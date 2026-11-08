@@ -107,7 +107,7 @@ export function setupOnline(ui) {
       if (!needName()) return;
       try {
         loading('部屋を 作っているよ…');
-        const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId });
+        const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId, wins: collection.tournamentWins() });
         await openLobby(code);
       } catch (err) {
         showMenu(errorText(err));
@@ -117,7 +117,7 @@ export function setupOnline(ui) {
       if (!needName()) return;
       try {
         loading('トーナメントの 部屋を 作っているよ…');
-        const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId, mode: 'tournament' });
+        const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId, mode: 'tournament', wins: collection.tournamentWins() });
         await openLobby(code);
       } catch (err) {
         showMenu(errorText(err));
@@ -164,7 +164,7 @@ export function setupOnline(ui) {
       if (code.length !== ONLINE.codeDigits) return;
       try {
         loading('部屋を 探しているよ…');
-        await joinRoom(code, { name: st.name, eraserId: st.eraserId });
+        await joinRoom(code, { name: st.name, eraserId: st.eraserId, wins: collection.tournamentWins() });
         await openLobby(code);
       } catch (err) {
         showJoin(errorText(err));
@@ -255,7 +255,7 @@ export function setupOnline(ui) {
           (m, i) => `
           <div class="lobby-member ${m.online === false ? 'offline' : ''}" style="--c:${GAME.playerColors[i] || '#999'}">
             <canvas data-id="${esc(m.eraserId)}"></canvas>
-            <div class="lm-name">${i === 0 ? '👑 ' : ''}${esc(m.name)}${m.uid === session.uid ? ' <small>（あなた）</small>' : ''}</div>
+            <div class="lm-name">${i === 0 ? '👑 ' : ''}${esc(m.name)}${m.wins ? ` <span class="name-trophy">🏆${m.wins}</span>` : ''}${m.uid === session.uid ? ' <small>（あなた）</small>' : ''}</div>
             <div class="lm-eraser">${esc(findEraser(m.eraserId)?.name || '')}</div>
           </div>`,
         )
@@ -369,6 +369,7 @@ export function setupOnline(ui) {
       name: m.name,
       type: 'human',
       uid: m.uid,
+      wins: m.wins || 0,
       eraserId: findEraser(m.eraserId) ? m.eraserId : 'white-standard',
     }));
     // CPU は みんな ちがう消しゴム（人と同じものも さける）
@@ -380,7 +381,8 @@ export function setupOnline(ui) {
     };
     const br = makeBracket(humans, makeCpu, bracketSize(humans.length));
     const tid = Math.random().toString(36).slice(2, 10);
-    await session.startTournament({ tid, size: br.size, entries: br.entries, rounds: br.rounds, at: session.db.now() });
+    const cup = `${members[0]?.name || 'オンライン'}杯`; // 大会の名前（部屋を作った人の名前）
+    await session.startTournament({ tid, cup, size: br.size, entries: br.entries, rounds: br.rounds, at: session.db.now() });
   }
 
   // ---------- カードをくばる（自分のカードだけ見える） ----------
