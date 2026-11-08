@@ -890,7 +890,7 @@ function openModal(el, html) {
   return ov;
 }
 
-function eraserDetail(el, def) {
+function eraserDetail(el, def, onFavChange = null) {
   const ov = openModal(
     el,
     `<div class="modal detail ${rarityClass(def)}">
@@ -920,11 +920,21 @@ function eraserDetail(el, def) {
     }
     favBtn.classList.toggle('fav-on', r.on);
     favBtn.textContent = r.on ? '★ お気に入り' : '☆ お気に入りに する';
+    changed = true;
   };
+  // まどを 閉じたら（お気に入りが かわっていれば）ページを 出しなおす
+  let changed = false;
+  if (onFavChange) {
+    ov.addEventListener('click', (e) => {
+      if (changed && (e.target === ov || e.target.closest('[data-act=close]'))) onFavChange();
+    });
+  }
 }
 
 function showZukan(tab = 'eraser') {
+  const favs = collection.favorites().map(findEraser).filter((e) => e && collection.owns(e.id));
   const TABS = [
+    { id: 'fav', label: '⭐お気に入り', items: favs },
     { id: 'eraser', label: '消しゴム', items: REGULAR_ERASERS.filter((e) => e.kind !== 'chara') },
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
     { id: 'special', label: '特別', items: SPECIAL_ERASERS },
@@ -936,6 +946,7 @@ function showZukan(tab = 'eraser') {
     t.id === 'card'
       ? t.items.filter((c) => collection.hasSeenCard(c.id)).length
       : t.items.filter((e) => collection.owns(e.id)).length;
+  const total = (t) => (t.id === 'fav' ? GAME.collection.maxFavorites : t.items.length);
   const cur = TABS.find((t) => t.id === tab);
 
   const cell = (item) => {
@@ -961,16 +972,21 @@ function showZukan(tab = 'eraser') {
   if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
   if (cur.id === 'champion') note = `🏆 トーナメントで 優勝すると、この中から 1つ もらえるよ（これまでの 優勝：${collection.tournamentWins()}回）`;
   if (cur.id === 'card') note = '対戦で 配られたカードが 埋まっていくよ';
+  if (cur.id === 'fav') note = `⭐ お気に入りは ${GAME.collection.maxFavorites}つまで。消しゴムを選ぶ画面で いちばん上に 出るよ（はずすときは 消しゴムを タップ）`;
 
   const el = screen(
     `<h2 class="head">📖 図鑑</h2>
      <div class="tabs">
        ${TABS.map(
          (t) => `<button class="tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.label}
-           <small>${count(t)}/${t.items.length}</small></button>`,
+           <small>${count(t)}/${total(t)}</small></button>`,
        ).join('')}
      </div>
-     <div class="zukan-grid fit-scroll ${cur.id === 'card' ? 'cards' : ''}">${cur.items.map(cell).join('')}</div>
+     <div class="zukan-grid fit-scroll ${cur.id === 'card' ? 'cards' : ''} ${cur.id === 'fav' ? 'favs' : ''}">${
+       cur.id === 'fav' && !cur.items.length
+         ? '<div class="fav-empty">まだ お気に入りが ないよ。<br>消しゴムを選ぶ画面の ☆ か、図鑑で 消しゴムを タップして「☆ お気に入りに する」を 押してね</div>'
+         : cur.items.map(cell).join('')
+     }</div>
      <p class="note">${note}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
@@ -992,7 +1008,8 @@ function showZukan(tab = 'eraser') {
       }),
     );
     cells.forEach((c) => {
-      if (c.classList.contains('own')) c.onclick = () => eraserDetail(el, findEraser(c.dataset.id));
+      // お気に入りのページでは、はずしたら 出しなおす
+      if (c.classList.contains('own')) c.onclick = () => eraserDetail(el, findEraser(c.dataset.id), cur.id === 'fav' ? () => showZukan('fav') : null);
     });
   } else {
     el.querySelectorAll('button.zukan-card').forEach((b) => {
