@@ -2470,3 +2470,36 @@ canvas.board {
   width: 160px;
   height: 90px;
 }
+
+/* ---- オンライン・トーナメント ---- */
+.tour-create {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: linear-gradient(#fffdf3, #fff4cc);
+  border: 3px solid #f5b300;
+}
+.tour-create small {
+  font-size: 12px;
+  color: var(--sub);
+}
+.tour-lobby .lobby-members {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  max-width: 760px;
+}
+.tour-lobby .lobby-member {
+  padding: 6px;
+}
+.tour-lobby .lobby-member canvas {
+  height: 34px;
+}
+.tour-lobby .lobby-member.empty {
+  opacity: 0.55;
+}
+.br-slot.gone {
+  opacity: 0.45;
+}
+.br-slot.gone .br-name b::after {
+  content: ' 📴';
+}

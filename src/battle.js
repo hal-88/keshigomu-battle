@@ -877,8 +877,9 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     online.session.watchGame(applyRemoteState);
     online.session.watchFrames(applyFrame);
     online.session.watchStamps(showStamp);
-    online.session.watchRoom((room) => {
-      members = room?.members || {};
+    // 参加者だけ見る（部屋ぜんぶを見ると、トーナメントでは ほかの試合の動きまで とどいてしまう）
+    online.session.watchMembers((m) => {
+      members = m || {};
     });
     const iv = setInterval(checkTimeouts, 1000);
     timers.add(iv);

@@ -16,6 +16,8 @@ export const FIREBASE_CONFIG = {
 export const ONLINE = {
   minPlayers: 2,
   maxPlayers: 4,
+  tournamentMaxPlayers: 16, // トーナメントの部屋に 入れる人数
+  tourAbsentSec: 30, // トーナメントで、試合の人が この秒数 いなかったら 負け
   codeDigits: 4, // あいことば（部屋の番号）のけた数
   nameMaxLength: 6,
   frameMs: 100, // 弾いた人が動きを送る間かく（ミリ秒）

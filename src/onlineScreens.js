@@ -2,7 +2,7 @@
 // 画面の部品（screen など）は main.js からもらう。
 
 import { DESKS, findDesk } from './config/desks.js';
-import { findEraser } from './config/erasers.js';
+import { findEraser, REGULAR_ERASERS } from './config/erasers.js';
 import { drawRandomCard, findCard } from './config/cards.js';
 import { GAME } from './config/game.js';
 import { ONLINE } from './config/online.js';
@@ -13,7 +13,9 @@ import { flipCardHTML } from './ui/cardView.js';
 import { collection } from './progress/collection.js';
 import { sfx } from './audio/sfx.js';
 import { rewardsHTML } from './ui/rewardView.js';
-import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers } from './online/room.js';
+import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers, roomCapacity } from './online/room.js';
+import { makeBracket, bracketSize } from './tournament/bracket.js';
+import { setupTourScreens } from './tourScreens.js';
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -33,6 +35,12 @@ export function setupOnline(ui) {
   } catch {
     /* なくてもよい */
   }
+
+  // トーナメントの画面（待合室から スタートしたら こちらへ）
+  const tours = setupTourScreens(ui, {
+    showLobby: (session) => showLobby(session),
+    showMenu: (msg) => showMenu(msg),
+  });
 
   const testBadge = () =>
     isTestMode()
@@ -63,6 +71,7 @@ export function setupOnline(ui) {
          <button class="btn big primary" data-act="create">部屋を 作る</button>
          <button class="btn big" data-act="join">合言葉で 入る</button>
        </div>
+       <button class="btn big tour-create" data-act="createTour">🏆 トーナメントの 部屋を 作る<small>（16人まで。足りない分は CPU）</small></button>
        <button class="btn ghost" data-act="back">戻る</button>`,
     );
     whenFonts(() => drawEraserPreview(el.querySelector('.online-eraser-cv'), eraser));
@@ -99,6 +108,16 @@ export function setupOnline(ui) {
       try {
         loading('部屋を 作っているよ…');
         const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId });
+        await openLobby(code);
+      } catch (err) {
+        showMenu(errorText(err));
+      }
+    };
+    el.querySelector('[data-act=createTour]').onclick = async () => {
+      if (!needName()) return;
+      try {
+        loading('トーナメントの 部屋を 作っているよ…');
+        const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId, mode: 'tournament' });
         await openLobby(code);
       } catch (err) {
         showMenu(errorText(err));
@@ -171,8 +190,9 @@ export function setupOnline(ui) {
   }
 
   function showLobby(session) {
+    tours.leaveAll(); // トーナメントから もどったとき
     const el = screen(
-      `<h2 class="head">待合室</h2>
+      `<h2 class="head" data-el="title">待合室</h2>
        ${testBadge()}
        <div class="lobby-code">
          <small>合言葉</small>
@@ -203,6 +223,14 @@ export function setupOnline(ui) {
         showMenu('部屋が なくなったよ');
         return;
       }
+      // トーナメントが はじまったら、トーナメント表へ
+      if (room.meta.status === 'tournament' && room.tour?.tid && room.tour.tid !== session.lastTid) {
+        gone = true;
+        stopWatch();
+        session.lastTid = room.tour.tid;
+        tours.enter(session);
+        return;
+      }
       // 対戦がはじまったら、カードの画面へ（前の試合とまちがえないように gid でたしかめる）
       if (room.meta.status === 'playing' && room.game?.gid && room.game.gid !== session.lastGid) {
         gone = true;
@@ -218,6 +246,10 @@ export function setupOnline(ui) {
       const members = sortedMembers(room);
       const hostUid = members[0]?.uid;
       const amHost = hostUid === session.uid;
+      const isTour = room.meta.mode === 'tournament';
+      const cap = roomCapacity(room.meta);
+      el.classList.toggle('tour-lobby', isTour);
+      $('title').textContent = isTour ? '🏆 トーナメントの 待合室' : '待合室';
       $('members').innerHTML = members
         .map(
           (m, i) => `
@@ -227,7 +259,7 @@ export function setupOnline(ui) {
             <div class="lm-eraser">${esc(findEraser(m.eraserId)?.name || '')}</div>
           </div>`,
         )
-        .join('') + Array.from({ length: ONLINE.maxPlayers - members.length }, () => '<div class="lobby-member empty">空き</div>').join('');
+        .join('') + Array.from({ length: Math.max(0, (isTour ? Math.min(cap, members.length <= 8 ? 8 : 16) : cap) - members.length) }, () => `<div class="lobby-member empty">${isTour ? '🤖 CPU' : '空き'}</div>`).join('');
       whenFonts(() =>
         $('members').querySelectorAll('canvas').forEach((c) => {
           const d = findEraser(c.dataset.id);
@@ -235,7 +267,10 @@ export function setupOnline(ui) {
         }),
       );
       const deskId = room.meta.deskId;
-      $('desk').innerHTML = amHost
+      if (isTour) {
+        const size = bracketSize(members.length);
+        $('desk').innerHTML = `<b>${members.length}人</b> → <b>${size}人制</b> トーナメント（CPU ${size - members.length}人）<br><small>机は 試合ごとに ランダム。9人から 16人制になるよ</small>`;
+      } else $('desk').innerHTML = amHost
         ? `<small>机（タップで 変えられる）</small><div class="desk-pick">${DESKS.map(
             (d) => `<button class="desk-pick-btn ${d.id === deskId ? 'on' : ''}" data-id="${d.id}">${d.name}</button>`,
           ).join('')}</div>`
@@ -244,6 +279,7 @@ export function setupOnline(ui) {
         b.onclick = () => session.setDesk(b.dataset.id);
       });
       const enough = members.length >= ONLINE.minPlayers;
+      void cap;
       const startBtn = el.querySelector('[data-act=start]');
       startBtn.classList.toggle('hidden', !amHost);
       startBtn.disabled = !enough || starting;
@@ -259,6 +295,10 @@ export function setupOnline(ui) {
       starting = true;
       renderLobby();
       try {
+        if (room.meta.mode === 'tournament') {
+          await startTournament(session, room);
+          return;
+        }
         const members = sortedMembers(room).slice(0, ONLINE.maxPlayers);
         const order = members.map((m) => m.uid);
         const players = members.map((m, i) => ({
@@ -320,6 +360,27 @@ export function setupOnline(ui) {
         if (ev.target === ov || ev.target.closest('[data-act=close]')) ov.remove();
       });
     };
+  }
+
+  /** トーナメントを はじめる（まとめ役）：表を作って 部屋に書く */
+  async function startTournament(session, room) {
+    const members = sortedMembers(room).slice(0, ONLINE.tournamentMaxPlayers);
+    const humans = members.map((m) => ({
+      name: m.name,
+      type: 'human',
+      uid: m.uid,
+      eraserId: findEraser(m.eraserId) ? m.eraserId : 'white-standard',
+    }));
+    // CPU は みんな ちがう消しゴム（人と同じものも さける）
+    const used = new Set(humans.map((h) => h.eraserId));
+    const pool = REGULAR_ERASERS.filter((e) => !used.has(e.id));
+    const makeCpu = (k) => {
+      const e = pool.splice(Math.floor(Math.random() * pool.length), 1)[0] || REGULAR_ERASERS[k % REGULAR_ERASERS.length];
+      return { name: `CPU${k + 1}`, type: 'cpu', eraserId: e.id };
+    };
+    const br = makeBracket(humans, makeCpu, bracketSize(humans.length));
+    const tid = Math.random().toString(36).slice(2, 10);
+    await session.startTournament({ tid, size: br.size, entries: br.entries, rounds: br.rounds, at: session.db.now() });
   }
 
   // ---------- カードをくばる（自分のカードだけ見える） ----------

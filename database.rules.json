@@ -9,7 +9,8 @@
         "meta": {
           ".write": "auth != null",
           ".validate": "newData.hasChildren(['createdAt', 'host', 'status', 'deskId'])",
-          "status": { ".validate": "newData.val() === 'lobby' || newData.val() === 'playing'" },
+          "status": { ".validate": "newData.val() === 'lobby' || newData.val() === 'playing' || newData.val() === 'tournament'" },
+          "mode": { ".validate": "newData.val() === 'battle' || newData.val() === 'tournament'" },
           "deskId": { ".validate": "newData.isString() && newData.val().length <= 20" }
         },
         "members": {
@@ -27,6 +28,12 @@
           ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()"
         },
         "stream": {
+          ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()"
+        },
+        "tour": {
+          ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()"
+        },
+        "matches": {
           ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()"
         },
         "stamps": {
