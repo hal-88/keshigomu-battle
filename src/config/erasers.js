@@ -537,8 +537,8 @@ export const ERASERS = [
     stats: { power: 3, balance: 2, speed: 4 },
     trait: {
       id: 'clear', camo: true, name: 'カメレオン',
-      desc: '弾いて止まると、次の自分の番まで 机の色に 溶け込んで 見えにくい',
-      aimErrorDeg: 12, alpha: 0.2,
+      desc: '弾いて止まると こっそり 少し動いて、次の自分の番まで 机の色に 溶け込む。2回に1回は 完全に 見えなくなる',
+      aimErrorDeg: 12, alpha: 0.2, hideChance: 0.5, shift: 40,
     },
   },
   {

@@ -1751,6 +1751,31 @@ export class Game {
     return null;
   }
 
+  /** イロカワール：止まったあと、こっそり 少しだけ 場所を かえる（縁の近く・ほかのものの上には 行かない） */
+  _sneak(e, dist) {
+    if (!e.alive || e.body.isStatic) return;
+    const p = e.body.position;
+    const ext = this.pieceExtent(e);
+    const start = Math.random() * Math.PI * 2;
+    for (let k = 0; k < 12; k++) {
+      const a = start + (k * Math.PI * 2) / 12;
+      const d = dist * (0.6 + Math.random() * 0.4);
+      const q = { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d };
+      if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < ext + 25) continue;
+      const busy =
+        this._allPieces().some((o) => o.alive && o !== e && Math.hypot(o.body.position.x - q.x, o.body.position.y - q.y) < ext + this.pieceExtent(o) + 6) ||
+        this.pencils.some((pc) => {
+          if (!pc.alive) return false;
+          const [a1, b1] = this._pencilEnds(pc);
+          return pointSegDist(q.x, q.y, a1.x, a1.y, b1.x, b1.y) < ext + pc.width / 2 + 4;
+        });
+      if (busy) continue;
+      Body.setPosition(e.body, q);
+      Body.setVelocity(e.body, { x: 0, y: 0 });
+      return;
+    }
+  }
+
   _dropPencilsOutside() {
     for (const pc of this.pencils) {
       if (!pc.alive) continue;
@@ -1846,7 +1871,15 @@ export class Game {
     }
     // クリアン：弾いたあとは見えにくくなる（つぎの自分の番まで）
     if (traitOf(cur).id === 'clear' && cur.alive && this.turn.flicked) {
-      for (const pc of [cur, ...this.extrasOf(this.turnIndex)]) pc.clear = true;
+      const t = traitOf(cur);
+      for (const pc of [cur, ...this.extrasOf(this.turnIndex)]) {
+        pc.clear = true;
+        if (t.camo) {
+          // イロカワール：こっそり 少し動く。2回に1回は 完全に 見えなくなる
+          pc.camoHidden = Math.random() < (t.hideChance ?? 0.5);
+          this._sneak(pc, t.shift ?? 40);
+        }
+      }
     }
     // ユウレイケシ：番が終わったら すりぬけ おしまい（重なっていたら、はなれてから）
     for (const pc of this._allPieces()) if (pc.ghost) pc.ghostEnd = true;
@@ -1925,7 +1958,10 @@ export class Game {
       e.sizeLeft--;
       if (e.sizeLeft === 0) this._setSize(e, null);
     }
-    for (const pc of [e, ...this.extrasOf(i)]) pc.clear = false;
+    for (const pc of [e, ...this.extrasOf(i)]) {
+      pc.clear = false;
+      pc.camoHidden = false;
+    }
     if (traitOf(e).id === 'dice') this._rollDice(e); // サイコロン：番のたびに サイコロ
     // カードの効果：ふでばこは おしまい・とうめいは のこりを へらす・ためうちは パワー
     e.shield = false;
@@ -1982,6 +2018,7 @@ export class Game {
       charged: e.charged,
       cornerUsed: e.cornerUsed,
       hatched: e.hatched,
+      camoHidden: e.camoHidden,
       stampUsed: e.stampUsed,
       happy: e.happy,
       powerNext: e.powerNext,
@@ -2096,6 +2133,7 @@ export class Game {
         charged: pk.charged ?? true,
         cornerUsed: !!pk.cornerUsed,
         hatched: !!pk.hatched,
+        camoHidden: !!pk.camoHidden,
         stampUsed: !!pk.stampUsed,
         happy: !!pk.happy,
         powerNext: pk.powerNext || 0,
@@ -2198,10 +2236,10 @@ export class Game {
         parts: e.parts,
         gathered: e.gathered,
         clear: e.clear,
-        clearAlpha: t.alpha ?? 0.3,
+        clearAlpha: e.camoHidden ? 0 : t.alpha ?? 0.3,
         squish: Math.max(0, 1 - (this.time - e.squishAt) / 350),
         vibrating: t.id === 'vibrate',
-        camo: !!t.camo,
+        camo: !!t.camo && !e.camoHidden, // イロカワールで 完全に見えないときは クリアンと同じ
         dice: e.dice,
         boosting: e.boostUntil > this.time,
         ghost: e.ghost,

@@ -77,7 +77,8 @@ export function planCpuShot(game, me, cfg) {
   strength = Math.max(0.25, Math.min(1, strength));
 
   // クリアン（すけすけ）は見えにくいので、ねらいがズレる
-  let blur = best.t.effects.clear ? best.t.def.trait?.aimErrorDeg ?? 14 : 0;
+  // 見えにくい相手は ねらいが ズレる（完全に 見えないときは もっと）
+  let blur = best.t.effects.clear ? (best.t.trait?.clearAlpha === 0 ? 22 : best.t.def.trait?.aimErrorDeg ?? 14) : 0;
   if (best.t.effects.invisible) blur = Math.max(blur, 22); // とうめい（カード）
   if (game.isBlackout()) blur += 18; // ていでんで くらい
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
