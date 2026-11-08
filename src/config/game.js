@@ -4,7 +4,7 @@ export const GAME = {
   // プレイヤーの色（1人目, 2人目, 3人目, 4人目）
   playerColors: ['#ff6b4a', '#3b82f6', '#22a35a', '#a855f7'],
   // 1台でみんなで遊ぶときの、はじめの名前（色とおそろい）
-  playerNames: ['あか', 'あお', 'みどり', 'むらさき'],
+  playerNames: ['赤', '青', '緑', '紫'],
   nameMaxLength: 6,
   minPlayers: 2,
   maxPlayers: 4,

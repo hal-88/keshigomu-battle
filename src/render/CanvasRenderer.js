@@ -568,7 +568,7 @@ export class CanvasRenderer {
     ctx.fillStyle = 'rgba(255,240,180,0.85)';
     ctx.font = '800 16px "M PLUS Rounded 1c", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('🔌 ていでん中…', this.w / 2, 70 + Math.sin(now / 300) * 3);
+    ctx.fillText('🔌 停電中…', this.w / 2, 70 + Math.sin(now / 300) * 3);
     ctx.restore();
   }
 
@@ -987,14 +987,14 @@ export class CanvasRenderer {
       if (e.effects.big) text += ' 🐘';
       if (e.effects.mini) text += ' 🐜';
       if (e.effects.grip) text += ' 🧤';
-      if (e.effects.confused) text += ' 🍓こんらん';
+      if (e.effects.confused) text += ' 🍓混乱';
       if (e.effects.clear && !e.trait.camo) text += ' 👻';
       if (e.trait.dice) text += ' 🎲' + e.trait.dice;
       if (e.trait.charging) text += ' 💤ためる';
       if (e.effects.invisible) text += ' 🌫️';
       if (e.effects.shield) text += ' 🛡️';
       if (e.effects.extraLife) text += ' 🔁';
-      if (e.effects.reversed) text += ' 🔃さかさま';
+      if (e.effects.reversed) text += ' 🔃逆さま';
       if (e.effects.power) text += ' 🔋';
       if (e.effects.anchor) text += ' ⚓';
       if (e.effects.hold) text += ' 🦶';
@@ -1084,7 +1084,7 @@ export class CanvasRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = 'white';
-    let label = aim.strength >= 1 ? 'つよさ MAX！' : 'つよさ';
+    let label = aim.strength >= 1 ? '強さ MAX！' : '強さ';
     if (Math.abs(aim.spin || 0) > 0.01) label += '　回転 ' + (aim.spin > 0 ? '↻' : '↺');
     ctx.fillText(label, this.w / 2, y - 6);
   }

@@ -31,31 +31,31 @@ export function showInstallGuide(el) {
   let body;
   if (deferredPrompt) {
     body = `
-      <p>ボタンを おすと、この ゲームが アプリとして ホーム画面（デスクトップ）に入るよ。</p>
+      <p>ボタンを 押すと、この ゲームが アプリとして ホーム画面（デスクトップ）に入るよ。</p>
       <button class="btn big primary" data-act="install">📲 インストール</button>`;
   } else if (isIos()) {
     body = `
       <ol class="install-steps">
-        <li>Safari の 上か下にある <b>共有ボタン</b>（四角から ↑ が出ている マーク）を おす</li>
-        <li><b>「ホーム画面に追加」</b>を えらぶ（見つからないときは、下にスクロール）</li>
-        <li>右上の <b>「追加」</b>を おす</li>
+        <li>Safari の 上か下にある <b>共有ボタン</b>（四角から ↑ が出ている マーク）を 押す</li>
+        <li><b>「ホーム画面に追加」</b>を 選ぶ（見つからないときは、下にスクロール）</li>
+        <li>右上の <b>「追加」</b>を 押す</li>
       </ol>
-      <p class="note">ホーム画面の 消しゴムの アイコンから ひらくと、ぜんぶの画面で 遊べるよ。</p>`;
+      <p class="note">ホーム画面の 消しゴムの アイコンから 開くと、全部の画面で 遊べるよ。</p>`;
   } else {
     body = `
       <ol class="install-steps">
-        <li>Chrome の 右上の <b>︙</b>（メニュー）を おす</li>
-        <li><b>「アプリをインストール」</b> または <b>「ホーム画面に追加」</b>を えらぶ</li>
+        <li>Chrome の 右上の <b>︙</b>（メニュー）を 押す</li>
+        <li><b>「アプリをインストール」</b> または <b>「ホーム画面に追加」</b>を 選ぶ</li>
       </ol>
-      <p class="note">アドレスバーの右はしに インストールの マークが 出ていることも あるよ。</p>`;
+      <p class="note">アドレスバーの右端に インストールの マークが 出ていることも あるよ。</p>`;
   }
   ov.innerHTML = `
     <div class="modal detail install-guide">
       <img src="./icons/icon-192.png" alt="" class="install-icon">
       <div class="detail-name">アプリにする</div>
       ${body}
-      <p class="note">一度ひらいておけば、インターネットが なくても CPU戦や「1台でみんなで」が 遊べるよ（オンラインは インターネットが いるよ）。</p>
-      <button class="btn" data-act="close">とじる</button>
+      <p class="note">一度開いておけば、インターネットが なくても CPU戦や「1台でみんなで」が 遊べるよ（オンラインは インターネットが いるよ）。</p>
+      <button class="btn" data-act="close">閉じる</button>
     </div>`;
   el.appendChild(ov);
   ov.addEventListener('click', async (e) => {

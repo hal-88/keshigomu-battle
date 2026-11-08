@@ -18,9 +18,9 @@ import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
 setupPwa(); // アプリとしてホーム画面に置けるように（オフラインでも動く）
 
 const MODES = [
-  { id: 'cpu', name: 'CPU れんしょうチャレンジ', desc: 'つぎつぎ ちがう消しゴムのCPUと1対1。何連勝できるかな？', enabled: true },
-  { id: 'local', name: '1台でみんなで', desc: '2〜4人でこうたいに（CPUもまぜられる）', enabled: true },
-  { id: 'online', name: 'オンライン', desc: 'あいことば（数字）で ともだちと対戦', enabled: true },
+  { id: 'cpu', name: 'CPU 連勝チャレンジ', desc: '次々 違う消しゴムのCPUと1対1。何連勝できるかな？', enabled: true },
+  { id: 'local', name: '1台でみんなで', desc: '2〜4人で交代で（CPUも混ぜられる）', enabled: true },
+  { id: 'online', name: 'オンライン', desc: '合言葉（数字）で 友だちと対戦', enabled: true },
 ];
 
 const app = document.getElementById('app');
@@ -64,10 +64,10 @@ function showTitle() {
     `<div class="title-box">
        <canvas class="title-art"></canvas>
        <h1 class="title">消しゴム<span>バトル</span></h1>
-       <p class="subtitle">はじいて、ぶつけて、机から落とせ！</p>
-       <button class="btn big primary" data-act="start">はじめる</button>
+       <p class="subtitle">弾いて、ぶつけて、机から落とせ！</p>
+       <button class="btn big primary" data-act="start">始める</button>
        <div class="row title-sub">
-         <button class="btn" data-act="zukan">📖 ずかん <small>${collection.ownedErasers().length}/${ERASERS.length}</small></button>
+         <button class="btn" data-act="zukan">📖 図鑑 <small>${collection.ownedErasers().length}/${ERASERS.length}</small></button>
          <button class="btn" data-act="gacha">🎰 ガチャ ${
            collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
          }</button>
@@ -101,19 +101,19 @@ function showTitle() {
 // ---------- 2. モード ----------
 function showModeSelect() {
   const el = screen(
-    `<h2 class="head">あそびかたを えらぼう</h2>
+    `<h2 class="head">遊び方を 選ぼう</h2>
      <div class="choices">
        ${MODES.map(
          (m) => `
          <button class="choice ${m.enabled ? '' : 'disabled'}" data-id="${m.id}" ${m.enabled ? '' : 'disabled'}>
            <div class="choice-name">${m.name}</div>
            <div class="choice-desc">${m.desc}</div>
-           ${m.id === 'cpu' && collection.bestStreak() ? `<div class="choice-desc best">🏆 ベスト ${collection.bestStreak()}れんしょう</div>` : ''}
-           ${m.enabled ? '' : '<div class="badge">じゅんびちゅう</div>'}
+           ${m.id === 'cpu' && collection.bestStreak() ? `<div class="choice-desc best">🏆 ベスト ${collection.bestStreak()}連勝</div>` : ''}
+           ${m.enabled ? '' : '<div class="badge">準備中</div>'}
          </button>`,
        ).join('')}
      </div>
-     <button class="btn ghost" data-act="back">もどる</button>`,
+     <button class="btn ghost" data-act="back">戻る</button>`,
   );
   el.querySelectorAll('.choice:not(.disabled)').forEach((b) => {
     b.onclick = () => {
@@ -132,9 +132,9 @@ function showPlayerSetup() {
   const counts = [];
   for (let n = GAME.minPlayers; n <= GAME.maxPlayers; n++) counts.push(n);
   const el = screen(
-    `<h2 class="head">だれが あそぶ？</h2>
+    `<h2 class="head">だれが 遊ぶ？</h2>
      <div class="count-row">
-       <span>にんずう</span>
+       <span>人数</span>
        ${counts.map((n) => `<button class="count-btn ${n === L.count ? 'on' : ''}" data-n="${n}">${n}人</button>`).join('')}
      </div>
      <div class="slots">
@@ -145,19 +145,19 @@ function showPlayerSetup() {
          <div class="slot" style="--c:${GAME.playerColors[i]}">
            <span class="slot-num">${i + 1}</span>
            <input class="slot-name" data-i="${i}" maxlength="${GAME.nameMaxLength}" value="${esc(s.name)}"
-             aria-label="${i + 1}ばんめの名前" autocomplete="off" enterkeyhint="done">
+             aria-label="${i + 1}番目の名前" autocomplete="off" enterkeyhint="done">
            <div class="seg">
-             <button class="${s.type === 'human' ? 'on' : ''}" data-i="${i}" data-type="human">ひと</button>
+             <button class="${s.type === 'human' ? 'on' : ''}" data-i="${i}" data-type="human">人</button>
              <button class="${s.type === 'cpu' ? 'on' : ''}" data-i="${i}" data-type="cpu">CPU</button>
            </div>
          </div>`,
          )
          .join('')}
      </div>
-     <p class="note">名前は ニックネームで（${GAME.nameMaxLength}文字まで）。じゅんばんは 上から</p>
+     <p class="note">名前は ニックネームで（${GAME.nameMaxLength}文字まで）。順番は 上から</p>
      <div class="row">
-       <button class="btn ghost" data-act="back">もどる</button>
-       <button class="btn big primary" data-act="next">つぎへ</button>
+       <button class="btn ghost" data-act="back">戻る</button>
+       <button class="btn big primary" data-act="next">次へ</button>
      </div>`,
   );
   el.querySelectorAll('.count-btn').forEach((b) => {
@@ -198,7 +198,7 @@ function deskThumb(d) {
 
 function showDeskSelect() {
   const el = screen(
-    `<h2 class="head">机を えらぼう</h2>
+    `<h2 class="head">机を 選ぼう</h2>
      <div class="choices">
        ${DESKS.map(
          (d) => `
@@ -210,7 +210,7 @@ function showDeskSelect() {
          </button>`,
        ).join('')}
      </div>
-     <button class="btn ghost" data-act="back">もどる</button>`,
+     <button class="btn ghost" data-act="back">戻る</button>`,
   );
   el.querySelectorAll('.choice').forEach((b) => {
     b.onclick = () => {
@@ -289,9 +289,9 @@ function pickErasers(players, k = 0) {
   const p = players[i];
   const last = k === humans.length - 1;
   showEraserSelect({
-    title: setup.mode === 'local' ? `<span style="color:${p.color}">${esc(p.name)}</span>の 消しゴムを えらぼう` : '消しゴムを えらぼう',
+    title: setup.mode === 'local' ? `<span style="color:${p.color}">${esc(p.name)}</span>の 消しゴムを 選ぼう` : '消しゴムを 選ぼう',
     selectedId: collection.owns(setup.eraserIds[i]) ? setup.eraserIds[i] : collection.ownedErasers()[0].id,
-    goLabel: last ? 'これでたたかう！' : 'つぎの人へ →',
+    goLabel: last ? 'これで戦う！' : '次の人へ →',
     onPick: (id) => {
       setup.eraserIds[i] = id;
       p.eraser = findEraser(id);
@@ -346,7 +346,7 @@ function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
   const lockedCount = REGULAR_ERASERS.filter((e) => !collection.owns(e.id)).length;
   const el = screen(
     `<h2 class="head">${title}</h2>
-     <p class="note tip">👆 2回タップで すぐ けってい！</p>
+     <p class="note tip">👆 2回タップで すぐ 決定！</p>
      <div class="choices eraser-choices">
        ${list
          .map(
@@ -363,11 +363,11 @@ function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
          )
          .join('')}
      </div>
-     <p class="note">消しゴム ${collection.ownedErasers().length} / ${ERASERS.length} こ あつめた${
-       lockedCount ? `　🔒 あと${lockedCount}こは CPUにかつと 手に入るよ（ずかんで見られる）` : ''
+     <p class="note">消しゴム ${collection.ownedErasers().length} / ${ERASERS.length} 個 集めた${
+       lockedCount ? `　🔒 あと${lockedCount}個は CPUに勝つと 手に入るよ（図鑑で見られる）` : ''
      }</p>
      <div class="row">
-       <button class="btn ghost" data-act="back">もどる</button>
+       <button class="btn ghost" data-act="back">戻る</button>
        <button class="btn big primary" data-act="go">${goLabel}</button>
      </div>`,
   );
@@ -423,17 +423,17 @@ function showCardDeal(basePlayers) {
              <div class="vs-side cpu ${rarityClass(cpu.eraser)}">
                ${rarityTag(cpu.eraser)}
                <canvas class="vs-eraser" data-id="${cpu.eraser.id}"></canvas>
-               <div class="vs-name">あいて<br><b>${cpu.eraser.name}</b></div>
+               <div class="vs-name">相手<br><b>${cpu.eraser.name}</b></div>
              </div>
            </div>
            ${cpu.eraser.trait ? `<div class="trait vs-trait"><b>✨ ${cpu.eraser.trait.name}</b> ${cpu.eraser.trait.desc}</div>` : ''}
-           ${collection.owns(cpu.eraser.id) ? '' : '<small class="vs-get">かつと この消しゴムが 手に入る！</small>'}
+           ${collection.owns(cpu.eraser.id) ? '' : '<small class="vs-get">勝つと この消しゴムが 手に入る！</small>'}
          </div>`
       : '';
   const el = screen(
     `${streakHead}
-     <h2 class="head">能力カードを くばるよ</h2>
-     <p class="deal-note">1しあいに1回、自分のばんの はじめに つかえる</p>
+     <h2 class="head">能力カードを 配るよ</h2>
+     <p class="deal-note">1試合に1回、自分の番の 初めに 使える</p>
      <div class="deal n${players.length}">
        ${players
          .map(
@@ -443,14 +443,14 @@ function showCardDeal(basePlayers) {
            ${
              secret[i]
                ? `<div class="flip secret"><div class="card-back"><span>?</span></div></div>
-                  <div class="secret-note">つかうまで ないしょ</div>`
+                  <div class="secret-note">使うまで 内緒</div>`
                : flipCardHTML(p.card, '', { isNew: isNew[i] })
            }
          </div>`,
          )
          .join('')}
      </div>
-     <button class="btn big primary hidden" data-act="go">たたかう！</button>`,
+     <button class="btn big primary hidden" data-act="go">戦う！</button>`,
     'deal-screen',
   );
   // めくるのは、ないしょではないカードだけ
@@ -526,17 +526,17 @@ function showResult(result, players) {
   let cls;
   let color = '';
   if (w == null) {
-    headline = 'ひきわけ！';
+    headline = '引き分け！';
     sub = 'みんな落ちちゃった';
     cls = 'draw';
   } else if (vsCpu) {
     const human = players[w].type === 'human';
-    headline = human ? 'かち！' : 'まけ…';
+    headline = human ? '勝ち！' : '負け…';
     sub = human ? `${players[w].eraser.name}で勝った！` : `${players[w].name}の${players[w].eraser.name}が勝った`;
     cls = human ? 'win' : 'lose';
   } else {
-    headline = `${esc(players[w].name)}の<br>かち！`;
-    sub = `${players[w].eraser.name}で さいごまで のこった！`;
+    headline = `${esc(players[w].name)}の<br>勝ち！`;
+    sub = `${players[w].eraser.name}で 最後まで 残った！`;
     cls = 'win named';
     color = players[w].color;
   }
@@ -581,22 +581,22 @@ function showResult(result, players) {
       if (collection.recordStreak(streak.count)) streak.newRecord = true;
       streakHTML = `
         <div class="streak-box">
-          <div class="streak-count">🔥 ${streak.count}れんしょう！</div>
-          <div class="streak-best">${streak.newRecord ? '<span class="new-record">ベスト更新中！</span>' : `ベスト ${collection.bestStreak()}れんしょう`}</div>
+          <div class="streak-count">🔥 ${streak.count}連勝！</div>
+          <div class="streak-best">${streak.newRecord ? '<span class="new-record">ベスト更新中！</span>' : `ベスト ${collection.bestStreak()}連勝`}</div>
         </div>`;
       buttons = `
-       <button class="btn big primary" data-act="next">つぎの相手へ →</button>
-       <button class="btn ghost" data-act="title">ここでおわる</button>`;
+       <button class="btn big primary" data-act="next">次の相手へ →</button>
+       <button class="btn ghost" data-act="title">ここで終わる</button>`;
     } else {
       const n = streak.count;
       streakHTML = `
         <div class="streak-box">
-          <div class="streak-count">${n ? `${n}れんしょうで ストップ` : 'れんしょう ならず…'}</div>
-          <div class="streak-best">${streak.newRecord ? `<span class="new-record">ベスト記録！ ${n}れんしょう</span>` : `ベスト ${collection.bestStreak()}れんしょう`}</div>
+          <div class="streak-count">${n ? `${n}連勝で ストップ` : '連勝 ならず…'}</div>
+          <div class="streak-best">${streak.newRecord ? `<span class="new-record">ベスト記録！ ${n}連勝</span>` : `ベスト ${collection.bestStreak()}連勝`}</div>
         </div>`;
       buttons = `
-       <button class="btn big primary" data-act="retry">もういちど チャレンジ</button>
-       <button class="btn" data-act="change">消しゴムをかえる</button>
+       <button class="btn big primary" data-act="retry">もう一度 チャレンジ</button>
+       <button class="btn" data-act="change">消しゴムを変える</button>
        <button class="btn ghost" data-act="title">タイトルへ</button>`;
     }
   }
@@ -654,7 +654,7 @@ function eraserDetail(el, def) {
        <div class="detail-desc">${def.desc}</div>
        ${traitLine(def)}
        <div class="stats">${statMeters(def.stats)}</div>
-       <button class="btn" data-act="close">とじる</button>
+       <button class="btn" data-act="close">閉じる</button>
      </div>`,
   );
   ov.querySelector('.modal').classList.add('meters-in');
@@ -665,7 +665,7 @@ function showZukan(tab = 'eraser') {
   const TABS = [
     { id: 'eraser', label: '消しゴム', items: REGULAR_ERASERS.filter((e) => e.kind !== 'chara') },
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
-    { id: 'special', label: 'とくべつ', items: SPECIAL_ERASERS },
+    { id: 'special', label: '特別', items: SPECIAL_ERASERS },
     { id: 'gacha', label: '文房具', items: STATIONERY_ERASERS },
     { id: 'card', label: 'カード', items: CARDS },
   ];
@@ -683,7 +683,7 @@ function showZukan(tab = 'eraser') {
     }
     const own = collection.owns(item.id);
     const seen = collection.hasSeen(item.id);
-    const how = item.gacha ? 'ガチャで手に入る' : 'CPUで たおすと手に入る';
+    const how = item.gacha ? 'ガチャで手に入る' : 'CPUで 倒すと手に入る';
     return `
       <button class="zukan-cell ${own ? 'own ' + rarityClass(item) : 'locked'}" data-id="${item.id}" ${own ? '' : 'disabled'}>
         ${rarityTag(item)}
@@ -693,13 +693,13 @@ function showZukan(tab = 'eraser') {
       </button>`;
   };
 
-  let note = 'CPUが使っている消しゴムを たおすと、自分も使えるようになるよ';
-  if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを たおすと手に入るよ';
-  if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}まい。ガチャで手に入るよ（CPUにかつと チケットが もらえることがあるよ）`;
-  if (cur.id === 'card') note = '対戦で くばられたカードが うまっていくよ';
+  let note = 'CPUが使っている消しゴムを 倒すと、自分も使えるようになるよ';
+  if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを 倒すと手に入るよ';
+  if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
+  if (cur.id === 'card') note = '対戦で 配られたカードが 埋まっていくよ';
 
   const el = screen(
-    `<h2 class="head">📖 ずかん</h2>
+    `<h2 class="head">📖 図鑑</h2>
      <div class="tabs">
        ${TABS.map(
          (t) => `<button class="tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.label}
@@ -709,10 +709,10 @@ function showZukan(tab = 'eraser') {
      <div class="zukan-grid ${cur.id === 'card' ? 'cards' : ''}">${cur.items.map(cell).join('')}</div>
      <p class="note">${note}</p>
      <div class="row">
-       <button class="btn ghost" data-act="back">もどる</button>
+       <button class="btn ghost" data-act="back">戻る</button>
        ${cur.id === 'gacha' || cur.id === 'special' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
      </div>
-     <button class="reset-link" data-act="reset">ずかんのデータを けす</button>`,
+     <button class="reset-link" data-act="reset">図鑑のデータを 消す</button>`,
     'zukan-screen',
   );
 
@@ -734,7 +734,7 @@ function showZukan(tab = 'eraser') {
     el.querySelectorAll('button.zukan-card').forEach((b) => {
       b.onclick = () => {
         const def = CARDS.find((c) => c.id === b.dataset.id);
-        openModal(el, `<div class="modal">${cardHTML(def, 'big')}<button class="btn" data-act="close">とじる</button></div>`);
+        openModal(el, `<div class="modal">${cardHTML(def, 'big')}<button class="btn" data-act="close">閉じる</button></div>`);
       };
     });
   }
@@ -747,11 +747,11 @@ function showZukan(tab = 'eraser') {
   reset.onclick = () => {
     if (!armed) {
       armed = true;
-      reset.textContent = 'ほんとうに消す？ もう一回押すと ぜんぶ はじめからになります';
+      reset.textContent = '本当に消す？ もう一回押すと 全部 初めからになります';
       reset.classList.add('armed');
       setTimeout(() => {
         armed = false;
-        reset.textContent = 'ずかんのデータを けす';
+        reset.textContent = '図鑑のデータを 消す';
         reset.classList.remove('armed');
       }, 4000);
       return;
@@ -765,8 +765,8 @@ function showZukan(tab = 'eraser') {
 const CAPSULE_COLORS = ['#ff6b6b', '#ffd166', '#4fc3f7', '#81c784', '#ba68c8', '#ff8a65'];
 // カプセルが出てきたときの ひとこと（中身のレア度の ヒント）
 const CAPSULE_HINT = {
-  rare: '✨ きんいろ！ ✨<br>',
-  superrare: '✨ にじいろ！？ ✨<br>',
+  rare: '✨ 金色！ ✨<br>',
+  superrare: '✨ 虹色！？ ✨<br>',
   ultra: '🌌 ギャラクシー！？ 🌌<br>',
   legend: '👑 ま、まさか…レジェンド！？ 👑<br>',
 };
@@ -787,31 +787,31 @@ function showGacha() {
     const mix = `--mx:${((i * 37) % 21) - 10}px;--my:${-8 - ((i * 13) % 14)}px;--mr:${((i * 53) % 120) - 60}deg;--d:${((i * 7) % 10) * 0.03}s`;
     return `<span class="capsule" style="left:${x}%;top:${y}%;--c:${CAPSULE_COLORS[i % CAPSULE_COLORS.length]};${mix}"></span>`;
   }).join('');
-  let msg = 'チケットが ないよ。CPUと たたかおう！';
-  if (canPull) msg = 'ハンドルを タップして まわそう！';
-  if (left === 0) msg = 'ぜんぶ あつめた！すごい！ チケットは とっておけるよ（新しい消しゴムが ふえたら ひけるよ）';
+  let msg = 'チケットが ないよ。CPUと 戦おう！';
+  if (canPull) msg = 'ハンドルを タップして 回そう！';
+  if (left === 0) msg = '全部 集めた！すごい！ チケットは 取っておけるよ（新しい消しゴムが 増えたら 引けるよ）';
 
   const el = screen(
-    `<h2 class="head">🎰 ${isEraserGacha ? 'けしごむガチャ' : 'とくべつガチャ'}</h2>
-     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を ぜんぶ集めたから、まだ持っていない ふつうの消しゴムが出るよ</p>' : '<p class="note gacha-phase">文房具と とくべつ消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
-     <p class="note">CPUにかつと チケットがもらえることがあるよ。${GAME.collection.pityMatches}戦するごとに かならず1まい、れんしょうチャレンジで${GAME.collection.streakBonusEvery}れんしょうすると ボーナスで1まい<br>
-       おなじものは でないよ。お金は いらないよ</p>
+    `<h2 class="head">🎰 ${isEraserGacha ? '消しゴムガチャ' : '特別ガチャ'}</h2>
+     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムが出るよ</p>' : '<p class="note gacha-phase">文房具と 特別な消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
+     <p class="note">CPUに勝つと チケットがもらえることがあるよ。${GAME.collection.pityMatches}戦するごとに 必ず1枚、連勝チャレンジで${GAME.collection.streakBonusEvery}連勝すると ボーナスで1枚<br>
+       同じものは 出ないよ。お金は いらないよ</p>
      <div class="gacha-machine">
-       <div class="gacha-dome">${capsules || '<span class="gacha-empty">からっぽ！</span>'}</div>
+       <div class="gacha-dome">${capsules || '<span class="gacha-empty">空っぽ！</span>'}</div>
        <div class="gacha-body">
-         <div class="gacha-label">${isEraserGacha ? 'けしごむ' : 'とくべつ'}</div>
-         <button class="gacha-handle" data-act="pull" ${canPull ? '' : 'disabled'} aria-label="まわす"><span></span></button>
+         <div class="gacha-label">${isEraserGacha ? '消しゴム' : '特別'}</div>
+         <button class="gacha-handle" data-act="pull" ${canPull ? '' : 'disabled'} aria-label="回す"><span></span></button>
          <div class="gacha-out"></div>
        </div>
      </div>
      <div class="gacha-info">
-       <span>🎫 チケット <b>${tickets}</b>まい</span>
-       <span>のこり <b>${left}</b> / ${pool.total}</span>
+       <span>🎫 チケット <b>${tickets}</b>枚</span>
+       <span>残り <b>${left}</b> / ${pool.total}</span>
      </div>
      <p class="note gacha-msg">${msg}</p>
      <div class="row">
-       <button class="btn ghost" data-act="back">もどる</button>
-       <button class="btn" data-act="zukan">📖 ずかん</button>
+       <button class="btn ghost" data-act="back">戻る</button>
+       <button class="btn" data-act="zukan">📖 図鑑</button>
      </div>`,
     'gacha-screen',
   );
@@ -860,10 +860,10 @@ function showGacha() {
       stage.innerHTML = `
         <div class="cap-rays"></div>
         <div class="cap-flash"></div>
-        <button class="cap-big r-${rarity}" style="--c:${color}" aria-label="あける">
+        <button class="cap-big r-${rarity}" style="--c:${color}" aria-label="開ける">
           <i class="cap-top"></i><i class="cap-bot"></i>
         </button>
-        <p class="cap-msg">${CAPSULE_HINT[rarity] || ''}タップして あけよう！</p>`;
+        <p class="cap-msg">${CAPSULE_HINT[rarity] || ''}タップして 開けよう！</p>`;
       el.appendChild(stage);
       sfx.whoosh();
       const cap = stage.querySelector('.cap-big');

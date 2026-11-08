@@ -443,16 +443,16 @@ export class Game {
     const e = this.pieceByPid(pid);
     if (!e || !e.alive) return { ok: false, reason: 'その消しゴムは いないよ' };
     const ext = this.pieceExtent(e);
-    if (!isInsideDesk(this.desk, x, y) || edgeClearance(this.desk, x, y) < margin) return { ok: false, reason: 'ふちに近すぎるよ' };
+    if (!isInsideDesk(this.desk, x, y) || edgeClearance(this.desk, x, y) < margin) return { ok: false, reason: '縁に近すぎるよ' };
     for (const c of chosen) {
       if (c.pid === pid) continue;
       const o = this.pieceByPid(c.pid);
-      if (o && Math.hypot(c.x - x, c.y - y) < ext + this.pieceExtent(o) + 4) return { ok: false, reason: 'ほかの消しゴムと重なるよ' };
+      if (o && Math.hypot(c.x - x, c.y - y) < ext + this.pieceExtent(o) + 4) return { ok: false, reason: '他の消しゴムと重なるよ' };
     }
     for (const pc of this.pencils) {
       if (!pc.alive) continue;
       const [a, b] = this._pencilEnds(pc);
-      if (pointSegDist(x, y, a.x, a.y, b.x, b.y) < ext + pc.width / 2 + 2) return { ok: false, reason: 'えんぴつと重なるよ' };
+      if (pointSegDist(x, y, a.x, a.y, b.x, b.y) < ext + pc.width / 2 + 2) return { ok: false, reason: '鉛筆と重なるよ' };
     }
     return { ok: true };
   }
@@ -461,20 +461,20 @@ export class Game {
   validatePlacement(kind, { x, y, angle = 0 }, playerIndex, def) {
     const p = def?.params || {};
     if (kind === 'circle') {
-      return isInsideDesk(this.desk, x, y) ? { ok: true } : { ok: false, reason: '机の上をえらんでね' };
+      return isInsideDesk(this.desk, x, y) ? { ok: true } : { ok: false, reason: '机の上を選んでね' };
     }
     if (kind === 'eraser') {
       const ext = this.extentOf(playerIndex);
-      if (edgeClearance(this.desk, x, y) < (p.edgeMargin ?? 60)) return { ok: false, reason: 'ふちに近すぎるよ' };
+      if (edgeClearance(this.desk, x, y) < (p.edgeMargin ?? 60)) return { ok: false, reason: '縁に近すぎるよ' };
       for (const o of this._allPieces()) {
         if (!o.alive || o === this.erasers[playerIndex]) continue;
         const d = Math.hypot(o.body.position.x - x, o.body.position.y - y);
-        if (d < ext + this.pieceExtent(o) + 4) return { ok: false, reason: 'ほかの消しゴムと重なるよ' };
+        if (d < ext + this.pieceExtent(o) + 4) return { ok: false, reason: '他の消しゴムと重なるよ' };
       }
       for (const pc of this.pencils) {
         if (!pc.alive) continue;
         const [a, b] = this._pencilEnds(pc);
-        if (pointSegDist(x, y, a.x, a.y, b.x, b.y) < ext + pc.width / 2 + 2) return { ok: false, reason: 'えんぴつと重なるよ' };
+        if (pointSegDist(x, y, a.x, a.y, b.x, b.y) < ext + pc.width / 2 + 2) return { ok: false, reason: '鉛筆と重なるよ' };
       }
       return { ok: true };
     }
@@ -501,7 +501,7 @@ export class Game {
    * @returns {{ok: boolean, reason?: string}}
    */
   useCard(i, params = {}) {
-    if (!this.canUseCard(i)) return { ok: false, reason: 'いまは使えないよ' };
+    if (!this.canUseCard(i)) return { ok: false, reason: '今は使えないよ' };
     const p = this.players[i];
     const def = p.card.def;
     const e = this.erasers[i];
@@ -512,7 +512,7 @@ export class Game {
       const seats = params.seats || [];
       const need = this.seatOrder(i);
       if (seats.length !== need.length || !need.every((pid) => seats.some((c) => c.pid === pid))) {
-        return { ok: false, reason: 'ぜんぶの消しゴムの 場所を きめてね' };
+        return { ok: false, reason: '全部の消しゴムの 場所を 決めてね' };
       }
       for (const c of seats) {
         const v = this.validateSeat(c.pid, c.x, c.y, seats, prm.edgeMargin ?? 60);
@@ -524,9 +524,9 @@ export class Game {
     }
     if (def.id === 'rewind') {
       const q = e.prevTurnPos;
-      if (!q) return { ok: false, reason: 'まだ もどる場所が ないよ' };
+      if (!q) return { ok: false, reason: 'まだ 戻る場所が ないよ' };
       const v = this.validatePlacement('eraser', q, i, { params: { edgeMargin: 1 } });
-      if (!v.ok || !isInsideDesk(this.desk, q.x, q.y)) return { ok: false, reason: 'もどる場所に なにかがあるよ' };
+      if (!v.ok || !isInsideDesk(this.desk, q.x, q.y)) return { ok: false, reason: '戻る場所に 何かがあるよ' };
     }
     if (def.target) {
       const opps = this.opponentsOf(i, def.id);
@@ -1360,7 +1360,7 @@ export class Game {
           this._emit('trait', { type: 'partOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y, left: e.parts });
         }
         break;
-      case 'absorb': // グニャット：当てられると勢いをすいこむ
+      case 'absorb': // グニャット：当てられると勢いを吸い込む
         if (o && o.body.speed > e.body.speed) {
           e.absorbNext = t.keep ?? 0.4;
           e.squishAt = this.time;
@@ -1381,7 +1381,7 @@ export class Game {
           }
         }
         break;
-      case 'confuse': // フルーツン：当たった相手は、つぎに弾く向きが反対
+      case 'confuse': // フルーツン：当たった相手は、次に弾く向きが反対
         if (o && o.playerIndex !== e.playerIndex && power > 2 && !o.confused) {
           o.confused = true;
           this._emit('trait', { type: 'confuse', playerIndex: o.playerIndex, x: o.body.position.x, y: o.body.position.y });
@@ -1394,14 +1394,14 @@ export class Game {
           e.tailTarget = o;
         }
         break;
-      case 'corner': // マッサラ：さいしょに 相手に当てた 一撃だけ 超強力
+      case 'corner': // マッサラ：最初に 相手に当てた 一撃だけ 超強力
         if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !e.cornerUsed && power > 2 && !o.body.isStatic) {
           e.cornerUsed = true;
           addPush(o, away(), Math.min(t.max ?? 9, (t.push ?? 0.8) * power));
           this._emit('trait', { type: 'corner', playerIndex: e.playerIndex, x, y });
         }
         break;
-      case 'egg': // タマゴン：強く当たると からがわれて、ほかの消しゴムが出てくる
+      case 'egg': // タマゴン：強く当たると からがわれて、他の消しゴムが出てくる
         if (!e.hatched && power >= (t.breakPower ?? 6)) {
           e.hatched = true;
           this._hatchQueue.push(e);

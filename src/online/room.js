@@ -28,7 +28,7 @@ export const isTestMode = () => !FIREBASE_CONFIG;
 
 const P = (code, sub = '') => `rooms/${code}${sub ? '/' + sub : ''}`;
 
-const cleanName = (name) => String(name || '').trim().slice(0, ONLINE.nameMaxLength) || 'なまえ';
+const cleanName = (name) => String(name || '').trim().slice(0, ONLINE.nameMaxLength) || '名前';
 
 function randomCode() {
   const min = 10 ** (ONLINE.codeDigits - 1);
@@ -56,7 +56,7 @@ export async function createRoom({ name, eraserId, deskId }) {
     });
     return code;
   }
-  throw new Error('いまは へやを作れないよ。少しまってね');
+  throw new Error('今は 部屋を作れないよ。少し待ってね');
 }
 
 /** あいことばで部屋に入る */
@@ -64,11 +64,11 @@ export async function joinRoom(code, { name, eraserId }) {
   const db = await getDb();
   code = String(code).trim();
   const room = await db.get(P(code));
-  if (!room || !room.meta) throw new Error('そのあいことばの へやは ないよ');
-  if (db.now() - room.meta.createdAt > ONLINE.roomExpireHours * 3600e3) throw new Error('そのへやは もう おわっているよ');
+  if (!room || !room.meta) throw new Error('その合言葉の 部屋は ないよ');
+  if (db.now() - room.meta.createdAt > ONLINE.roomExpireHours * 3600e3) throw new Error('その部屋は もう 終わっているよ');
   const already = room.members?.[db.uid] && !room.members[db.uid].left;
-  if (room.meta.status !== 'lobby' && !already) throw new Error('そのへやは もう たいせん中だよ');
-  if (!already && sortedMembers(room).length >= ONLINE.maxPlayers) throw new Error('そのへやは まんいんだよ');
+  if (room.meta.status !== 'lobby' && !already) throw new Error('その部屋は もう 対戦中だよ');
+  if (!already && sortedMembers(room).length >= ONLINE.maxPlayers) throw new Error('その部屋は 満員だよ');
   await db.set(P(code, `members/${db.uid}`), {
     name: cleanName(name),
     eraserId,

@@ -16,7 +16,7 @@ export const DESKS = [
   {
     id: 'study',
     name: '学習机',
-    desc: 'ふつうの机。まずはここから',
+    desc: '普通の机。まずはここから',
     shape: { type: 'rect', w: 640, h: 420 },
     frictionScale: 1.0,
     startSpreadY: 0.34, seatTilt: 0.6, // 手前の左と むこうの右（まっすぐ上下だと近すぎて、先攻が有利すぎる）
@@ -34,7 +34,7 @@ export const DESKS = [
   {
     id: 'round',
     name: '丸テーブル',
-    desc: 'カドがなくて、せまい',
+    desc: '角がなくて、狭い',
     shape: { type: 'circle', radius: 235 },
     frictionScale: 1.0,
     look: { style: 'wood', top: '#d9a873', edge: '#94653b', grain: '#c58f58' },
@@ -42,7 +42,7 @@ export const DESKS = [
   {
     id: 'wax',
     name: 'ワックス机',
-    desc: 'つるつるで、よくすべる',
+    desc: 'つるつるで、よく滑る',
     shape: { type: 'rect', w: 640, h: 420 },
     frictionScale: 0.75,
     startSpreadY: 0.34, seatTilt: 0.6,
@@ -50,9 +50,9 @@ export const DESKS = [
   },
   {
     id: 'night',
-    name: 'よるの教室',
-    desc: 'まっくら！ 光る消しゴムが 強くなる',
-    badge: 'くらい',
+    name: '夜の教室',
+    desc: '真っ暗！ 光る消しゴムが 強くなる',
+    badge: '暗い',
     shape: { type: 'rect', w: 640, h: 420 },
     frictionScale: 1.0,
     startSpreadY: 0.34, seatTilt: 0.6,
@@ -61,8 +61,8 @@ export const DESKS = [
   },
   {
     id: 'giant',
-    name: 'きょじんの机',
-    desc: '超巨大！ひろびろ使える',
+    name: '巨人の机',
+    desc: '超巨大！広々使える',
     badge: 'でかい！',
     shape: { type: 'rect', w: 1300, h: 860 },
     frictionScale: 1.0,

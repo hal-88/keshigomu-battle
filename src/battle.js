@@ -23,7 +23,7 @@ const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 const PLACE_HINT = {
-  pencil: 'えんぴつを置くところを触って、そのままぐるっと向きを決めよう',
+  pencil: '鉛筆を置くところを触って、そのままぐるっと向きを決めよう',
   circle: 'つるつるにしたいところを タップ！',
   eraser: 'ワープしたいところを タップ！',
 };
@@ -118,7 +118,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   // ---- 表示 ----
   function updateHud(text) {
     const p = game.players[game.turnIndex];
-    $('turn').textContent = text || `${p.name}のばん`;
+    $('turn').textContent = text || `${p.name}の番`;
     $('turn').style.background = p.color;
     $('count').textContent = `${label ? label + ' ' : ''}ターン ${game.turnCount}`;
     $('sd').classList.toggle('show', game.turnCount >= GAME.suddenDeath.startTurn);
@@ -172,21 +172,21 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (p.type === 'remote') {
       // オンラインの相手の番：見ているだけ
-      if (!again) toast(`${p.name}のばん！`, '#fff');
+      if (!again) toast(`${p.name}の番！`, '#fff');
       setHint('');
       return;
     }
-    if (!again) toast(online ? 'あなたのばん！' : `${p.name}のばん！`, '#fff');
+    if (!again) toast(online ? 'あなたの番！' : `${p.name}の番！`, '#fff');
     if (game.isReversed(game.turnIndex)) {
-      setHint('🔃 さかさま！ ひっぱる向きが 反対になるよ（矢印のほうに飛ぶ）');
+      setHint('🔃 逆さま！ 引っぱる向きが 反対になるよ（矢印のほうに飛ぶ）');
     } else if (game.turn.powerMul >= 2) {
       setHint('🔋 パワーが たまった！ 2倍の強さで 弾けるよ');
     } else if (game.isConfused(game.turnIndex)) {
-      setHint('🍓 こんらん中！ 5回に1回くらい、反対に よわく 飛んじゃうよ');
+      setHint('🍓 混乱中！ 5回に1回くらい、反対に 弱く 飛んじゃうよ');
     } else if (game.extrasOf(game.turnIndex).length) {
-      setHint('2つに分かれているよ。弾くほうを さわってね');
+      setHint('2つに分かれているよ。弾くほうを 触ってね');
     } else {
-      setHint(flickedOnce.has(game.turnIndex) ? '' : `${p.name}の消しゴムを ひっぱって はなそう！`);
+      setHint(flickedOnce.has(game.turnIndex) ? '' : `${p.name}の消しゴムを 引っぱって 離そう！`);
     }
   }
 
@@ -204,7 +204,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       btn.dataset.pi = key;
       btn.style.setProperty('--type', CARD_TYPES[def.type].color);
       btn.innerHTML = `<span class="card-btn-icon">${def.icon}</span>
-        <span class="card-btn-text"><small>カードをつかう</small>${def.name}</span>`;
+        <span class="card-btn-text"><small>カードを使う</small>${def.name}</span>`;
     }
     if (!show) btn.dataset.pi = '';
     btn.classList.toggle('show', show);
@@ -220,7 +220,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         ${cardHTML(def, 'big')}
         <div class="row">
           <button class="btn ghost" data-act="cancel">やめる</button>
-          <button class="btn primary" data-act="use">つかう！</button>
+          <button class="btn primary" data-act="use">使う！</button>
         </div>
       </div>`);
     ov.querySelector('[data-act=cancel]').onclick = closeOverlay;
@@ -246,7 +246,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         game.useCard(i, { target });
       },
     });
-    $('bannerText').textContent = `${def.name}：だれに つかう？ 相手の消しゴムを タップ！`;
+    $('bannerText').textContent = `${def.name}：だれに 使う？ 相手の消しゴムを タップ！`;
     $('banner').classList.add('show');
     setHint('');
   }
@@ -294,8 +294,8 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         },
         onInvalid: (reason) => toast(reason || 'そこには置けないよ', '#ffd54f'),
       });
-      const who = piece.playerIndex === i ? 'じぶん' : owner.name;
-      $('bannerText').textContent = `🪑 せきがえ（${k + 1}/${order.length}）：${who}の ${piece.def.name}を おくところを タップ！`;
+      const who = piece.playerIndex === i ? '自分' : owner.name;
+      $('bannerText').textContent = `🪑 席替え（${k + 1}/${order.length}）：${who}の ${piece.def.name}を 置くところを タップ！`;
       $('banner').classList.add('show');
       setHint('');
     };
@@ -359,7 +359,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const p = game.players[idx];
     const ov = openOverlay(`
       <div class="announce">
-        <div class="announce-title" style="color:${p.color}">${esc(p.name)}が カードをつかった！</div>
+        <div class="announce-title" style="color:${p.color}">${esc(p.name)}が カードを使った！</div>
         ${flipCardHTML(p.card.def)}
       </div>`);
     later(250, () => {
@@ -377,7 +377,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     sfx.flick(strength);
     if (backfire) {
       sfx.boing();
-      toast('🍓 あっ！ はんたいに 飛んじゃった！', '#ff6f91');
+      toast('🍓 あっ！ 反対に 飛んじゃった！', '#ff6f91');
     }
     if (game.players[playerIndex].type === 'human') {
       flickedOnce.add(playerIndex);
@@ -398,7 +398,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       return;
     }
     sfx.fall();
-    toast(`${p.name}が おちた！`, p.color);
+    toast(`${p.name}が 落ちた！`, p.color);
     slow = { start: performance.now(), idx: playerIndex };
   });
 
@@ -412,13 +412,13 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     renderer.addEffect({ type: 'ring', x: x2, y: y2, color: p.color, dur: 600, r: 20, grow: 50 });
     renderer.addEffect({ type: 'text', x: (x + x2) / 2, y: (y + y2) / 2, text: 'パカッ！', color: '#ff9f43', stroke: true, size: 30, dur: 1300 });
     toast(`${p.name}が 2つに分かれた！`, p.color);
-    if (p.type === 'human') setHint('どっちを弾くか、さわってえらべるよ');
+    if (p.type === 'human') setHint('どっちを弾くか、触って選べるよ');
   });
   on('pieceFall', ({ playerIndex, x, y }) => {
     const p = game.players[playerIndex];
     sfx.fall();
     renderer.addEffect({ type: 'text', x, y, text: 'セーフ！', color: '#4fc3f7', stroke: true, size: 26, dur: 1300 });
-    later(300, () => toast(`かけらが落ちた！ でも ${p.name}は まだのこってる`, p.color));
+    later(300, () => toast(`かけらが落ちた！ でも ${p.name}は まだ残ってる`, p.color));
   });
   on('trait', ({ type, playerIndex, x, y, left, look, value, name, x2, y2 }) => {
     const p = game.players[playerIndex];
@@ -426,11 +426,11 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const ring = (color, r = 20, grow = 40, dur = 500, at = { x, y }) => renderer.addEffect({ type: 'ring', x: at.x, y: at.y, color, dur, r, grow });
     if (type === 'coverOff' && look === 'neta') {
       sfx.whoosh();
-      say('🍣 ネタが とんだ！', '#ff7043');
+      say('🍣 ネタが 飛んだ！', '#ff7043');
       ring('#ff8a65');
     } else if (type === 'coverOff') {
       sfx.whoosh();
-      renderer.addEffect({ type: 'text', x, y, text: 'カバーが とれた！', color: '#26a69a', stroke: true, size: 22, dur: 1300 });
+      renderer.addEffect({ type: 'text', x, y, text: 'カバーが 取れた！', color: '#26a69a', stroke: true, size: 22, dur: 1300 });
       renderer.addEffect({ type: 'ring', x, y, color: '#26a69a', dur: 500, r: 20, grow: 40 });
     } else if (type === 'dice') {
       sfx.tap();
@@ -448,7 +448,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       ring('#90a4ae', 14, 30, 400, { x: x2, y: y2 });
     } else if (type === 'ghost') {
       sfx.whoosh();
-      say('👻 すりぬけ！', '#7986cb', 26, 1400);
+      say('👻 すり抜け！', '#7986cb', 26, 1400);
     } else if (type === 'mirror') {
       sfx.boing();
       ring('#eceff1', 24, 50, 500);
@@ -459,7 +459,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (type === 'corner') {
       sfx.hit(10);
       renderer.shake(250, 7);
-      say('✨ かどアタック！', '#1565c0', 26, 1400);
+      say('✨ 角アタック！', '#1565c0', 26, 1400);
     } else if (type === 'hatch') {
       sfx.rare();
       ring('#ffe082', 20, 60, 600);
@@ -469,11 +469,11 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       toast(`${p.name}の ダイオウケシは ためている…💤`, '#fff');
     } else if (type === 'partOff') {
       sfx.hit(9, true);
-      renderer.addEffect({ type: 'text', x, y, text: `パーツが とれた！（のこり${left}）`, color: '#ffca28', stroke: true, size: 20, dur: 1300 });
+      renderer.addEffect({ type: 'text', x, y, text: `パーツが 取れた！（残り${left}）`, color: '#ffca28', stroke: true, size: 20, dur: 1300 });
     } else if (type === 'confuse') {
       sfx.boing();
-      renderer.addEffect({ type: 'text', x, y, text: '🍓 こんらん！', color: '#ff6f91', stroke: true, size: 24, dur: 1400 });
-      if (p.type === 'human') later(400, () => toast(`${p.name}は こんらん！ つぎは 反対に飛んじゃうかも`, '#ff6f91'));
+      renderer.addEffect({ type: 'text', x, y, text: '🍓 混乱！', color: '#ff6f91', stroke: true, size: 24, dur: 1400 });
+      if (p.type === 'human') later(400, () => toast(`${p.name}は 混乱！ 次は 反対に飛んじゃうかも`, '#ff6f91'));
     }
   });
 
@@ -494,27 +494,27 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       sfx.boing();
       say('↩️ ポヨン！', '#ef5350');
     } else if (type === 'pierce') {
-      say('🚂 つらぬき！', '#ef5350');
+      say('🚂 貫き！', '#ef5350');
     } else if (type === 'bowling') {
       sfx.hit(8);
       say('🎳 ストライク！', '#ef5350');
     } else if (type === 'shield') {
       sfx.hold();
       renderer.addEffect({ type: 'ring', x, y, color: '#3b82f6', dur: 500, r: 30, grow: 30 });
-      say('🛡️ ふでばこで ガード！', '#3b82f6', 22, 1400);
+      say('🛡️ 筆箱で ガード！', '#3b82f6', 22, 1400);
     } else if (type === 'revive') {
       sfx.rare();
       renderer.addEffect({ type: 'ring', x, y, color: '#ffd54f', dur: 700, r: 20, grow: 60 });
-      say(`🔁 ${p.name} もういっかい！`, '#f59e0b', 24, 1600);
+      say(`🔁 ${p.name} もう一回！`, '#f59e0b', 24, 1600);
     } else if (type === 'holeClose') {
-      toast('ブラックホールが とじた', '#b39ddb');
+      toast('ブラックホールが 閉じた', '#b39ddb');
     }
   });
 
   on('hold', ({ x, y }) => {
     sfx.hold();
     renderer.addEffect({ type: 'ring', x, y, color: '#4fc3f7', dur: 600, r: 30 });
-    renderer.addEffect({ type: 'text', x, y, text: 'ふみとどまった！', color: '#4fc3f7', stroke: true, size: 24, dur: 1400 });
+    renderer.addEffect({ type: 'text', x, y, text: '踏みとどまった！', color: '#4fc3f7', stroke: true, size: 24, dur: 1400 });
   });
 
   on('card', ({ playerIndex, card, params, target }) => {
@@ -537,7 +537,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         if (card.id === 'wax') sfx.whoosh();
         break;
       case 'skip':
-        later(900, () => toast(`${game.players[target].name}は つぎ おやすみ！`, '#b39ddb'));
+        later(900, () => toast(`${game.players[target].name}は 次は お休み！`, '#b39ddb'));
         break;
       case 'swap':
       case 'teleport': {
@@ -595,7 +595,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         renderer.addEffect({ type: 'ring', x: params.x, y: params.y, color: '#a1887f', dur: 500, r: 30, grow: 60 });
         break;
       case 'reverse':
-        later(900, () => toast(`${game.players[target].name}は つぎ さかさま！`, '#b39ddb'));
+        later(900, () => toast(`${game.players[target].name}は 次は 逆さま！`, '#b39ddb'));
         break;
       case 'shrinkbeam': {
         sfx.whoosh();
@@ -609,7 +609,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
         break;
       case 'blackout':
         sfx.warn();
-        later(900, () => toast('つぎの ターンは ていでん…🔌', '#ffe082'));
+        later(900, () => toast('次の ターンは 停電…🔌', '#ffe082'));
         break;
       case 'shuffle':
       case 'seating':
@@ -624,7 +624,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       case 'hazure':
         later(150, () => sfx.boing());
         renderer.addEffect({ type: 'text', x: me.x, y: me.y, text: '🙃', size: 60, dur: 1600 });
-        later(900, () => toast('ざんねん…', '#ffcc80'));
+        later(900, () => toast('残念…', '#ffcc80'));
         break;
       default:
         renderer.addEffect({ type: 'ring', x: me.x, y: me.y, color, dur: 600, r: 30 });
@@ -644,9 +644,9 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       <div class="announce">
         <div class="announce-title" style="color:${p.color}">${
           from != null
-            ? `🦹 ${esc(p.name)}が ${esc(game.players[from].name)}の カードを うばった！`
+            ? `🦹 ${esc(p.name)}が ${esc(game.players[from].name)}の カードを 奪った！`
             : roulette
-              ? `🎰 ルーレット！ ${esc(p.name)}に でたのは…`
+              ? `🎰 ルーレット！ ${esc(p.name)}に 出たのは…`
               : `🎁 ${esc(p.name)}に カード${cards.length}枚！`
         }</div>
         <div class="deal n${cards.length}">${cards
@@ -656,7 +656,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
               : flipCardHTML(c, '', { isNew: fresh[k] }),
           )
           .join('')}</div>
-        <div class="announce-note">${secret ? 'なにが出たかは ないしょ…' : cards.length > 1 ? 'じゅんばんに すぐ使えるよ' : 'すぐに 使えるよ（あとで 使ってもいい）'}</div>
+        <div class="announce-note">${secret ? '何が出たかは 内緒…' : cards.length > 1 ? '順番に すぐ使えるよ' : 'すぐに 使えるよ（あとで 使ってもいい）'}</div>
       </div>`);
     ov.querySelectorAll('.flip:not(.secret)').forEach((f, k) => {
       later(350 + k * 450, () => {
@@ -671,7 +671,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   // おかわりの2枚目以降：1枚使うと次のカードが出てくる
   on('nextCard', ({ playerIndex, card }) => {
     const p = game.players[playerIndex];
-    if (!isSecret(p)) later(1000, () => toast(`つぎのカード：${card.icon} ${card.name}`, CARD_TYPES[card.type].color));
+    if (!isSecret(p)) later(1000, () => toast(`次のカード：${card.icon} ${card.name}`, CARD_TYPES[card.type].color));
     if (p.type === 'human') setHint('もう1枚カードが使えるよ！');
   });
 
@@ -685,12 +685,12 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     if (isMyTurn()) onTurnStart({ again: true });
   });
   on('skipped', ({ playerIndex }) => {
-    toast(`${game.players[playerIndex].name}は おやすみ…💤`, '#b39ddb');
+    toast(`${game.players[playerIndex].name}は お休み…💤`, '#b39ddb');
   });
   on('shrinkWarn', ({ first }) => {
     sfx.warn();
     if (first) {
-      later(700, () => toast('サドンデス！ 机がけずれるぞ', '#ff5252'));
+      later(700, () => toast('サドンデス！ 机が削れるぞ', '#ff5252'));
     }
   });
   on('shrink', () => {
@@ -712,7 +712,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   function showOver(result) {
     if (overShown) return;
     overShown = true;
-    $('turn').textContent = 'しょうぶあり！';
+    $('turn').textContent = '勝負あり！';
     $('turn').style.background = '#444';
     setHint('');
     const w = result.winner;
@@ -1008,7 +1008,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const grad = ps.map((p, i) => `${p.color} ${i * seg}deg ${(i + 1) * seg}deg`).join(', ');
     const ov = openOverlay(`
       <div class="roulette-box">
-        <div class="roulette-title">${n === 2 ? 'どっちが さき？' : 'だれが さき？'}</div>
+        <div class="roulette-title">${n === 2 ? 'どっちが 先？' : 'だれが 先？'}</div>
         <div class="roulette">
           <div class="roulette-pointer"></div>
           <div class="roulette-wheel" style="background: conic-gradient(${grad})">
@@ -1025,8 +1025,8 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     const wheel = ov.querySelector('.roulette-wheel');
     // 止まる角度：当たりの部分のまん中あたりが、上の▼に来るように（すこしずらして本物っぽく）
     const jitter = (Math.random() - 0.5) * seg * 0.6;
-    const end = 360 * 5 - (winner + 0.5) * seg + jitter;
-    const SPIN_MS = 3000;
+    const end = 360 * 3 - (winner + 0.5) * seg + jitter;
+    const SPIN_MS = 1300; // 回っている時間（止まって結果を見せる 0.7秒と合わせて 約2秒）
     let finished = false;
     let lastSeg = -1;
     let tickRaf = 0;
@@ -1051,10 +1051,10 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       const p = ps[winner];
       ov.querySelector('.roulette-hub').textContent = '!';
       const res = ov.querySelector('.roulette-result');
-      res.innerHTML = `<b style="color:${p.color}">${esc(nameOf(p, winner))}</b> の さきこう！`;
+      res.innerHTML = `<b style="color:${p.color}">${esc(nameOf(p, winner))}</b> の 先攻！`;
       res.classList.add('show');
       sfx.rare();
-      later(1300, () => {
+      later(700, () => {
         closeOverlay();
         done();
       });
@@ -1078,7 +1078,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   if (game.phase === 'over') showOver(game.result);
   else if (game.turnCount === 1 && game.time === 0 && game.players.length > 1) {
     // ルーレットが止まるまで、左上の「○○のばん」で答えがわからないようにする
-    $('turn').textContent = '🎡 だれが さき？';
+    $('turn').textContent = '🎡 だれが 先？';
     $('turn').style.background = '#888';
     showRoulette(() => {
       updateHud();

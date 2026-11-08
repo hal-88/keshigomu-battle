@@ -23,14 +23,14 @@ export function rewardsHTML(reward) {
     .join('');
   const tickets = collection.tickets();
   const ticket = reward.ticket
-    ? `<div class="reward ticket"><span class="big-ticket">🎫</span><div><b>ガチャチケット ゲット！</b><br>もっているチケット：${tickets}まい</div></div>`
+    ? `<div class="reward ticket"><span class="big-ticket">🎫</span><div><b>ガチャチケット ゲット！</b><br>持っているチケット：${tickets}枚</div></div>`
     : '';
   const bonus = reward.bonus
-    ? `<div class="reward ticket bonus"><span class="big-ticket">🔥</span><div><b>${GAME.collection.streakBonusEvery}れんしょう ボーナス！</b><br>チケットを もう1まい（もっているチケット：${tickets}まい）</div></div>`
+    ? `<div class="reward ticket bonus"><span class="big-ticket">🔥</span><div><b>${GAME.collection.streakBonusEvery}連勝 ボーナス！</b><br>チケットを もう1枚（持っているチケット：${tickets}枚）</div></div>`
     : '';
   const hint =
     !reward.ticket && collection.canGetTicket()
-      ? `<div class="reward hint-ticket">🎫 あと <b>${collection.matchesToPity()}</b> 戦で チケットかくてい！</div>`
+      ? `<div class="reward hint-ticket">🎫 あと <b>${collection.matchesToPity()}</b> 戦で チケット確定！</div>`
       : '';
   return `<div class="rewards">${unlocked}${ticket}${bonus}${hint}</div>`;
 }

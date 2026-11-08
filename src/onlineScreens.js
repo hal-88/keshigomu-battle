@@ -36,7 +36,7 @@ export function setupOnline(ui) {
 
   const testBadge = () =>
     isTestMode()
-      ? '<p class="test-badge">🧪 テストモード：このパソコンの べつのタブと たいせんできるよ（Firebase の設定まえ）</p>'
+      ? '<p class="test-badge">🧪 テストモード：このパソコンの 別のタブと 対戦できるよ（Firebase の設定前）</p>'
       : '';
 
   // ---------- メニュー ----------
@@ -48,22 +48,22 @@ export function setupOnline(ui) {
       `<h2 class="head">🌐 オンライン</h2>
        ${testBadge()}
        <div class="online-card">
-         <label class="online-label">なまえ（ニックネーム・${ONLINE.nameMaxLength}文字まで）
+         <label class="online-label">名前（ニックネーム・${ONLINE.nameMaxLength}文字まで）
            <input class="slot-name online-name" maxlength="${ONLINE.nameMaxLength}" value="${esc(st.name)}" autocomplete="off" enterkeyhint="done">
          </label>
-         <p class="note warn">⚠ ほんとうの名前（本名）は 入れないでね</p>
+         <p class="note warn">⚠ 本当の名前（本名）は 入れないでね</p>
          <div class="online-eraser">
            <canvas class="online-eraser-cv"></canvas>
-           <div><small>つかう消しゴム</small><br><b>${eraser.name}</b></div>
-           <button class="btn small" data-act="eraser">かえる</button>
+           <div><small>使う消しゴム</small><br><b>${eraser.name}</b></div>
+           <button class="btn small" data-act="eraser">変える</button>
          </div>
        </div>
        ${message ? `<p class="error-msg">${esc(message)}</p>` : ''}
        <div class="row">
-         <button class="btn big primary" data-act="create">へやを つくる</button>
-         <button class="btn big" data-act="join">あいことばで 入る</button>
+         <button class="btn big primary" data-act="create">部屋を 作る</button>
+         <button class="btn big" data-act="join">合言葉で 入る</button>
        </div>
-       <button class="btn ghost" data-act="back">もどる</button>`,
+       <button class="btn ghost" data-act="back">戻る</button>`,
     );
     whenFonts(() => drawEraserPreview(el.querySelector('.online-eraser-cv'), eraser));
     const nameInput = el.querySelector('.online-name');
@@ -80,12 +80,12 @@ export function setupOnline(ui) {
     });
     const needName = () => {
       if (st.name.trim()) return true;
-      showMenu('なまえを 入れてね');
+      showMenu('名前を 入れてね');
       return false;
     };
     el.querySelector('[data-act=eraser]').onclick = () =>
       ui.showEraserSelect({
-        title: 'オンラインで つかう消しゴム',
+        title: 'オンラインで 使う消しゴム',
         selectedId: st.eraserId,
         goLabel: 'これにする',
         onPick: (id) => {
@@ -97,7 +97,7 @@ export function setupOnline(ui) {
     el.querySelector('[data-act=create]').onclick = async () => {
       if (!needName()) return;
       try {
-        loading('へやを つくっているよ…');
+        loading('部屋を 作っているよ…');
         const code = await createRoom({ name: st.name, eraserId: st.eraserId, deskId: st.deskId });
         await openLobby(code);
       } catch (err) {
@@ -112,7 +112,7 @@ export function setupOnline(ui) {
 
   function errorText(err) {
     const m = String(err?.message || err);
-    if (/permission|PERMISSION/i.test(m)) return 'つうしんが ゆるされていないよ（Firebase のルールを たしかめてね）';
+    if (/permission|PERMISSION/i.test(m)) return '通信が 許されていないよ（Firebase のルールを 確かめてね）';
     if (/network|offline|Failed to fetch/i.test(m)) return 'インターネットに つながっていないみたい';
     return m;
   }
@@ -125,16 +125,16 @@ export function setupOnline(ui) {
   function showJoin(message = '') {
     let code = '';
     const el = screen(
-      `<h2 class="head">あいことばを 入れてね</h2>
+      `<h2 class="head">合言葉を 入れてね</h2>
        ${testBadge()}
        <div class="code-display" data-el="code"></div>
        ${message ? `<p class="error-msg">${esc(message)}</p>` : ''}
        <div class="keypad">
-         ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 'けす', 0, 'OK']
+         ${[1, 2, 3, 4, 5, 6, 7, 8, 9, '消す', 0, 'OK']
            .map((k) => `<button class="key ${typeof k === 'number' ? '' : 'fn'}" data-k="${k}">${k}</button>`)
            .join('')}
        </div>
-       <button class="btn ghost" data-act="back">もどる</button>`,
+       <button class="btn ghost" data-act="back">戻る</button>`,
     );
     const disp = el.querySelector('[data-el=code]');
     const render = () => {
@@ -144,7 +144,7 @@ export function setupOnline(ui) {
     const submit = async () => {
       if (code.length !== ONLINE.codeDigits) return;
       try {
-        loading('へやを さがしているよ…');
+        loading('部屋を 探しているよ…');
         await joinRoom(code, { name: st.name, eraserId: st.eraserId });
         await openLobby(code);
       } catch (err) {
@@ -154,7 +154,7 @@ export function setupOnline(ui) {
     el.querySelectorAll('.key').forEach((b) => {
       b.onclick = () => {
         const k = b.dataset.k;
-        if (k === 'けす') code = code.slice(0, -1);
+        if (k === '消す') code = code.slice(0, -1);
         else if (k === 'OK') return submit();
         else if (code.length < ONLINE.codeDigits) code += k;
         render();
@@ -172,19 +172,19 @@ export function setupOnline(ui) {
 
   function showLobby(session) {
     const el = screen(
-      `<h2 class="head">まちあい室</h2>
+      `<h2 class="head">待合室</h2>
        ${testBadge()}
        <div class="lobby-code">
-         <small>あいことば</small>
+         <small>合言葉</small>
          <div class="big-code">${session.code}</div>
-         <small>この 数字を ともだちに おしえてね</small>
+         <small>この 数字を 友だちに 教えてね</small>
        </div>
        <div class="lobby-members" data-el="members"></div>
        <div class="lobby-desk" data-el="desk"></div>
        <p class="note" data-el="status"></p>
        <div class="row">
-         <button class="btn ghost" data-act="leave">へやを でる</button>
-         <button class="btn" data-act="changeEraser">🔄 消しゴムを かえる</button>
+         <button class="btn ghost" data-act="leave">部屋を 出る</button>
+         <button class="btn" data-act="changeEraser">🔄 消しゴムを 変える</button>
          <button class="btn big primary hidden" data-act="start">スタート！</button>
        </div>`,
       'lobby-screen',
@@ -200,7 +200,7 @@ export function setupOnline(ui) {
       if (!room || !room.meta) {
         gone = true;
         session.stopAll();
-        showMenu('へやが なくなったよ');
+        showMenu('部屋が なくなったよ');
         return;
       }
       // 対戦がはじまったら、カードの画面へ（前の試合とまちがえないように gid でたしかめる）
@@ -227,7 +227,7 @@ export function setupOnline(ui) {
             <div class="lm-eraser">${esc(findEraser(m.eraserId)?.name || '')}</div>
           </div>`,
         )
-        .join('') + Array.from({ length: ONLINE.maxPlayers - members.length }, () => '<div class="lobby-member empty">あき</div>').join('');
+        .join('') + Array.from({ length: ONLINE.maxPlayers - members.length }, () => '<div class="lobby-member empty">空き</div>').join('');
       whenFonts(() =>
         $('members').querySelectorAll('canvas').forEach((c) => {
           const d = findEraser(c.dataset.id);
@@ -236,10 +236,10 @@ export function setupOnline(ui) {
       );
       const deskId = room.meta.deskId;
       $('desk').innerHTML = amHost
-        ? `<small>つくえ（タップで かえられる）</small><div class="desk-pick">${DESKS.map(
+        ? `<small>机（タップで 変えられる）</small><div class="desk-pick">${DESKS.map(
             (d) => `<button class="desk-pick-btn ${d.id === deskId ? 'on' : ''}" data-id="${d.id}">${d.name}</button>`,
           ).join('')}</div>`
-        : `<small>つくえ</small><div><b>${findDesk(deskId)?.name || ''}</b></div>`;
+        : `<small>机</small><div><b>${findDesk(deskId)?.name || ''}</b></div>`;
       $('desk').querySelectorAll('.desk-pick-btn').forEach((b) => {
         b.onclick = () => session.setDesk(b.dataset.id);
       });
@@ -249,9 +249,9 @@ export function setupOnline(ui) {
       startBtn.disabled = !enough || starting;
       $('status').textContent = amHost
         ? enough
-          ? 'みんな そろったら スタートを おしてね'
-          : 'ともだちが 入ってくるのを まってね'
-        : '👑 の人が スタートを おすのを まってね';
+          ? 'みんな そろったら スタートを 押してね'
+          : '友だちが 入ってくるのを 待ってね'
+        : '👑 の人が スタートを 押すのを 待ってね';
     }
 
     el.querySelector('[data-act=start]').onclick = async () => {
@@ -290,7 +290,7 @@ export function setupOnline(ui) {
       ov.className = 'overlay fixed show';
       ov.innerHTML = `
         <div class="modal eraser-picker">
-          <div class="detail-name">つかう消しゴムを えらんでね</div>
+          <div class="detail-name">使う消しゴムを 選んでね</div>
           <div class="picker-grid">
             ${owned
               .map(
@@ -302,7 +302,7 @@ export function setupOnline(ui) {
               )
               .join('')}
           </div>
-          <button class="btn" data-act="close">とじる</button>
+          <button class="btn" data-act="close">閉じる</button>
         </div>`;
       el.appendChild(ov);
       whenFonts(() =>
@@ -341,7 +341,7 @@ export function setupOnline(ui) {
     const g = room.game;
     const myIndex = g.order.indexOf(session.uid);
     if (myIndex < 0) {
-      showMenu('この たいせんには 入れなかったよ（まにあわなかった）');
+      showMenu('この 対戦には 入れなかったよ（間に合わなかった）');
       return;
     }
     const players = playersFrom(session, room, g);
@@ -352,7 +352,7 @@ export function setupOnline(ui) {
 
     const el = screen(
       `<div class="streak-head">
-         <span class="streak-round">🌐 オンライン たいせん</span>
+         <span class="streak-round">🌐 オンライン 対戦</span>
          <div class="vs online-vs">
            ${players
              .map(
@@ -367,14 +367,14 @@ export function setupOnline(ui) {
          </div>
        </div>
        <h2 class="head">能力カード</h2>
-       <p class="deal-note">あいてのカードは ないしょ。つかうまで わからないよ</p>
+       <p class="deal-note">相手のカードは 内緒。使うまで 分からないよ</p>
        <div class="deal n2">
          <div class="deal-slot">
            <div class="deal-name" style="background:${mine.color}">あなた</div>
            ${mine.card ? flipCardHTML(mine.card, '', { isNew }) : ''}
          </div>
        </div>
-       <button class="btn big primary hidden" data-act="go">たたかう！</button>`,
+       <button class="btn big primary hidden" data-act="go">戦う！</button>`,
       'deal-screen',
     );
     whenFonts(() => el.querySelectorAll('.vs-eraser').forEach((c) => drawEraserPreview(c, findEraser(c.dataset.id))));
@@ -425,13 +425,13 @@ export function setupOnline(ui) {
     let headline;
     let cls;
     if (w == null) {
-      headline = 'ひきわけ！';
+      headline = '引き分け！';
       cls = 'draw';
     } else if (w === myIndex) {
-      headline = 'かち！';
+      headline = '勝ち！';
       cls = 'win';
     } else {
-      headline = `${esc(players[w].name)}の<br>かち！`;
+      headline = `${esc(players[w].name)}の<br>勝ち！`;
       cls = 'lose named';
     }
     // ごほうび：オンラインも「5戦するごとに かならずチケット」に数える（消しゴムは手に入らない）
@@ -454,8 +454,8 @@ export function setupOnline(ui) {
              .join('')}
          </ol>
          <div class="row">
-           <button class="btn big primary" data-act="lobby">へやに もどる</button>
-           <button class="btn ghost" data-act="leave">でる</button>
+           <button class="btn big primary" data-act="lobby">部屋に 戻る</button>
+           <button class="btn ghost" data-act="leave">出る</button>
          </div>
        </div>`,
     );
