@@ -1001,8 +1001,7 @@ function showZukan(tab = 'eraser') {
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
        ${cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
-     </div>
-     <button class="reset-link" data-act="reset">図鑑のデータを 消す</button>`,
+     </div>`,
     'zukan-screen',
   );
 
@@ -1031,25 +1030,6 @@ function showZukan(tab = 'eraser') {
   }
   el.querySelector('[data-act=back]').onclick = showTitle;
   el.querySelector('[data-act=gacha]')?.addEventListener('click', showGacha);
-
-  // まちがえて消さないように2回押し
-  const reset = el.querySelector('[data-act=reset]');
-  let armed = false;
-  reset.onclick = () => {
-    if (!armed) {
-      armed = true;
-      reset.textContent = '本当に消す？ もう一回押すと 全部 初めからになります';
-      reset.classList.add('armed');
-      setTimeout(() => {
-        armed = false;
-        reset.textContent = '図鑑のデータを 消す';
-        reset.classList.remove('armed');
-      }, 4000);
-      return;
-    }
-    collection.reset();
-    showZukan(tab);
-  };
 }
 
 // ---------- ガチャ ----------

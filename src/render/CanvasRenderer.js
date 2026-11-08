@@ -1023,17 +1023,29 @@ export class CanvasRenderer {
   // ていでん：画面が まっくら（弾く人のまわりだけ すこし見える。光る消しゴムは 光る）
   _drawBlackout(ctx, state, now) {
     ctx.save();
-    ctx.fillStyle = 'rgba(5,6,20,0.9)';
+    // 完全に まっくら。見えるのは 弾く人の 消しゴムの まわりだけ（ふちは ぼんやり）
+    ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.rect(0, 0, this.w, this.h);
     const cur = state.erasers[state.turnIndex];
+    let spot = null;
     if (cur && cur.alive) {
       const p = this.worldToScreen(cur.x, cur.y);
-      const r = (eraserExtent(cur.def) * cur.size + 30) * this.zoomScale;
+      const r = (eraserExtent(cur.def) * cur.size + 26) * this.zoomScale;
+      spot = { p, r };
       ctx.moveTo(p.x + r, p.y);
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2, true);
     }
     ctx.fill('evenodd');
+    if (spot) {
+      const g = ctx.createRadialGradient(spot.p.x, spot.p.y, spot.r * 0.55, spot.p.x, spot.p.y, spot.r);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,1)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(spot.p.x, spot.p.y, spot.r + 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // 光る消しゴム（ヒカルン）は くらくても 見える
     for (const e of [...state.erasers, ...state.extras]) {
       if (!e.alive || !e.trait?.glowing) continue;
