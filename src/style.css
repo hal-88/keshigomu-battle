@@ -2748,3 +2748,29 @@ canvas.board {
 .bracket.n16 .br-desk {
   display: none;
 }
+
+/* ---- キラ・かけら ---- */
+.kira-mark {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.7em;
+  color: #fff;
+  background: linear-gradient(90deg, #ff5252, #ffb300, #66bb6a, #42a5f5, #ab47bc);
+  vertical-align: middle;
+}
+.reveal-new.kira {
+  background: linear-gradient(90deg, #ff5252, #ffb300, #66bb6a, #42a5f5, #ab47bc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.reveal-new.shard {
+  color: #8d6e63;
+}
+.gacha-pity {
+  margin-top: -8px;
+  font-weight: 800;
+  color: #ff6b4a;
+}

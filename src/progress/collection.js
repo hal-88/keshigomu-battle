@@ -16,6 +16,9 @@ const fresh = () => ({
   wins: 0,
   pulls: 0,
   bestStreak: 0, // CPU 連勝チャレンジのベスト記録
+  kira: [], // ガチャで 2回出た「キラ」（見た目だけ キラキラ）
+  shards: 0, // ガチャで 3回目からの ダブりで たまる かけら
+  pullsSinceNew: 0, // 持っていないものが 出なかった 回数（ガチャの 新しいもの保証）
   favorites: [], // お気に入りの消しゴム（3つまで。選ぶ画面で いちばん上に出る）
   trophies: [], // トーナメントで優勝した記録 [{ date, size, cup, name, usedEraserId, eraserId }]
 });
@@ -97,10 +100,29 @@ export const collection = {
    * いまガチャから出るもの（まだ持っていないものだけ）。
    * まずはガチャ限定（文房具・とくべつ消しゴム）。ぜんぶ集めたら、ふつうの消しゴム（CPU戦で手に入るもの）が出る
    */
+  /**
+   * ガチャの中身。ガチャ限定（文房具・特別）は ダブっても出る。
+   * ガチャ限定を ぜんぶ集めたら、まだ持っていない ふつうの消しゴムも まざる
+   * fresh … まだ持っていないもの（新しいもの保証で 出る）
+   */
   gachaPool() {
-    const limited = GACHA_ERASERS.filter((e) => !data.owned.includes(e.id));
-    if (limited.length) return { kind: 'gacha', items: limited, total: GACHA_ERASERS.length };
-    return { kind: 'eraser', items: REGULAR_ERASERS.filter((e) => !data.owned.includes(e.id)), total: REGULAR_ERASERS.length };
+    const own = (e) => data.owned.includes(e.id);
+    const newLimited = GACHA_ERASERS.filter((e) => !own(e));
+    const newRegular = newLimited.length ? [] : REGULAR_ERASERS.filter((e) => !own(e));
+    return {
+      kind: newLimited.length ? 'gacha' : newRegular.length ? 'eraser' : 'done',
+      items: [...GACHA_ERASERS, ...newRegular],
+      fresh: [...newLimited, ...newRegular],
+      total: GACHA_ERASERS.length,
+      owned: GACHA_ERASERS.filter(own).length,
+    };
+  },
+  isKira: (id) => (data.kira || []).includes(id),
+  shards: () => data.shards || 0,
+  /** あと何回で 新しいものが かくてい（持っていないものが もうないときは null） */
+  pullsToNew() {
+    if (!collection.gachaPool().fresh.length) return null;
+    return Math.max(1, GAME.collection.gachaNewEvery - (data.pullsSinceNew || 0));
   },
   gachaLeft: () => collection.gachaPool().items.length,
   /** チケットは いつでも もらえて、いくらでも ためておける（新しい消しゴムが出たときに引けるように） */
@@ -163,16 +185,45 @@ export const collection = {
    * ガチャを1回まわす。持っていないものだけが出る（ダブりなし。レアほど出にくい）。
    * ガチャ限定をぜんぶ集めたら、ふつうの消しゴムが出る。引けないときは null（チケットは へらない）
    */
+  /**
+   * ガチャを 1回 引く
+   * @returns {{ def, kind: 'new'|'kira'|'shard', shards: number, ticketBack: boolean, forced: boolean } | null}
+   *   new … はじめて／kira … 2回目（キラに なった）／shard … 3回目から（かけら +1。5こで チケット1枚）
+   */
   pullGacha() {
-    const pool = collection.gachaPool().items;
-    if (data.tickets < 1 || !pool.length) return null;
-    const def = pickByRarity(pool);
+    const c = GAME.collection;
+    const pool = collection.gachaPool();
+    if (data.tickets < 1 || !pool.items.length) return null;
+    // ダブりが つづいたら、かならず 持っていないものを
+    const forced = pool.fresh.length > 0 && (data.pullsSinceNew || 0) >= c.gachaNewEvery - 1;
+    const def = pickByRarity(forced ? pool.fresh : pool.items);
     data.tickets--;
     data.pulls++;
-    data.owned.push(def.id);
-    addUnique(data.seen, [def.id]);
+    let kind;
+    let ticketBack = false;
+    if (!data.owned.includes(def.id)) {
+      kind = 'new';
+      data.owned.push(def.id);
+      addUnique(data.seen, [def.id]);
+      data.pullsSinceNew = 0;
+    } else {
+      data.pullsSinceNew = (data.pullsSinceNew || 0) + 1;
+      data.kira = data.kira || [];
+      if (!data.kira.includes(def.id)) {
+        kind = 'kira';
+        data.kira.push(def.id);
+      } else {
+        kind = 'shard';
+        data.shards = (data.shards || 0) + 1;
+        if (data.shards >= c.shardsPerTicket) {
+          data.shards -= c.shardsPerTicket;
+          data.tickets++;
+          ticketBack = true;
+        }
+      }
+    }
     save();
-    return def;
+    return { def, kind, shards: data.shards || 0, ticketBack, forced };
   },
 
   bestStreak: () => data.bestStreak || 0,

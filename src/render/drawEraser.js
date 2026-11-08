@@ -206,7 +206,51 @@ export function drawEraser(ctx, def, x, y, angle, { scale = 1, alpha = 1, shadow
 }
 
 /** 選択画面などの小さなキャンバスに、消しゴムを1個ちょうどよく描く */
-export function drawEraserPreview(canvas, def, angle = -0.18) {
+/**
+ * キラ（ガチャで 2回出た）：にじ色に 光る ふちと キラキラ（見た目だけ）
+ * x, y, angle, scale は drawEraser と同じ
+ */
+export function drawKira(ctx, def, x, y, angle, scale = 1, now = performance.now()) {
+  const ext = eraserExtent(def);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(scale, scale);
+  // にじ色の ふち（ゆっくり 色が まわる）
+  const t = now / 900;
+  const g = ctx.createLinearGradient(-ext, -ext, ext, ext);
+  for (let i = 0; i <= 5; i++) g.addColorStop(i / 5, `hsl(${(t * 120 + i * 60) % 360}, 90%, 62%)`);
+  ctx.save();
+  ctx.shadowColor = `hsl(${(t * 120) % 360}, 90%, 70%)`;
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = g;
+  ctx.lineWidth = 3.5;
+  shapePath(ctx, def.shape, 0, 0, !!def.look.blob);
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+  // キラキラ（まわりを まわる 星）
+  ctx.save();
+  ctx.translate(x, y);
+  for (let i = 0; i < 4; i++) {
+    const a = t * 1.3 + (i * Math.PI) / 2;
+    const r = ext * scale * (1.05 + 0.12 * Math.sin(t * 3 + i));
+    const sx = Math.cos(a) * r;
+    const sy = Math.sin(a) * r * 0.75;
+    const sz = (3 + 2.5 * Math.abs(Math.sin(t * 4 + i * 1.7))) * Math.max(0.7, scale);
+    ctx.fillStyle = i % 2 ? '#fff59d' : '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - sz);
+    ctx.quadraticCurveTo(sx, sy, sx + sz, sy);
+    ctx.quadraticCurveTo(sx, sy, sx, sy + sz);
+    ctx.quadraticCurveTo(sx, sy, sx - sz, sy);
+    ctx.quadraticCurveTo(sx, sy, sx, sy - sz);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function drawEraserPreview(canvas, def, angle = -0.18, { kira = false } = {}) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const cw = canvas.clientWidth || canvas.width;
   const ch = canvas.clientHeight || canvas.height;
@@ -218,4 +262,5 @@ export function drawEraserPreview(canvas, def, angle = -0.18) {
   // 一番大きい消しゴム（ジャンボ）が収まる倍率でそろえると、大きさのちがいがわかる
   const scale = Math.min(cw, ch * 1.6) / 110;
   drawEraser(ctx, def, cw / 2, ch / 2, angle, { scale });
+  if (kira) drawKira(ctx, def, cw / 2, ch / 2, angle, scale, 600);
 }

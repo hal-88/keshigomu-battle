@@ -371,7 +371,7 @@ function showEraserSelect(opts) {
            ${e.champion ? '<div class="badge gacha">🏆優勝</div>' : e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
            ${winBadgeHTML(e.id)}
            <canvas class="eraser-thumb"></canvas>
-           <div class="choice-name">${e.name}</div>
+           <div class="choice-name">${collection.isKira(e.id) ? '<span class="kira-mark">✨キラ</span>' : ''}${e.name}</div>
            <div class="choice-desc">${e.desc}</div>
            ${traitLine(e)}
            <div class="stats">${statMeters(e.stats)}</div>
@@ -392,7 +392,7 @@ function showEraserSelect(opts) {
     cards.forEach((c) => {
       const def = findEraser(c.dataset.id);
       if (c.classList.contains('locked')) drawSilhouette(c.querySelector('canvas'), def);
-      else drawEraserPreview(c.querySelector('canvas'), def);
+      else drawEraserPreview(c.querySelector('canvas'), def, -0.18, { kira: collection.isKira(def.id) });
     }),
   );
   // メーターがのびるアニメーション
@@ -533,6 +533,8 @@ function showCardDeal(basePlayers) {
 
 // ---------- 6. 対戦 ----------
 function startBattle(players) {
+  // キラ（ガチャで 2回出た）の消しゴムは 対戦でも 光る（この端末の ひとだけ）
+  for (const p of players) p.kira = p.type === 'human' && collection.isKira(p.eraser.id);
   lastPlayers = players;
   collection.markSeen(players.map((p) => p.eraser.id)); // 図鑑：出会った消しゴム
   const el = screen('', 'battle-screen');
@@ -895,7 +897,7 @@ function eraserDetail(el, def) {
        ${rarityTag(def)}
        ${def.gacha ? '<div class="badge gacha static">ガチャ</div>' : ''}
        <canvas class="detail-eraser"></canvas>
-       <div class="detail-name">${def.name}</div>
+       <div class="detail-name">${collection.isKira(def.id) ? '<span class="kira-mark">✨キラ</span>' : ''}${def.name}</div>
        <div class="detail-desc">${def.desc}</div>
        ${traitLine(def)}
        <div class="stats">${statMeters(def.stats)}</div>
@@ -907,7 +909,7 @@ function eraserDetail(el, def) {
      </div>`,
   );
   ov.querySelector('.modal').classList.add('meters-in');
-  whenFonts(() => drawEraserPreview(ov.querySelector('canvas'), def));
+  whenFonts(() => drawEraserPreview(ov.querySelector('canvas'), def, -0.18, { kira: collection.isKira(def.id) }));
   const favBtn = ov.querySelector('[data-act=fav]');
   favBtn.onclick = (ev) => {
     ev.stopPropagation();
@@ -949,7 +951,7 @@ function showZukan(tab = 'eraser') {
       <button class="zukan-cell ${own ? 'own ' + rarityClass(item) : 'locked'}" data-id="${item.id}" ${own ? '' : 'disabled'}>
         ${rarityTag(item)}
         <canvas></canvas>
-        <div class="zukan-name">${own || seen ? item.name : '？？？'}</div>
+        <div class="zukan-name">${own && collection.isKira(item.id) ? '✨' : ''}${own || seen ? item.name : '？？？'}</div>
         ${own ? '' : `<div class="zukan-how">${how}</div>`}
       </button>`;
   };
@@ -985,7 +987,7 @@ function showZukan(tab = 'eraser') {
       cells.forEach((c) => {
         const def = findEraser(c.dataset.id);
         const cv = c.querySelector('canvas');
-        if (c.classList.contains('own')) drawEraserPreview(cv, def);
+        if (c.classList.contains('own')) drawEraserPreview(cv, def, -0.18, { kira: collection.isKira(def.id) });
         else drawSilhouette(cv, def);
       }),
     );
@@ -1038,9 +1040,9 @@ function showGacha() {
   // ガチャ限定（文房具・とくべつ消しゴム）をぜんぶ集めたら、ふつうの消しゴムのガチャになる
   const pool = collection.gachaPool();
   const isEraserGacha = pool.kind === 'eraser';
-  const left = pool.items.length;
-  const canPull = tickets > 0 && left > 0;
-  const capsules = Array.from({ length: Math.min(left, 16) }, (_, i) => {
+  const canPull = tickets > 0 && pool.items.length > 0;
+  const toNew = collection.pullsToNew();
+  const capsules = Array.from({ length: 16 }, (_, i) => {
     // 下からつみあがるように、少しずつずらして並べる
     const row = Math.floor(i / 4);
     const x = 10 + (i % 4) * 20 + (row % 2) * 9 + ((i * 7) % 5);
@@ -1051,13 +1053,13 @@ function showGacha() {
   }).join('');
   let msg = 'チケットが ないよ。CPUと 戦おう！';
   if (canPull) msg = 'ハンドルを タップして 回そう！';
-  if (left === 0) msg = '全部 集めた！すごい！ チケットは 取っておけるよ（新しい消しゴムが 増えたら 引けるよ）';
+  if (canPull && pool.kind === 'done') msg = '全部 集めた！ すごい！ ダブると キラや かけらに なるよ';
 
   const el = screen(
     `<h2 class="head">🎰 ${isEraserGacha ? '消しゴムガチャ' : '特別ガチャ'}</h2>
-     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムが出るよ</p>' : '<p class="note gacha-phase">文房具と 特別な消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
-     <p class="note">CPUに勝つと チケットがもらえることがあるよ。${GAME.collection.pityMatches}戦するごとに 必ず1枚、連勝チャレンジで${GAME.collection.streakBonusEvery}連勝すると ボーナスで1枚<br>
-       同じものは 出ないよ。お金は いらないよ</p>
+     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムも まざるよ</p>' : '<p class="note gacha-phase">文房具と 特別な消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
+     <p class="note">同じものが 出ることも あるよ。2回目は ✨キラ（光る色ちがい）、3回目からは かけら（${GAME.collection.shardsPerTicket}こで チケット1枚）<br>
+       チケットは CPUに勝つと もらえることがあるよ（${GAME.collection.pityMatches}戦ごとに 必ず1枚）。お金は いらないよ</p>
      <div class="gacha-machine">
        <div class="gacha-dome">${capsules || '<span class="gacha-empty">空っぽ！</span>'}</div>
        <div class="gacha-body">
@@ -1068,8 +1070,10 @@ function showGacha() {
      </div>
      <div class="gacha-info">
        <span>🎫 チケット <b>${tickets}</b>枚</span>
-       <span>残り <b>${left}</b> / ${pool.total}</span>
+       <span>集めた <b>${pool.owned}</b> / ${pool.total}</span>
+       <span>🧩 かけら <b>${collection.shards()}</b> / ${GAME.collection.shardsPerTicket}</span>
      </div>
+     ${toNew != null ? `<p class="note gacha-pity">${toNew === 1 ? '🌟 つぎは かならず 新しいのが出る！' : `あと ${toNew}回で かならず 新しいのが出る`}</p>` : ''}
      <p class="note gacha-msg">${msg}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
@@ -1082,8 +1086,9 @@ function showGacha() {
 
   const handle = el.querySelector('[data-act=pull]');
   handle.onclick = () => {
-    const def = collection.pullGacha();
-    if (!def) return;
+    const res = collection.pullGacha();
+    if (!res) return;
+    const def = res.def;
     handle.disabled = true;
     el.querySelector('[data-act=back]').disabled = true;
     el.querySelector('[data-act=zukan]').disabled = true;
@@ -1145,7 +1150,7 @@ function showGacha() {
           sfx.rare();
           setTimeout(() => {
             stage.remove();
-            reveal(def);
+            reveal(res);
           }, 700);
         }, 520);
       };
@@ -1154,26 +1159,46 @@ function showGacha() {
     }, 2500);
   };
 
-  function reveal(def) {
+  function reveal({ def, kind, shards, ticketBack }) {
     setTimeout(() => sfx.rare(), 300);
     const extra = { superrare: 1, ultra: 2, legend: 3 }[def.rarity] || 0; // レアなほど キラキラが ふえる
     for (let k = 0; k < extra; k++) setTimeout(() => sfx.rare(), 700 + k * 380);
+    if (kind === 'kira') setTimeout(() => sfx.rare(), 500);
+    const head = { new: '<div class="reveal-new">NEW!</div>', kira: '<div class="reveal-new kira">✨ キラに なった！ ✨</div>', shard: '<div class="reveal-new shard">🧩 かけら ゲット！</div>' }[kind];
+    const note = {
+      new: '対戦で 使えるようになったよ！',
+      kira: '2回目だから キラ（光る色ちがい）に なったよ！ 強さは 同じ。キラは 対戦でも 光るよ',
+      shard: ticketBack
+        ? `🎫 かけらが ${GAME.collection.shardsPerTicket}こ たまって、チケット1枚に なった！`
+        : `かけら ${shards} / ${GAME.collection.shardsPerTicket}（${GAME.collection.shardsPerTicket}こで チケット1枚）`,
+    }[kind];
     const ov = openModal(
       el,
       `<div class="modal detail reveal ${rarityClass(def)}">
          ${rarityTag(def)}
-         <div class="reveal-new">NEW!</div>
+         ${head}
          <canvas class="detail-eraser"></canvas>
-         <div class="detail-name">${def.name}</div>
+         <div class="detail-name">${collection.isKira(def.id) ? '✨' : ''}${def.name}</div>
          <div class="detail-desc">${def.desc}</div>
-         ${traitLine(def)}
-         <div class="stats">${statMeters(def.stats)}</div>
-         <p class="note">対戦で 使えるようになったよ！</p>
-         <button class="btn primary" data-act="close">やったね！</button>
+         ${kind === 'new' ? traitLine(def) : ''}
+         ${kind === 'new' ? `<div class="stats">${statMeters(def.stats)}</div>` : ''}
+         <p class="note">${note}</p>
+         <button class="btn primary" data-act="close">${kind === 'shard' ? 'OK' : 'やったね！'}</button>
        </div>`,
     );
     ov.querySelector('.modal').classList.add('meters-in');
-    whenFonts(() => drawEraserPreview(ov.querySelector('canvas'), def));
+    const cv = ov.querySelector('canvas');
+    whenFonts(() => drawEraserPreview(cv, def, -0.18, { kira: collection.isKira(def.id) }));
+    // キラは キラキラが うごくように 少しのあいだ かきなおす
+    if (collection.isKira(def.id)) {
+      const t0 = performance.now();
+      const loop = () => {
+        if (!cv.isConnected || performance.now() - t0 > 20000) return;
+        drawEraserPreview(cv, def, -0.18, { kira: true });
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
     ov.addEventListener('click', (e) => {
       if (e.target === ov || e.target.closest('[data-act=close]')) showGacha();
     });

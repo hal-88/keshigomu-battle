@@ -2,7 +2,7 @@
 // Game.getState() の中身を絵にするだけで、ルールには手を出さない。
 // 3D にするときは、このファイルの代わりを作れば差し替えられる。
 
-import { drawEraser, roundRectPath, shapePath } from './drawEraser.js';
+import { drawEraser, roundRectPath, shapePath, drawKira } from './drawEraser.js';
 import { deskSize, eraserExtent } from '../logic/geometry.js';
 
 const WORLD_MARGIN = 70; // 机のまわりに見せる床の広さ
@@ -203,6 +203,8 @@ export class CanvasRenderer {
       drawEraser(ctx, e.def, e.x + jx, e.y + jy, e.angle, { scale: e.size * air, alpha, tv: e.trait, shadow: !e.trait.clear && air === 1 });
       if (e.effects.shield) this._drawShield(ctx, e, now);
       if (e.trait.clear && e.trait.camo) this._drawCamo(ctx, e, state.desk);
+      // キラ（ガチャで 2回出た）は にじ色に 光る（見た目だけ）
+      if (state.players[e.playerIndex]?.kira && alpha > 0.5) drawKira(ctx, e.def, e.x + jx, e.y + jy, e.angle, e.size * air, now);
       // 分かれたかけらには、持ち主の色の輪
       if (e.isExtra) this._drawPieceRing(ctx, e, state.players[e.playerIndex].color);
       if (e.effects.hold) this._drawHoldRing(ctx, e, now);
