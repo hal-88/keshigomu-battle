@@ -22,6 +22,7 @@ export const ERASER_RARITY = {
   superrare: { label: 'スーパーレア', weight: 0.4 },
   ultra: { label: 'ウルトラレア', weight: 0.15 }, // SSR
   legend: { label: 'レジェンド', weight: 0.06 }, // UR
+  champion: { label: 'チャンピオン', weight: 0.01 }, // トーナメント優勝 限定（ガチャやCPUには出ない）
 };
 
 /** レア度の重みで1つえらぶ */
@@ -614,7 +615,7 @@ export const ERASERS = [
     shape: { type: 'rect', w: 82, h: 42, chamfer: 4 },
     look: { art: 'emptycase', body: '#4fc3f7' },
     stats: { power: 3, balance: 3, speed: 3 },
-    trait: { id: 'light', name: '空っぽ', desc: '中身がないので 軽い。でも 大きくて 結構 邪魔', weight: 0.8 },
+    trait: { id: 'light', name: '空っぽ', desc: '中身がないので 軽い。でも 大きくて 結構 邪魔', weight: 0.92 },
   },
   {
     id: 'daioukeshi', rarity: 'legend', gacha: true, kind: 'special',
@@ -634,12 +635,65 @@ export const ERASERS = [
     stats: { power: 3, balance: 3, speed: 3 },
     trait: { id: 'corner', name: '角アタック', desc: '全部の力が 少し高い。最初に 相手に当てた 一撃だけ 超強力', allUp: 1.06, push: 0.8, max: 9 },
   },
+
+  // ---- ここから トーナメント優勝 限定（優勝すると 1つ もらえる。どれも 弱点つき。ステータスの合計は9） ----
+  {
+    id: 'torophin', rarity: 'champion', champion: true,
+    name: 'トロフィン',
+    desc: '金のトロフィー型。背が高くて どっしり',
+    shape: { type: 'rect', w: 46, h: 36, chamfer: 8 },
+    look: { art: 'trophy', body: '#ffc107' },
+    stats: { power: 2, balance: 5, speed: 2 },
+    trait: {
+      id: 'topple', name: '重心が高い',
+      desc: '前と後ろから当てられても 押されにくい。でも 横から当てられると 倒れて 転がりやすい',
+      weight: 1.2, front: 0.55, sidePush: 0.25, sideMax: 4, ms: 1200, rollSlide: 0.55,
+    },
+  },
+  {
+    id: 'kinmedal', rarity: 'champion', champion: true,
+    name: 'キンメダル',
+    desc: '金メダル型。平たい円ばん',
+    shape: { type: 'circle', radius: 25 },
+    look: { art: 'medal', body: '#ffd54f' },
+    stats: { power: 4, balance: 1, speed: 4 },
+    trait: { id: 'medal', name: 'くるっとメダル', desc: '机を スーッと滑って、当てた相手を くるっと 回す。軽いので 当てられると 遠くまで飛ぶ', slide: 0.85, spinKick: 0.45 },
+  },
+  {
+    id: 'oukan', rarity: 'champion', champion: true,
+    name: 'オウカン',
+    desc: '王冠型。トゲが5つ',
+    shape: { type: 'polygon', sides: 5, radius: 28 },
+    look: { art: 'crown', body: '#ffca28' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'crown', name: '王冠のトゲ', desc: '縁の近くでは トゲが引っかかって 粘る。でも それ以外では よく転がって 止まりにくい', range: 50, grip: 4, slide: 0.8 },
+  },
+  {
+    id: 'hanamarun', rarity: 'champion', champion: true,
+    name: 'ハナマルン',
+    desc: '先生の「はなまる」スタンプ型',
+    shape: { type: 'circle', radius: 26 },
+    look: { art: 'hanamaru', body: '#ff8a80' },
+    stats: { power: 2, balance: 4, speed: 3 },
+    trait: { id: 'hanamaru', name: 'はなまる', desc: '1試合に1回、自分の番に ポンと やさしく当てた相手に はなまる。その相手は うれしくて 次の番 動けない。スタンプ面が下なので 滑りにくく 飛ぶきょりが短い', slide: 1.9, maxPower: 6 },
+  },
+  {
+    id: 'shoujoudutsu', rarity: 'champion', champion: true,
+    name: 'ショウジョウヅツ',
+    desc: '賞状を入れる 筒（つつ）型',
+    shape: { type: 'rect', w: 74, h: 20, chamfer: 10 },
+    look: { art: 'tube', body: '#283593' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'tube', name: 'ゴロゴロ', desc: '横に転がって 長く進み、通り道の相手を まとめて押す。でも 転がる向きにしか 進めない（指で 少しだけ 向きを変えられる。曲がれない）', slide: 0.9, keep: 0.6, ms: 280, maxTurnDeg: 35 },
+  },
 ];
 
 // はじめから持っている消しゴム（図鑑）
 export const START_ERASER_IDS = ['white-standard'];
+// トーナメント優勝 限定の消しゴム
+export const CHAMPION_ERASERS = ERASERS.filter((e) => e.champion);
 // ふつうの消しゴム（キャラもふくむ。CPU もこの中から選ぶ）と、ガチャ限定の文房具
-export const REGULAR_ERASERS = ERASERS.filter((e) => !e.gacha);
+export const REGULAR_ERASERS = ERASERS.filter((e) => !e.gacha && !e.champion);
 export const GACHA_ERASERS = ERASERS.filter((e) => e.gacha);
 // ガチャの中の、文房具と とくべつ消しゴム（図鑑のページ分け）
 export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => e.kind !== 'special');

@@ -198,6 +198,12 @@ export class Game {
       pierceDir: null,
       curTurnPos: { x, y }, // まきもどし：いまのターンと、1つ前の自分のターンの はじめの場所
       prevTurnPos: null,
+      // トーナメント優勝 限定
+      toppleUntil: 0, // トロフィン：倒れて転がっている
+      stampUsed: false, // ハナマルン：はなまるを押したか
+      happy: false, // はなまるを押されて、次の番 動けない
+      pierceMs: 0,
+      pierceKeep: 0,
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
     if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
@@ -293,12 +299,19 @@ export class Game {
       const a = (Math.random() * 2 - 1) * glare;
       [ux, uy] = [ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a)];
     }
+    // ショウジョウヅツ：転がる向き（筒の長さと 直角）にしか 進めない
+    if (t.id === 'tube') {
+      const r = this._tubeAim(e, ux, uy);
+      [ux, uy] = [r.x, r.y];
+      Body.setAngle(e.body, e.body.angle + r.turn); // 指で すこしだけ 向きを かえられる
+    }
     const v = s * e.maxSpeed * this.turn.powerMul * (e.dicePower || 1);
     Body.setVelocity(e.body, { x: ux * v, y: uy * v });
     const spinScale = t.id === 'spinny' ? t.spinScale ?? 1.7 : 1;
     let w = Math.max(-1, Math.min(1, spin)) * PHYSICS.spin.maxAngular * s * spinScale;
     // ドーナッツ：まん中を弾いても くるくる回る
     if (t.autoSpin && Math.abs(w) < t.autoSpin * s) w = (w < 0 ? -1 : 1) * t.autoSpin * Math.max(0.4, s);
+    if (t.id === 'tube') w = 0; // 転がるだけで 回らない
     // ロケッター：強く弾くと まっすぐ突進
     if (t.id === 'rocket' && s >= (t.minPower ?? 0.8) && !backfire) {
       e.boostUntil = this.time + (t.ms ?? 520);
@@ -354,6 +367,42 @@ export class Game {
 
   isConfused(i) {
     return !!this.erasers[i]?.confused;
+  }
+
+  /**
+   * ショウジョウヅツを弾くとき：指で 少しだけ（maxTurn まで）向きを かえて、転がる向きに進む
+   * @returns {{x, y, turn}} 進む向きと、筒を回す角度
+   */
+  _tubeAim(e, ux, uy) {
+    const [nx, ny] = this._tubeDir(e, ux, uy);
+    const maxTurn = ((traitOf(e).maxTurnDeg ?? 35) * Math.PI) / 180;
+    const d = Math.atan2(nx * uy - ny * ux, nx * ux + ny * uy);
+    const turn = Math.max(-maxTurn, Math.min(maxTurn, d));
+    return { x: nx * Math.cos(turn) - ny * Math.sin(turn), y: nx * Math.sin(turn) + ny * Math.cos(turn), turn };
+  }
+
+  /** ショウジョウヅツが 進める向き（筒と直角の 2つのうち、ねらった向きに近いほう） */
+  _tubeDir(e, ux, uy) {
+    const a = e.body.angle;
+    const nx = -Math.sin(a);
+    const ny = Math.cos(a);
+    const d = ux * nx + uy * ny;
+    return d >= 0 ? [nx, ny] : [-nx, -ny];
+  }
+
+  /** ほんとうに飛ぶ向き（矢印に出す）：さかさま・ショウジョウヅツ */
+  aimDir(i, dx, dy) {
+    const e = this.erasers[i];
+    if (!e) return [dx, dy];
+    let x = dx;
+    let y = dy;
+    if (e.reverseNext) [x, y] = [-x, -y];
+    if (traitOf(e).id === 'tube') {
+      const l = Math.hypot(x, y) || 1;
+      const r = this._tubeAim(e, x / l, y / l);
+      [x, y] = [r.x * l, r.y * l];
+    }
+    return [x, y];
   }
 
   /** さかさま中か（弾く向きが反対） */
@@ -1035,9 +1084,17 @@ export class Game {
       if (!e.alive || e.body.isStatic) continue;
       // つらぬき：当てたあとも いきおいを たもつ
       if (e.pierceUntil > this.time && e.pierceDir) {
-        const left = (e.pierceUntil - this.time) / (findCard('pierce')?.params?.ms ?? 600);
-        const want = e.pierceSpeed * (findCard('pierce')?.params?.keep ?? 0.9) * (0.4 + 0.6 * left);
+        const left = (e.pierceUntil - this.time) / (e.pierceMs || 600);
+        const want = e.pierceSpeed * (e.pierceKeep || 0.9) * (0.4 + 0.6 * left);
         if (e.body.speed < want) Body.setVelocity(e.body, { x: e.pierceDir.x * want, y: e.pierceDir.y * want });
+      }
+      // ショウジョウヅツ：自分で弾いて 転がっているあいだは 向きが かわらない（転がる向きに まっすぐ）
+      // 当てられたときは ふつうに動く
+      if (traitOf(e).id === 'tube' && e.body.speed > 0.2 && this.phase === 'moving' && e.playerIndex === this.turnIndex) {
+        const [ux, uy] = this._tubeDir(e, e.body.velocity.x, e.body.velocity.y);
+        const along = e.body.velocity.x * ux + e.body.velocity.y * uy;
+        Body.setVelocity(e.body, { x: ux * along, y: uy * along });
+        Body.setAngularVelocity(e.body, 0);
       }
       // かたむき：動いている消しゴムは 低いほうへ すこし すべる（クロケシは へいき）
       if (this.tilt && motion && e.body.speed > 0.3 && !this._guarded(e, -1)) {
@@ -1121,6 +1178,12 @@ export class Game {
       // ワックスがけ・すべりどめ・とくせい（ブレーキ・ふんばり）・カバーやパーツ
       let local = this._localFriction(e) * (e.grip || 1) * e.frictionMul;
       if (t.id === 'brake') local *= t.scale ?? 1;
+      if (t.slide && t.id !== 'crown' && t.id !== 'glow') local *= t.slide; // キンメダル・ハナマルン・ショウジョウヅツ
+      if (t.id === 'crown') {
+        // オウカン：縁の近くでは トゲで 粘る。それ以外は よく転がる
+        local *= edgeClearance(this.desk, b.position.x, b.position.y) < (t.range ?? 50) ? t.grip ?? 4 : t.slide ?? 0.8;
+      }
+      if (e.toppleUntil > this.time) local *= t.rollSlide ?? 0.55; // トロフィン：倒れて 転がっている
       if (t.id === 'edgeGrip' && edgeClearance(this.desk, b.position.x, b.position.y) < (t.range ?? 45)) {
         local *= t.scale ?? 3.5;
       }
@@ -1270,9 +1333,23 @@ export class Game {
         if (sp < 1) continue;
         me.pierceSpeed = sp;
         me.pierceDir = { x: me.body.velocity.x / sp, y: me.body.velocity.y / sp };
-        me.pierceUntil = this.time + (findCard('pierce')?.params?.ms ?? 600);
+        me.pierceMs = findCard('pierce')?.params?.ms ?? 600;
+        me.pierceKeep = findCard('pierce')?.params?.keep ?? 0.9;
+        me.pierceUntil = this.time + me.pierceMs;
         this._emit('cardFx', { type: 'pierce', playerIndex: shooter, x: o.body.position.x, y: o.body.position.y });
       }
+    }
+    // ショウジョウヅツ：通り道の相手を まとめて押す（当たっても いきおいが へりにくい）
+    for (const [me, o] of [[a, b], [b, a]]) {
+      const t = traitOf(me);
+      if (t.id !== 'tube' || me.playerIndex !== shooter || o.playerIndex === shooter) continue;
+      const sp = me.body.speed;
+      if (sp < 1) continue;
+      me.pierceSpeed = Math.max(sp, me.pierceUntil > this.time ? me.pierceSpeed * 0.85 : 0);
+      me.pierceDir = { x: me.body.velocity.x / sp, y: me.body.velocity.y / sp };
+      me.pierceMs = t.ms ?? 450;
+      me.pierceKeep = t.keep ?? 0.85;
+      me.pierceUntil = this.time + me.pierceMs;
     }
     // ボウリング：当てられた相手が ほかの相手に当たると、力が そのまま うつる
     if (this.turn.bowling && a.playerIndex !== shooter && b.playerIndex !== shooter) {
@@ -1399,6 +1476,39 @@ export class Game {
           e.cornerUsed = true;
           addPush(o, away(), Math.min(t.max ?? 9, (t.push ?? 0.8) * power));
           this._emit('trait', { type: 'corner', playerIndex: e.playerIndex, x, y });
+        }
+        break;
+      case 'topple': // トロフィン：前と後ろは 押されにくい。横から当てられると 倒れて転がる
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed) {
+          const c = Math.cos(-e.body.angle);
+          const sn = Math.sin(-e.body.angle);
+          const lx = (x - pos.x) * c - (y - pos.y) * sn;
+          const ly = (x - pos.x) * sn + (y - pos.y) * c;
+          if (Math.abs(ly) * 1.25 >= Math.abs(lx)) {
+            const dx = pos.x - o.body.position.x;
+            const dy = pos.y - o.body.position.y;
+            const d = Math.hypot(dx, dy) || 1;
+            addPush(e, { x: dx / d, y: dy / d }, Math.min(t.sideMax ?? 4, (t.sidePush ?? 0.25) * power));
+            if (e.toppleUntil < this.time && power > 3) this._emit('trait', { type: 'topple', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
+            e.toppleUntil = this.time + (t.ms ?? 1200);
+          } else {
+            e.absorbNext = t.front ?? 0.55;
+          }
+        }
+        break;
+      case 'medal': // キンメダル：当てた相手を くるっと 回す
+        if (o && o.playerIndex !== e.playerIndex && e.body.speed >= o.body.speed && !o.body.isStatic) {
+          const k = (t.spinKick ?? 0.45) * Math.min(1, power / 8) * (Math.random() < 0.5 ? -1 : 1);
+          Body.setAngularVelocity(o.body, o.body.angularVelocity + k);
+        }
+        break;
+      case 'hanamaru': // ハナマルン：1試合に1回、当てた相手に はなまる（次の番 動けない）
+        // スタンプなので、ポンと やさしく当てたときだけ（強すぎると はなまるに ならない）
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !e.stampUsed && power > 1.5 && power <= (t.maxPower ?? 6) && o.alive) {
+          e.stampUsed = true;
+          o.happy = true;
+          this.players[o.playerIndex].skipNext = true;
+          this._emit('trait', { type: 'hanamaru', playerIndex: o.playerIndex, x: o.body.position.x, y: o.body.position.y });
         }
         break;
       case 'egg': // タマゴン：強く当たると からがわれて、他の消しゴムが出てくる
@@ -1771,6 +1881,7 @@ export class Game {
       }
       if (this.players[next].skipNext) {
         this.players[next].skipNext = false;
+        this.erasers[next].happy = false; // はなまるの うれしさ おしまい
         this.turnCount++;
         this._emit('skipped', { playerIndex: next });
         continue;
@@ -1871,6 +1982,8 @@ export class Game {
       charged: e.charged,
       cornerUsed: e.cornerUsed,
       hatched: e.hatched,
+      stampUsed: e.stampUsed,
+      happy: e.happy,
       powerNext: e.powerNext,
       invisLeft: e.invisLeft,
       shield: e.shield,
@@ -1983,6 +2096,8 @@ export class Game {
         charged: pk.charged ?? true,
         cornerUsed: !!pk.cornerUsed,
         hatched: !!pk.hatched,
+        stampUsed: !!pk.stampUsed,
+        happy: !!pk.happy,
         powerNext: pk.powerNext || 0,
         invisLeft: pk.invisLeft || 0,
         shield: !!pk.shield,
@@ -2093,6 +2208,8 @@ export class Game {
         defUsed: e.defUsed,
         charging: t.id === 'charge' && !e.charged,
         glowing: t.id === 'glow' && !!this.desk.dark,
+        toppled: e.toppleUntil > this.time,
+        happy: e.happy,
       },
     };
   }
@@ -2150,11 +2267,15 @@ export class Game {
   getEraserPhysics(i) {
     const e = this.erasers[i];
     const t = traitOf(e);
-    let fa = e.baseFrictionAir * (e.grip || 1) * e.frictionMul;
-    if (t.id === 'brake') fa *= t.scale ?? 1;
+    // 机とのこすれ（_applyDeskBrake と同じ倍率。ワックス・こおりなどの 場所の分は のぞく）
+    let local = (e.grip || 1) * e.frictionMul;
+    if (t.id === 'brake') local *= t.scale ?? 1;
+    if (t.slide && t.id !== 'crown' && t.id !== 'glow') local *= t.slide;
+    const fa = e.baseFrictionAir * local;
     return {
       maxSpeed: e.maxSpeed * (i === this.turnIndex ? this.turn.powerMul : 1),
       frictionAir: fa,
+      brake: local, // ブレーキの強さの倍率
       mass: e.body.isStatic ? Infinity : e.body.mass,
       extent: this.extentOf(i),
     };

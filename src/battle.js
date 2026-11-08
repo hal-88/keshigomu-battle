@@ -464,6 +464,13 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       sfx.rare();
       ring('#ffe082', 20, 60, 600);
       say(`🥚 パカッ！ ${name}が 出てきた！`, '#f57f17', 22, 1800);
+    } else if (type === 'topple') {
+      sfx.boing();
+      say('🏆 ゴロン！ 倒れた！', '#b8860b');
+    } else if (type === 'hanamaru') {
+      sfx.rare();
+      renderer.addEffect({ type: 'text', x, y, text: '💮', size: 56, dur: 1600 });
+      later(500, () => toast(`${p.name}に はなまる！ うれしくて 次の番 動けない💮`, '#e53935'));
     } else if (type === 'charge') {
       sfx.warn();
       toast(`${p.name}の ダイオウケシは ためている…💤`, '#fff');

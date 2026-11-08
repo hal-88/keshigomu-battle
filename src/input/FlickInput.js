@@ -168,15 +168,16 @@ export class FlickInput {
     const d = this.renderer.screenDeltaToWorld(dx, dy);
     // （フルーツンでこんらん中でも 矢印はふつう。たまに反対に飛ぶのは Game が決める）
     // さかさま（カード）のときは、ほんとうに飛ぶ向き（反対）に 矢印を出す
-    const sign = this.game.isReversed(this.drag.playerIndex) ? -1 : 1;
+    // ショウジョウヅツは 転がる向きにしか 進めないので、その向きを出す
+    const [ax, ay] = this.game.aimDir(this.drag.playerIndex, d.x, d.y);
     this.aim = {
       playerIndex: this.drag.playerIndex,
-      dirX: d.x * sign, // 矢印の向き（ほんとうに飛ぶ向き）
-      dirY: d.y * sign,
+      dirX: ax, // 矢印の向き（ほんとうに飛ぶ向き）
+      dirY: ay,
       rawX: d.x, // Game.flick にわたす向き
       rawY: d.y,
       strength: pull < minPullPx ? 0 : Math.min(1, pull / maxPullPx),
-      spin: this._spin(d.x * sign, d.y * sign),
+      spin: this._spin(ax, ay),
     };
   }
 

@@ -996,6 +996,7 @@ export class CanvasRenderer {
       if (e.effects.extraLife) text += ' 🔁';
       if (e.effects.reversed) text += ' 🔃逆さま';
       if (e.effects.power) text += ' 🔋';
+      if (e.trait.happy) text += ' 💮';
       if (e.effects.anchor) text += ' ⚓';
       if (e.effects.hold) text += ' 🦶';
       const tw = ctx.measureText(text).width + 18;

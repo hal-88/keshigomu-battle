@@ -2306,3 +2306,167 @@ canvas.board {
   border-radius: 999px;
   padding: 0 6px;
 }
+
+/* ---- トーナメント優勝 限定（チャンピオン） ---- */
+.rarity-tag.r-champion {
+  background: linear-gradient(90deg, #b8860b, #ffd54f, #fff8e1, #ffd54f, #b8860b);
+  color: #4e3400;
+  box-shadow: 0 0 10px rgba(255, 200, 40, 0.9);
+}
+.r-champion.choice,
+.r-champion.zukan-cell,
+.r-champion.modal,
+.r-champion.reward {
+  border: 4px double #d4a017;
+  background: linear-gradient(#fffdf3, #fff4cc);
+  animation: legendGlow 1.4s ease-in-out infinite;
+}
+.vs-side.r-champion .vs-eraser {
+  filter: drop-shadow(0 0 12px rgba(255, 190, 0, 1));
+}
+.picker-item.r-champion {
+  box-shadow: 0 0 0 3px #d4a017 inset;
+}
+
+/* ---- トーナメント表 ---- */
+.bracket-screen {
+  gap: 12px;
+}
+.bracket-wrap {
+  width: 100%;
+  max-width: 980px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+.bracket {
+  display: flex;
+  gap: 14px;
+  min-width: 640px;
+  margin: 0 auto;
+}
+.br-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+.br-col.champ {
+  flex: 0.9;
+}
+.br-round {
+  text-align: center;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--sub);
+  margin-bottom: 6px;
+}
+.br-matches {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 8px;
+}
+.br-match {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  border: 2px solid transparent;
+}
+.br-match.now {
+  border-color: var(--accent);
+  animation: bob 1.2s ease-in-out infinite;
+}
+.br-match.fresh {
+  animation: popIn 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+  box-shadow: 0 0 0 3px #ffd54f, 0 3px 0 rgba(0, 0, 0, 0.1);
+}
+.br-match.champ {
+  border: 3px solid #ffd54f;
+  background: #fffbea;
+}
+.br-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 8px;
+  min-height: 34px;
+}
+.br-slot.empty {
+  justify-content: center;
+  color: var(--sub);
+  font-weight: 800;
+}
+.br-slot.me {
+  background: #ffe7df;
+}
+.br-slot.win .br-name b {
+  color: #e65100;
+}
+.br-slot.win::after {
+  content: '👑';
+  margin-left: auto;
+  font-size: 14px;
+}
+.br-slot.lose {
+  opacity: 0.38;
+  filter: grayscale(0.7);
+}
+.br-eraser {
+  width: 40px;
+  height: 28px;
+  flex: none;
+}
+.br-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+.br-name b {
+  font-size: 13px;
+}
+.br-name small {
+  font-size: 10px;
+  color: var(--sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.br-desk {
+  font-size: 10px;
+  color: var(--sub);
+  text-align: right;
+  padding-right: 4px;
+}
+.bracket-buttons {
+  min-height: 56px;
+  align-items: center;
+}
+
+/* ---- 表彰式 ---- */
+.champion-result .champ-trophy {
+  font-size: 72px;
+  line-height: 1;
+  animation: bob 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 6px 10px rgba(255, 170, 0, 0.6));
+}
+.champ-reward {
+  flex-direction: column;
+  border: 4px double #d4a017;
+  background: linear-gradient(#fffdf3, #fff4cc);
+  animation: legendGlow 1.4s ease-in-out infinite;
+  gap: 6px;
+  max-width: 420px;
+}
+.champ-reward .reward-title {
+  font-weight: 800;
+}
+.reward-eraser.big {
+  width: 160px;
+  height: 90px;
+}

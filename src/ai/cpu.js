@@ -64,13 +64,13 @@ export function planCpuShot(game, me, cfg) {
   const decel = PHYSICS.kineticDecel * game.desk.frictionScale;
   // 相手を (edge + pushMargin) すべらせるのに必要な、相手の初速
   const need = best.edge + cfg.pushMargin;
-  const vTarget = search((v) => slide(v, tPhys.frictionAir, decel, Infinity).dist >= need);
+  const vTarget = search((v) => slide(v, tPhys.frictionAir, decel * (tPhys.brake ?? 1), Infinity).dist >= need);
   // ぶつかったときの勢いの受け渡し（重さとはね返りから計算）
   const vHit = (vTarget * (myPhys.mass + tPhys.mass)) / (myPhys.mass * (1 + PHYSICS.restitution));
   // ぶつかるまでに進む距離ぶん、減速を見こんで足す
   const gap = (myPhys.extent + eraserExtent(best.t.def) * best.t.size) * 0.6;
   const travel = Math.max(0, best.D - gap);
-  const v0 = search((v) => slide(v, myPhys.frictionAir, decel, travel).speed >= vHit);
+  const v0 = search((v) => slide(v, myPhys.frictionAir, decel * (myPhys.brake ?? 1), travel).speed >= vHit);
 
   let strength = v0 / myPhys.maxSpeed;
   strength *= 1 + rand(cfg.powerError);
@@ -85,6 +85,12 @@ export function planCpuShot(game, me, cfg) {
   const rev = game.isReversed(me) ? -1 : 1;
   const dirX = Math.cos(ang) * rev;
   const dirY = Math.sin(ang) * rev;
+  // ショウジョウヅツ：ねらった向きに 進めないときは、そっと弾いて 向きを かえる
+  if (game.erasers[me].def.trait?.id === 'tube') {
+    const [ax, ay] = game.aimDir(me, dirX, dirY);
+    const cos = (ax * dirX + ay * dirY) / ((Math.hypot(ax, ay) * Math.hypot(dirX, dirY)) || 1);
+    if (cos < 0.97) strength = Math.min(strength, 0.28);
+  }
   const spin = rand(cfg.spin ?? 0);
   return { dirX, dirY, strength, spin, target: best.t.playerIndex };
 }

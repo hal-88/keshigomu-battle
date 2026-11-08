@@ -686,6 +686,166 @@ export const SPECIAL_ART = {
     text(ctx, 'ダイオウ', 0, h * 0.22, h * 0.24, '#fff', w * 0.5);
   },
 
+  // ---- トーナメント優勝 限定 ----
+
+  // トロフィン：金のトロフィー（横から当てられて 倒れているときは 横だおし）
+  trophy(ctx, s, look, tv) {
+    const { w, h } = s;
+    ctx.save();
+    if (tv?.toppled) ctx.rotate(Math.sin(now() / 90) * 0.15);
+    const gold = (x0, y0, x1, y1) => {
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, '#fff3c4');
+      g.addColorStop(0.45, look.body);
+      g.addColorStop(1, '#b8860b');
+      return g;
+    };
+    // 台
+    rr(ctx, -w / 2, -h * 0.22, w * 0.22, h * 0.44, 3);
+    fill(ctx, '#5d4037');
+    // 柄
+    ctx.fillStyle = gold(-w / 2, 0, w / 2, 0);
+    ctx.fillRect(-w / 2 + w * 0.2, -h * 0.08, w * 0.18, h * 0.16);
+    // カップ
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.12, -h * 0.42);
+    ctx.lineTo(w / 2, -h / 2 + 1);
+    ctx.lineTo(w / 2, h / 2 - 1);
+    ctx.lineTo(-w * 0.12, h * 0.42);
+    ctx.quadraticCurveTo(-w * 0.2, 0, -w * 0.12, -h * 0.42);
+    ctx.closePath();
+    fill(ctx, gold(-w / 2, -h / 2, w / 2, h / 2));
+    line(ctx, 'rgba(120,80,0,0.6)');
+    // とって
+    ctx.strokeStyle = look.body;
+    ctx.lineWidth = 3;
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(w * 0.18, sy * (h / 2 + 1), 6, sy > 0 ? 0 : Math.PI, sy > 0 ? Math.PI : Math.PI * 2);
+      ctx.stroke();
+    }
+    // ★
+    text(ctx, '★', w * 0.2, 1, h * 0.42, '#fff8e1');
+    sparkle(ctx, w * 0.36, -h * 0.25, 3 + 1.5 * Math.abs(Math.sin(now() / 300)));
+    ctx.restore();
+  },
+
+  // キンメダル：金メダル（リボンつき）
+  medal(ctx, s, look) {
+    const r = s.radius;
+    // リボン
+    ctx.fillStyle = '#e53935';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.95, -r * 0.35);
+    ctx.lineTo(-r * 1.25, -r * 0.1);
+    ctx.lineTo(-r * 1.25, r * 0.1);
+    ctx.lineTo(-r * 0.95, r * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#1e88e5';
+    ctx.fillRect(-r * 1.25, -r * 0.1, r * 0.3, r * 0.2);
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
+    g.addColorStop(0, '#fffde7');
+    g.addColorStop(0.55, look.body);
+    g.addColorStop(1, '#c79100');
+    fill(ctx, g);
+    line(ctx, 'rgba(120,80,0,0.6)', 2);
+    circle(ctx, 0, 0, r * 0.72);
+    line(ctx, 'rgba(160,110,0,0.5)', 1.5);
+    text(ctx, '1', 0, 1, r * 0.95, 'rgba(140,90,0,0.75)');
+    sparkle(ctx, r * 0.45, -r * 0.45, 3 + 2 * Math.abs(Math.sin(now() / 280)));
+  },
+
+  // オウカン：王冠（トゲが5つ。上から見たところ）
+  crown(ctx, s, look) {
+    const r = s.radius;
+    const th = (Math.PI * 2) / 5;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = th / 2 + (i * th) / 2;
+      const rr2 = i % 2 === 0 ? r : r * 0.62;
+      const x = Math.cos(a) * rr2;
+      const y = Math.sin(a) * rr2;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
+    g.addColorStop(0, '#fff8e1');
+    g.addColorStop(0.6, look.body);
+    g.addColorStop(1, '#c79100');
+    fill(ctx, g);
+    line(ctx, 'rgba(120,80,0,0.6)', 1.8);
+    // トゲの先の 宝石
+    for (let i = 0; i < 5; i++) {
+      const a = th / 2 + i * th;
+      circle(ctx, Math.cos(a) * r * 0.82, Math.sin(a) * r * 0.82, 2.6);
+      fill(ctx, ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00'][i]);
+    }
+    circle(ctx, 0, 0, r * 0.32);
+    fill(ctx, '#c62828');
+    circle(ctx, 0, 0, r * 0.32);
+    gloss(ctx, r * 0.32);
+  },
+
+  // ハナマルン：先生の はなまるスタンプ
+  hanamaru(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    fill(ctx, '#fffaf0');
+    line(ctx, 'rgba(0,0,0,0.25)', 1.5);
+    // 花びら
+    ctx.strokeStyle = '#e53935';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    for (let i = 0; i <= 60; i++) {
+      const a = (i / 60) * Math.PI * 2;
+      const rr2 = r * (0.72 + 0.14 * Math.sin(a * 6));
+      const x = Math.cos(a) * rr2;
+      const y = Math.sin(a) * rr2;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    // まる（ぐるっと うずまき）
+    ctx.beginPath();
+    for (let i = 0; i <= 50; i++) {
+      const a = (i / 50) * Math.PI * 2.4;
+      const rr2 = r * (0.18 + 0.28 * (i / 50));
+      const x = Math.cos(a) * rr2;
+      const y = Math.sin(a) * rr2;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+    // 持ち手（ふち）
+    circle(ctx, 0, 0, r);
+    line(ctx, look.body, 3);
+  },
+
+  // ショウジョウヅツ：賞状を入れる 紺色の筒（金の帯）
+  tube(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, h / 2);
+    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    g.addColorStop(0, '#5c6bc0');
+    g.addColorStop(0.45, look.body);
+    g.addColorStop(1, '#1a237e');
+    fill(ctx, g);
+    line(ctx, 'rgba(0,0,0,0.45)');
+    // ふた
+    for (const sx of [-1, 1]) {
+      rr(ctx, sx > 0 ? w / 2 - 9 : -w / 2, -h / 2, 9, h, 4);
+      fill(ctx, '#1a237e');
+    }
+    // 金の帯と もじ
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillRect(-w * 0.18, -h / 2, 3, h);
+    ctx.fillRect(w * 0.15, -h / 2, 3, h);
+    text(ctx, '賞', 0, 1, h * 0.6, '#ffd54f');
+    // つや（転がる 向きが わかるように）
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(-w / 2 + 10, -h / 2 + 3, w - 20, 2.5);
+  },
+
   // マッサラ：新品。まっ白で かどが ピンピン、青いケースに NEW
   brandnew(ctx, s, look) {
     const { w, h } = s;

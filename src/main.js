@@ -2,7 +2,7 @@
 
 import './style.css';
 import { DESKS, findDesk } from './config/desks.js';
-import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
+import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection } from './progress/collection.js';
 import { cardHTML } from './ui/cardView.js';
@@ -14,11 +14,15 @@ import { sfx, unlockAudio } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
 import { rewardsHTML } from './ui/rewardView.js';
 import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
+import { makeBracket, setWinner, readyMatches, matchOf, isOut, champion, roundName } from './tournament/bracket.js';
+import { runAutoMatchAsync } from './tournament/autoMatch.js';
+import { bracketHTML } from './ui/bracketView.js';
 
 setupPwa(); // アプリとしてホーム画面に置けるように（オフラインでも動く）
 
 const MODES = [
-  { id: 'cpu', name: 'CPU 連勝チャレンジ', desc: '次々 違う消しゴムのCPUと1対1。何連勝できるかな？', enabled: true },
+  { id: 'cpu', name: 'CPU 連勝チャレンジ', desc: '次々 違う消しゴムのCPUと1対1。相手を倒して 消しゴムを ゲットしよう！ 何連勝できるかな？', enabled: true },
+  { id: 'tournament', name: '🏆 トーナメント', desc: 'CPUと 16人で 勝ち抜き戦。優勝すると 限定の消しゴムが もらえる！（相手の消しゴムは もらえないよ）', enabled: true },
   { id: 'local', name: '1台でみんなで', desc: '2〜4人で交代で（CPUも混ぜられる）', enabled: true },
   { id: 'online', name: 'オンライン', desc: '合言葉（数字）で 友だちと対戦', enabled: true },
 ];
@@ -109,6 +113,7 @@ function showModeSelect() {
            <div class="choice-name">${m.name}</div>
            <div class="choice-desc">${m.desc}</div>
            ${m.id === 'cpu' && collection.bestStreak() ? `<div class="choice-desc best">🏆 ベスト ${collection.bestStreak()}連勝</div>` : ''}
+           ${m.id === 'tournament' && collection.tournamentWins() ? `<div class="choice-desc best">🏆 優勝 ${collection.tournamentWins()}回</div>` : ''}
            ${m.enabled ? '' : '<div class="badge">準備中</div>'}
          </button>`,
        ).join('')}
@@ -120,6 +125,7 @@ function showModeSelect() {
       setup.mode = b.dataset.id;
       if (setup.mode === 'local') showPlayerSetup();
       else if (setup.mode === 'online') online.showMenu();
+      else if (setup.mode === 'tournament') pickTournamentEraser();
       else showDeskSelect();
     };
   });
@@ -353,7 +359,7 @@ function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
            (e) => `
          <button class="choice eraser-choice ${rarityClass(e)} ${e.id === selected ? 'selected' : ''}" data-id="${e.id}">
            ${rarityTag(e)}
-           ${e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
+           ${e.champion ? '<div class="badge gacha">🏆優勝</div>' : e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
            <canvas class="eraser-thumb"></canvas>
            <div class="choice-name">${e.name}</div>
            <div class="choice-desc">${e.desc}</div>
@@ -409,11 +415,18 @@ function showCardDeal(basePlayers) {
   collection.markCardsSeen(players.filter((p) => p.type === 'human').map((p) => p.card.id));
   const cpu = players.find((p) => p.type === 'cpu');
   // CPU モードでは、CPU のカードは「使うまで ないしょ」（裏のまま。中身は画面に出さない）
-  const secret = players.map((p) => setup.mode === 'cpu' && p.type === 'cpu');
+  const vsCpuMode = setup.mode === 'cpu' || setup.mode === 'tournament';
+  const secret = players.map((p) => vsCpuMode && p.type === 'cpu');
+  const roundLabel =
+    setup.mode === 'tournament' && tour?.current
+      ? `🏆 ${roundName(tour.br.size, tour.current.r)}（机：${findDesk(setup.deskId).name}）`
+      : setup.mode === 'cpu' && streak
+        ? `🔥 ${streak.count + 1}戦目`
+        : '';
   const streakHead =
-    setup.mode === 'cpu' && streak
+    roundLabel && cpu
       ? `<div class="streak-head">
-           <span class="streak-round">🔥 ${streak.count + 1}戦目</span>
+           <span class="streak-round">${roundLabel}</span>
            <div class="vs">
              <div class="vs-side me">
                <canvas class="vs-eraser" data-id="${players[0].eraser.id}"></canvas>
@@ -427,7 +440,7 @@ function showCardDeal(basePlayers) {
              </div>
            </div>
            ${cpu.eraser.trait ? `<div class="trait vs-trait"><b>✨ ${cpu.eraser.trait.name}</b> ${cpu.eraser.trait.desc}</div>` : ''}
-           ${collection.owns(cpu.eraser.id) ? '' : '<small class="vs-get">勝つと この消しゴムが 手に入る！</small>'}
+           ${collection.owns(cpu.eraser.id) || setup.mode === 'tournament' ? '' : '<small class="vs-get">勝つと この消しゴムが 手に入る！</small>'}
          </div>`
       : '';
   const el = screen(
@@ -493,8 +506,13 @@ function startBattle(players) {
   battle = createBattle(el, {
     desk: findDesk(setup.deskId),
     players,
-    label: setup.mode === 'cpu' && streak ? `🔥${streak.count + 1}戦目` : '',
-    hideCpuCards: setup.mode === 'cpu', // CPU のカードは使うまで ないしょ
+    label:
+      setup.mode === 'tournament' && tour?.current
+        ? `🏆${roundName(tour.br.size, tour.current.r)}`
+        : setup.mode === 'cpu' && streak
+          ? `🔥${streak.count + 1}戦目`
+          : '',
+    hideCpuCards: setup.mode === 'cpu' || setup.mode === 'tournament', // CPU のカードは使うまで ないしょ
     firstTurn: Math.floor(Math.random() * players.length), // 先攻はルーレットで（結果はここで決める）
     onEnd: showResult,
     onQuit: showTitle,
@@ -520,7 +538,9 @@ function confetti(el) {
 
 function showResult(result, players) {
   const w = result.winner;
-  const vsCpu = setup.mode === 'cpu';
+  const inTour = setup.mode === 'tournament' && tour?.current;
+  const vsCpu = setup.mode === 'cpu' || inTour;
+  const inStreak = setup.mode === 'cpu' && streak;
   let headline;
   let sub;
   let cls;
@@ -565,8 +585,8 @@ function showResult(result, players) {
     reward = collection.finishMatch({
       won: humanWon,
       cpuWin: humanWon,
-      defeatedIds: cpus.map((p) => p.eraser.id),
-      streak: vsCpu && streak && humanWon ? streak.count + 1 : 0,
+      defeatedIds: inTour ? [] : cpus.map((p) => p.eraser.id), // トーナメントでは 相手の消しゴムは もらえない
+      streak: inStreak && humanWon ? streak.count + 1 : 0,
     });
   }
   const rewardHTML = rewardsHTML(reward);
@@ -575,7 +595,24 @@ function showResult(result, players) {
   let buttons = `
        <button class="btn big primary" data-act="again">もう一回</button>
        <button class="btn ghost" data-act="title">タイトルへ</button>`;
-  if (vsCpu && streak) {
+  if (inTour) {
+    if (w == null) {
+      // 引き分けは もう一度（同じ相手・同じ机）
+      streakHTML = '<div class="streak-box"><div class="streak-count">引き分けなので もう一度！</div></div>';
+      buttons = `<button class="btn big primary" data-act="again">もう一度 たたかう</button>`;
+    } else {
+      const { r, m } = tour.current;
+      const match = tour.br.rounds[r][m];
+      setWinner(tour.br, r, m, humanWon ? tour.me : match.a === tour.me ? match.b : match.a);
+      tour.fresh = new Set([`${r}-${m}`]);
+      tour.current = null;
+      const final = r === tour.br.rounds.length - 1;
+      streakHTML = `<div class="streak-box"><div class="streak-count">${
+        humanWon ? (final ? '🏆 優勝！' : `${roundName(tour.br.size, r)} 突破！`) : `${roundName(tour.br.size, r)}で 敗退…`
+      }</div></div>`;
+      buttons = `<button class="btn big primary" data-act="bracket">${final && humanWon ? '🏆 表彰式へ' : 'トーナメント表へ →'}</button>`;
+    }
+  } else if (inStreak) {
     if (humanWon) {
       streak.count++;
       if (collection.recordStreak(streak.count)) streak.newRecord = true;
@@ -628,6 +665,179 @@ function showResult(result, players) {
   on('retry', () => startStreak(me)); // 0 からもういちど
   on('change', () => pickErasers(makePlayers()));
   on('title', showTitle);
+  on('bracket', () => (tour && champion(tour.br) != null ? showChampion() : showBracket()));
+}
+
+// ---------- 🏆 トーナメント（1人で 16人制。CPU 15人と 勝ち抜き戦） ----------
+let tour = null; // { br, me, eraserId, current: {r, m}, fresh, rewarded, runId }
+
+function pickTournamentEraser() {
+  const owned = collection.ownedErasers();
+  showEraserSelect({
+    title: '🏆 トーナメントで 使う消しゴムを 選ぼう',
+    selectedId: collection.owns(setup.eraserIds[0]) ? setup.eraserIds[0] : owned[0].id,
+    goLabel: 'エントリー！',
+    onPick: (id) => {
+      setup.eraserIds[0] = id;
+      startTournament(id);
+    },
+    onBack: showModeSelect,
+  });
+}
+
+function startTournament(eraserId) {
+  const used = [eraserId]; // CPU は 自分と ちがう消しゴム
+  const br = makeBracket(
+    [{ name: 'あなた', type: 'human', eraserId }],
+    (k) => {
+      const e = cpuPickEraser(used); // CPU は みんな ちがう消しゴム
+      used.push(e.id);
+      return { name: `CPU${k + 1}`, type: 'cpu', eraserId: e.id };
+    },
+    16, // 1人で遊ぶときは 16人制（CPU 15人）
+  );
+  tour = { br, me: br.entries.findIndex((x) => x.type === 'human'), eraserId, current: null, fresh: new Set(), rewarded: false, runId: 0 };
+  showBracket();
+}
+
+function showBracket() {
+  const { br, me } = tour;
+  const runId = ++tour.runId;
+  const mine = matchOf(br, me);
+  const out = isOut(br, me);
+  const champ = champion(br);
+  // まだ終わっていない CPU どうしの試合（自分の つぎの試合より 前の回戦のもの。回戦は ぜんぶ 終わってから つぎへ）
+  const pending = () => {
+    const my = matchOf(br, me);
+    return readyMatches(br).filter(({ r, match }) => match.a !== me && match.b !== me && (!my || r < my.r));
+  };
+  const waiting = pending().length > 0;
+
+  const head = champ != null
+    ? '🏆 優勝が 決まった！'
+    : mine && !waiting
+      ? `つぎは ${roundName(br.size, mine.r)}！`
+      : out
+        ? 'ざんねん… でも 最後まで 見よう'
+        : 'ほかの試合を 待っているよ…';
+  const el = screen(
+    `<h2 class="head">🏆 トーナメント</h2>
+     <p class="note">${head}</p>
+     <div class="bracket-wrap">${bracketHTML(br, { me, fresh: tour.fresh, now: mine ? `${mine.r}-${mine.m}` : null })}</div>
+     <div class="row bracket-buttons"></div>`,
+    'bracket-screen',
+  );
+  whenFonts(() => el.querySelectorAll('.br-eraser').forEach((c) => drawEraserPreview(c, findEraser(c.dataset.id))));
+  const row = el.querySelector('.bracket-buttons');
+  const button = (label, cls, fn) => {
+    const b = document.createElement('button');
+    b.className = `btn ${cls}`;
+    b.innerHTML = label;
+    b.onclick = fn;
+    row.appendChild(b);
+  };
+
+  if (champ != null) {
+    button('🏆 表彰式へ', 'big primary', showChampion);
+    return;
+  }
+  if (mine && !waiting) {
+    button('やめる', 'ghost', showTitle);
+    button(`${roundName(br.size, mine.r)}へ！`, 'big primary', () => playTournamentMatch(mine));
+    return;
+  }
+  // 自分の試合がないあいだは、CPU どうしの試合を 1つずつ すすめる（負けたあとは ボタンで）
+  const runOthers = async () => {
+    row.innerHTML = '<span class="note">試合中…</span>';
+    while (tour.runId === runId) {
+      const next = pending()[0];
+      if (!next) break;
+      const { r, m, match } = next;
+      const ea = br.entries[match.a];
+      const eb = br.entries[match.b];
+      const w = await runAutoMatchAsync(match.deskId, ea.eraserId, eb.eraserId);
+      if (tour.runId !== runId) return; // 画面が かわった
+      setWinner(br, r, m, w === 0 ? match.a : match.b);
+      tour.fresh = new Set([`${r}-${m}`]);
+      sfx.hit(4);
+      await new Promise((res) => setTimeout(res, 550));
+      if (tour.runId !== runId) return;
+      showBracket(); // 表を かきなおして、つぎへ
+      return;
+    }
+  };
+  if (out && !tour.watchAll) {
+    button('タイトルへ', 'ghost', showTitle);
+    button('最後まで 見る', 'big primary', () => {
+      tour.watchAll = true; // このあとは 最後まで つづけて すすめる
+      runOthers();
+    });
+  } else {
+    runOthers();
+  }
+}
+
+function playTournamentMatch({ r, m, match }) {
+  const { br, me } = tour;
+  const oppIdx = match.a === me ? match.b : match.a;
+  const opp = br.entries[oppIdx];
+  tour.current = { r, m };
+  tour.fresh = new Set();
+  setup.mode = 'tournament';
+  setup.deskId = match.deskId; // 机は 試合ごとに ランダム
+  showCardDeal([
+    { name: 'あなた', type: 'human', eraser: findEraser(tour.eraserId), color: GAME.playerColors[0] },
+    { name: opp.name, type: 'cpu', level: 'normal', eraser: findEraser(opp.eraserId), color: GAME.playerColors[1] },
+  ]);
+}
+
+function showChampion() {
+  const { br, me } = tour;
+  const c = champion(br);
+  const winner = br.entries[c];
+  const isMe = c === me;
+  let reward = null;
+  if (isMe && !tour.rewarded) {
+    tour.rewarded = true;
+    reward = collection.winTournament({ size: br.size });
+  }
+  const def = findEraser(winner.eraserId);
+  const el = screen(
+    `<div class="result champion-result ${isMe ? 'win' : ''}">
+       <div class="champ-trophy">🏆</div>
+       <div class="result-title">${isMe ? '優勝！' : `優勝は ${esc(winner.name)}`}</div>
+       <canvas class="result-eraser"></canvas>
+       <p class="result-sub">${def.name}で 優勝！</p>
+       ${
+         reward?.eraser
+           ? `<div class="reward champ-reward">
+                <div class="reward-title">🎁 優勝の ごほうび！ 限定消しゴム</div>
+                <canvas class="reward-eraser big" data-id="${reward.eraser.id}"></canvas>
+                <div><span class="rarity-tag r-champion">チャンピオン</span> <b>${reward.eraser.name}</b> が 手に入った！</div>
+                <div class="trait"><b>✨ ${reward.eraser.trait.name}</b> ${reward.eraser.trait.desc}</div>
+              </div>`
+           : isMe
+             ? '<div class="reward champ-reward"><div class="reward-title">🏆 限定消しゴムは ぜんぶ持っているよ！ すごい！</div></div>'
+             : ''
+       }
+       ${isMe ? `<p class="note">🏆 これまでの 優勝：${collection.tournamentWins()}回</p>` : ''}
+       <div class="row">
+         <button class="btn ghost" data-act="title">タイトルへ</button>
+         <button class="btn big primary" data-act="again">もう一度 トーナメント</button>
+       </div>
+     </div>`,
+  );
+  if (isMe) {
+    confetti(el);
+    sfx.win();
+    if (reward?.eraser) setTimeout(() => sfx.rare(), 900);
+  }
+  whenFonts(() => {
+    drawEraserPreview(el.querySelector('.result-eraser'), def);
+    el.querySelectorAll('.reward-eraser').forEach((cv) => drawEraserPreview(cv, findEraser(cv.dataset.id)));
+  });
+  el.querySelector('[data-act=title]').onclick = showTitle;
+  el.querySelector('[data-act=again]').onclick = () => startTournament(tour.eraserId);
 }
 
 // ---------- 図鑑 ----------
@@ -667,6 +877,7 @@ function showZukan(tab = 'eraser') {
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
     { id: 'special', label: '特別', items: SPECIAL_ERASERS },
     { id: 'gacha', label: '文房具', items: STATIONERY_ERASERS },
+    { id: 'champion', label: '🏆優勝', items: CHAMPION_ERASERS },
     { id: 'card', label: 'カード', items: CARDS },
   ];
   const count = (t) =>
@@ -683,7 +894,7 @@ function showZukan(tab = 'eraser') {
     }
     const own = collection.owns(item.id);
     const seen = collection.hasSeen(item.id);
-    const how = item.gacha ? 'ガチャで手に入る' : 'CPUで 倒すと手に入る';
+    const how = item.champion ? 'トーナメントで 優勝すると 手に入る' : item.gacha ? 'ガチャで手に入る' : 'CPUで 倒すと手に入る';
     return `
       <button class="zukan-cell ${own ? 'own ' + rarityClass(item) : 'locked'}" data-id="${item.id}" ${own ? '' : 'disabled'}>
         ${rarityTag(item)}
@@ -696,6 +907,7 @@ function showZukan(tab = 'eraser') {
   let note = 'CPUが使っている消しゴムを 倒すと、自分も使えるようになるよ';
   if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを 倒すと手に入るよ';
   if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
+  if (cur.id === 'champion') note = `🏆 トーナメントで 優勝すると、この中から 1つ もらえるよ（これまでの 優勝：${collection.tournamentWins()}回）`;
   if (cur.id === 'card') note = '対戦で 配られたカードが 埋まっていくよ';
 
   const el = screen(

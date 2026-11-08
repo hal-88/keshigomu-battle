@@ -1,7 +1,7 @@
 // 図鑑のデータ（持っている消しゴム・見たもの・ガチャチケット）。
 // この端末のブラウザの中だけに保存する（1台に1つ）。保存できない環境でもゲームは動く。
 
-import { ERASERS, START_ERASER_IDS, GACHA_ERASERS, REGULAR_ERASERS, findEraser, pickByRarity } from '../config/erasers.js';
+import { ERASERS, START_ERASER_IDS, GACHA_ERASERS, REGULAR_ERASERS, CHAMPION_ERASERS, findEraser, pickByRarity } from '../config/erasers.js';
 import { GAME } from '../config/game.js';
 
 const KEY = 'keshigomu-collection-v1';
@@ -16,6 +16,7 @@ const fresh = () => ({
   wins: 0,
   pulls: 0,
   bestStreak: 0, // CPU 連勝チャレンジのベスト記録
+  trophies: [], // トーナメントで優勝した記録 [{ date, size, eraserId }]
 });
 
 function load() {
@@ -156,6 +157,26 @@ export const collection = {
     save();
     return true;
   },
+
+  /**
+   * トーナメントで優勝したとき：優勝限定の消しゴムを ランダムで1つ（まだ持っていないもの）
+   * @returns {{ eraser: object|null, wins: number }} eraser は もらえた消しゴム（ぜんぶ持っていたら null）
+   */
+  winTournament({ size = 8 } = {}) {
+    const left = CHAMPION_ERASERS.filter((e) => !data.owned.includes(e.id));
+    const eraser = left.length ? left[Math.floor(Math.random() * left.length)] : null;
+    if (eraser) {
+      data.owned.push(eraser.id);
+      addUnique(data.seen, [eraser.id]);
+    }
+    const d = new Date();
+    const date = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+    data.trophies = [...(data.trophies || []), { date, size, eraserId: eraser?.id || null }];
+    save();
+    return { eraser, wins: data.trophies.length };
+  },
+  /** トーナメントで優勝した回数 */
+  tournamentWins: () => (data.trophies || []).length,
 
   /** データをぜんぶ消して、はじめからにする */
   reset() {
