@@ -11,7 +11,7 @@
 //                    ほかの数字は強さ（しくみは logic/Game.js の「とくせい」のところ）
 // rarity … normal / rare / superrare / ultra（SSR）/ legend（UR）。強さは変わらない。
 //          レアほど CPU が使うことが少なく、ガチャでも出にくい（ERASER_RARITY の weight）
-// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」（図鑑で分けて表示）
+// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」、'kyushoku' は給食シリーズ（図鑑で分けて表示）
 // gacha … true ならガチャでしか手に入らない（文房具・とくべつ消しゴム）。
 //         それ以外は、はじめから持っている（START_ERASER_IDS）か、CPUにかつと手に入る
 
@@ -636,6 +636,138 @@ export const ERASERS = [
     trait: { id: 'corner', name: '角アタック', desc: '全部の力が 少し高い。最初に 相手に当てた 一撃だけ 超強力', allUp: 1.06, push: 0.8, max: 9 },
   },
 
+  // ---- 給食シリーズ（ガチャ限定。毎日出るものほど ノーマル、たまにしか出ない 人気メニューほど レア） ----
+  {
+    id: 'gyunyu', rarity: 'normal', gacha: true, kind: 'kyushoku',
+    name: 'ギュウニュウ',
+    desc: '毎日 必ず出る 牛乳パック',
+    shape: { type: 'rect', w: 40, h: 40, chamfer: 3 },
+    look: { art: 'milkpack', body: '#ffffff' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'milkpack', name: 'こぼれる牛乳',
+      desc: '当てられると 牛乳が こぼれて、まわりが つるつるに なる。でも 四角くて 背が高いので、当てられると 倒れて 転がりやすい',
+      minPower: 3.5, r: 50, scale: 0.35, max: 2, ms: 700, rollSlide: 0.8,
+    },
+  },
+  {
+    id: 'misoshiru', rarity: 'normal', gacha: true, kind: 'kyushoku',
+    name: 'ミソシル',
+    desc: 'おわんに入った 定番の みそ汁',
+    shape: { type: 'circle', radius: 26 },
+    look: { art: 'misosoup', body: '#8d5a3b' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'steam', name: '湯気',
+      desc: '近くに 相手がいると、湯気で 見えにくくなる（ねらいが ズレる）。でも おわんが丸くて、縁の近くでは くるくる回って 滑りやすい',
+      range: 170, aimErrorDeg: 12, edge: 55, edgeSlide: 0.75, edgeSpin: 0.01,
+    },
+  },
+  {
+    id: 'chikuwa', rarity: 'normal', gacha: true, kind: 'kyushoku',
+    name: 'チクワ',
+    desc: '穴の あいた ちくわ',
+    shape: { type: 'rect', w: 64, h: 22, chamfer: 11 },
+    look: { art: 'chikuwa', body: '#f6e0b5' },
+    stats: { power: 4, balance: 2, speed: 3 },
+    trait: {
+      id: 'scope', name: 'のぞき穴',
+      desc: '穴から のぞいて、ねらいの線が ほかより 長く見える。細くて 軽いので 飛ばされやすい',
+      weight: 0.85, guide: 260,
+    },
+  },
+  {
+    id: 'natto', rarity: 'normal', gacha: true, kind: 'kyushoku',
+    name: 'ナットウ',
+    desc: 'パックに入った 納豆（好き嫌いが 分かれる）',
+    shape: { type: 'rect', w: 46, h: 40, chamfer: 6 },
+    look: { art: 'natto', body: '#c99a52' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'sticky', name: 'ネバネバ',
+      desc: '自分の番に 当てた相手と くっついて、その番の間 いっしょに 動く。自分も いっしょに 落ちることが ある',
+      minPower: 2,
+    },
+  },
+  {
+    id: 'softmen', rarity: 'rare', gacha: true, kind: 'kyushoku',
+    name: 'ソフトメン',
+    desc: '長くて くねくねの ソフト麺',
+    shape: { type: 'rect', w: 70, h: 20, chamfer: 10 },
+    look: { art: 'softmen', body: '#fff1c1' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'noodle', name: 'くねくね',
+      desc: '弾いたあと、指で なぞって 2回まで 曲がれる。でも 細いので 当てる力が 弱い',
+      turns: 2, accel: 0.4, ms: 1100, hitScale: 0.88,
+    },
+  },
+  {
+    id: 'karaage', rarity: 'rare', gacha: true, kind: 'kyushoku',
+    name: 'カラアゲ',
+    desc: '人気おかずの からあげ',
+    shape: { type: 'polygon', sides: 7, radius: 26 },
+    look: { art: 'karaage', body: '#c47a32' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'janken', name: 'おかわりじゃんけん',
+      desc: '当てられたとき、1試合に1回だけ じゃんけん。勝つと びくとも しない。負けると いつもより 遠くまで 飛ばされる',
+      minPower: 3, lose: 1.6,
+    },
+  },
+  {
+    id: 'reitoumikan', rarity: 'rare', gacha: true, kind: 'kyushoku',
+    name: 'レイトウミカン',
+    desc: '凍った みかん（季節限定っぽい）',
+    shape: { type: 'circle', radius: 25 },
+    look: { art: 'frozenmikan', body: '#ff9800' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'melt', name: '溶ける',
+      desc: '最初は かたくて よく滑る。自分の番が 来るたびに 溶けて、滑りにくく 遅くなる',
+      startSlide: 0.7, endSlide: 1.5, startPower: 1.08, endPower: 0.88, turns: 6,
+    },
+  },
+  {
+    id: 'purin', rarity: 'superrare', gacha: true, kind: 'kyushoku',
+    name: 'プリン',
+    desc: 'デザートの日の ぷるぷる プリン',
+    shape: { type: 'circle', radius: 25 },
+    look: { art: 'pudding', body: '#ffd54f' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'jiggle', name: 'ぷるぷる',
+      desc: 'いつも ぷるぷる ゆれていて、相手が 弾くと ぷるんと 少し ずれる（当てにくい）。でも 当てられると 大きく ゆれて、次の番 ねらいが ブレる',
+      shift: 16, wobble: 0.14, minPower: 2.5,
+    },
+  },
+  {
+    id: 'curry', rarity: 'superrare', gacha: true, kind: 'kyushoku',
+    name: 'カレーライス',
+    desc: '給食の 人気ナンバーワン',
+    shape: { type: 'rect', w: 62, h: 42, chamfer: 18 },
+    look: { art: 'curry', body: '#ffffff' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: {
+      id: 'curry', name: '人気者',
+      desc: 'みんなの 人気者。自分の番が 来ると、近くの相手が 少し 寄ってくる（当てやすい）。でも お皿が 平たくて、強く 当てられると 飛ばされやすい',
+      range: 220, pull: 25, minPower: 6, fly: 1.25,
+    },
+  },
+  {
+    id: 'agepan', rarity: 'ultra', gacha: true, kind: 'kyushoku',
+    name: 'アゲパン',
+    desc: 'たまにしか出ない 伝説の 人気メニュー',
+    shape: { type: 'rect', w: 64, h: 34, chamfer: 16 },
+    look: { art: 'agepan', body: '#d99a52' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'sugar', name: '砂糖の道',
+      desc: '自分が 弾いて 通ったところに 砂糖が 落ちて、滑りにくい 道が できる（相手が 止まりやすい）。でも 自分も 次の番からは その道で 止まりやすい',
+      radius: 30, scale: 1.9, spacing: 34, max: 14,
+    },
+  },
+
   // ---- ここから トーナメント優勝 限定（優勝すると 1つ もらえる。どれも 弱点つき。ステータスの合計は9） ----
   {
     id: 'torophin', rarity: 'champion', champion: true,
@@ -696,7 +828,9 @@ export const CHAMPION_ERASERS = ERASERS.filter((e) => e.champion);
 export const REGULAR_ERASERS = ERASERS.filter((e) => !e.gacha && !e.champion);
 export const GACHA_ERASERS = ERASERS.filter((e) => e.gacha);
 // ガチャの中の、文房具と とくべつ消しゴム（図鑑のページ分け）
-export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => e.kind !== 'special');
+export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => !e.kind);
+// 給食シリーズ（ガチャ限定）
+export const KYUSHOKU_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'kyushoku');
 export const SPECIAL_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'special');
 
 export const findEraser = (id) => ERASERS.find((e) => e.id === id);

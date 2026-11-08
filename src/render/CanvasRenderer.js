@@ -162,6 +162,7 @@ export class CanvasRenderer {
     this._drawStageUnder(ctx, state.desk.features);
     for (const zone of state.waxZones) this._drawWax(ctx, zone, now);
     for (const p of state.posts || []) this._drawPost(ctx, p);
+    if (state.stuck) this._drawNattoThreads(ctx, state.stuck, now);
     if (state.tilt) this._drawTilt(ctx, state, now);
     if (state.blackHole) this._drawBlackHole(ctx, state.blackHole, now);
     if (state.pendingShrink) this._drawShrinkWarning(ctx, state.desk, state.pendingShrink, now);
@@ -833,8 +834,42 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
+  // ナットウで くっついた 2つの あいだの ネバネバの 糸
+  _drawNattoThreads(ctx, s, now) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      const off = (i - 1.5) * 5;
+      const mx = (s.ax + s.bx) / 2 + Math.sin(now / 200 + i) * 6;
+      const my = (s.ay + s.by) / 2 + off + Math.cos(now / 240 + i) * 6;
+      ctx.beginPath();
+      ctx.moveTo(s.ax, s.ay + off);
+      ctx.quadraticCurveTo(mx, my, s.bx, s.by + off);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // アゲパンの 砂糖の道（すべりにくい）
+  _drawSugar(ctx, z) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,248,225,0.35)';
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 26; i++) {
+      const a = i * 2.39996;
+      const r = z.r * Math.sqrt(((i * 37) % 100) / 100);
+      ctx.fillStyle = i % 4 ? 'rgba(255,255,255,0.95)' : 'rgba(240,200,120,0.9)';
+      ctx.fillRect(z.x + Math.cos(a) * r - 1, z.y + Math.sin(a) * r - 1, 2.2, 2.2);
+    }
+    ctx.restore();
+  }
+
   _drawWax(ctx, z, now) {
     if (z.stage || z.kind === 'milk') return this._drawStageZone(ctx, z);
+    if (z.kind === 'sugar') return this._drawSugar(ctx, z);
     if (z.kind === 'ice') return this._drawIce(ctx, z, now);
     if (z.kind === 'crumbs' || (z.scale && z.scale > 1)) return this._drawCrumbs(ctx, z);
     ctx.save();
@@ -1302,6 +1337,19 @@ export class CanvasRenderer {
       ctx.moveTo(p0.x, p0.y);
       ctx.quadraticCurveTo(p1.x, p1.y, end.x, end.y);
       ctx.stroke();
+    }
+    // チクワ：のぞき穴で、ねらいの線が 長く見える（点線）
+    if (e.def.trait?.id === 'scope') {
+      const G = e.def.trait.guide ?? 260;
+      ctx.save();
+      ctx.setLineDash([10, 10]);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(p2.x + Math.cos(ta) * G, p2.y + Math.sin(ta) * G);
+      ctx.stroke();
+      ctx.restore();
     }
     ctx.translate(p2.x, p2.y);
     ctx.rotate(ta);

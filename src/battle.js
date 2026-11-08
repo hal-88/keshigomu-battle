@@ -471,6 +471,19 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (type === 'topple') {
       sfx.boing();
       say('🏆 ゴロン！ 倒れた！', '#b8860b');
+    } else if (type === 'jiggle') {
+      say('ぷるん', '#ffb300', 18, 700);
+    } else if (type === 'wobble') {
+      sfx.boing();
+      say('ぷるぷる〜！', '#ffb300', 22);
+      if (p.type === 'human') later(400, () => toast(`${p.name}の プリンが ゆれてる！ 次は ねらいが ブレるかも`, '#ffb300'));
+    } else if (type === 'janken') {
+      sfx.rare();
+      say(value ? '✊ じゃんけん…勝ち！' : '✊ じゃんけん…負け〜', value ? '#43a047' : '#e53935', 22, 1600);
+    } else if (type === 'sticky') {
+      say('ネバ〜ッ', '#c99a52', 22);
+    } else if (type === 'gather') {
+      say('🍛 みんな 集まってきた！', '#e65100', 20, 1400);
     } else if (type === 'hanamaru') {
       sfx.rare();
       renderer.addEffect({ type: 'text', x, y, text: '💮', size: 56, dur: 1600 });

@@ -302,6 +302,10 @@ export class Game {
       happy: false, // はなまるを押されて、次の番 動けない
       pierceMs: 0,
       pierceKeep: 0,
+      // 給食シリーズ
+      meltTurns: 0, // レイトウミカン：自分の番が来た回数
+      jankenUsed: false, // カラアゲ：じゃんけんを したか
+      wobbly: false, // プリン：当てられて ゆれている（次の番 ねらいが ブレる）
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
     if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
@@ -318,10 +322,108 @@ export class Game {
       e.maxSpeed *= k;
       e.frictionMul = 1 / k;
     }
+    if (t.id === 'melt') this._applyMelt(e);
     body.plugin = { piece: e };
     if (t.id === 'dice') this._rollDice(e, true);
     this._applyMass(e);
     return e;
+  }
+
+  /** レイトウミカン：番が来るほど 溶けて、すべりにくく 遅くなる */
+  _applyMelt(e) {
+    const t = traitOf(e);
+    const m = Math.min(1, Math.max(0, e.meltTurns - 1) / (t.turns ?? 6));
+    const lerp = (a, b) => a + (b - a) * m;
+    e.frictionMul = lerp(t.startSlide ?? 0.7, t.endSlide ?? 1.5);
+    e.maxSpeed = PHYSICS.powerToMaxSpeed[e.def.stats.power] * PHYSICS.flickSpeedScale * lerp(t.startPower ?? 1.08, t.endPower ?? 0.88);
+  }
+
+  /** プリン：相手が 弾くと ぷるんと 少し ずれる（当てにくい） */
+  _jiggle(shooter) {
+    for (const o of this.erasers) {
+      const t = traitOf(o);
+      if (t.id !== 'jiggle' || !o.alive || o.playerIndex === shooter || o.body.isStatic) continue;
+      const p = o.body.position;
+      const ext = this.pieceExtent(o);
+      for (let k = 0; k < 8; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = (t.shift ?? 16) * (0.6 + 0.4 * Math.random());
+        const q = { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d };
+        if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < ext + 4) continue;
+        if (this._inStageHole(q.x, q.y)) continue;
+        const busy = this._allPieces().some(
+          (x) => x.alive && x !== o && Math.hypot(x.body.position.x - q.x, x.body.position.y - q.y) < this.pieceExtent(x) + ext + 2,
+        );
+        if (busy) continue;
+        Body.setPosition(o.body, q);
+        this._emit('trait', { type: 'jiggle', playerIndex: o.playerIndex, x: q.x, y: q.y });
+        break;
+      }
+    }
+  }
+
+  /** ナットウ：くっついた2つは、その番の間 いっしょに 動く */
+  _applySticky() {
+    const st = this.turn.stuck;
+    if (!st || (this.phase !== 'moving' && this.phase !== 'settling')) return;
+    const { a, b } = st;
+    if (!a.alive || !b.alive || a.body.isStatic || b.body.isStatic) return;
+    const ma = a.body.mass;
+    const mb = b.body.mass;
+    const vx = (a.body.velocity.x * ma + b.body.velocity.x * mb) / (ma + mb);
+    const vy = (a.body.velocity.y * ma + b.body.velocity.y * mb) / (ma + mb);
+    // はなれすぎたら ネバネバの糸で 少し 引きよせる
+    const dx = b.body.position.x - a.body.position.x;
+    const dy = b.body.position.y - a.body.position.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const want = this.pieceExtent(a) + this.pieceExtent(b) + 4;
+    const pull = d > want ? Math.min(1.5, (d - want) * 0.05) : 0;
+    Body.setVelocity(a.body, { x: vx + (dx / d) * pull, y: vy + (dy / d) * pull });
+    Body.setVelocity(b.body, { x: vx - (dx / d) * pull, y: vy - (dy / d) * pull });
+  }
+
+  /** ギュウニュウ：牛乳が こぼれる（古いのから かわく） */
+  _spillMilk(e, t) {
+    const p = e.body.position;
+    this.waxZones.push({ x: p.x, y: p.y, r: t.r ?? 50, scale: t.scale ?? 0.35, owner: e.playerIndex, kind: 'milk', by: e.playerIndex });
+    const mine = this.waxZones.filter((z) => z.kind === 'milk' && z.by === e.playerIndex);
+    if (mine.length > (t.max ?? 2)) this.waxZones.splice(this.waxZones.indexOf(mine[0]), 1);
+    this._emit('stageFx', { type: 'spill', x: p.x, y: p.y });
+  }
+
+  /** カレーライス：自分の番の はじめに、近くの相手が 少し 寄ってくる */
+  _gather(e) {
+    const t = traitOf(e);
+    if (!e.alive) return;
+    const c = e.body.position;
+    let n = 0;
+    for (const o of this._allPieces()) {
+      if (!o.alive || o.playerIndex === e.playerIndex || o.body.isStatic) continue;
+      const dx = c.x - o.body.position.x;
+      const dy = c.y - o.body.position.y;
+      const d = Math.hypot(dx, dy);
+      const room = d - this.pieceExtent(e) - this.pieceExtent(o) - 12;
+      if (d > (t.range ?? 220) || room <= 2) continue;
+      const step = Math.min(t.pull ?? 30, room);
+      const q = { x: o.body.position.x + (dx / d) * step, y: o.body.position.y + (dy / d) * step };
+      const busy = this._allPieces().some(
+        (x) => x.alive && x !== o && x !== e && Math.hypot(x.body.position.x - q.x, x.body.position.y - q.y) < this.pieceExtent(x) + this.pieceExtent(o) + 2,
+      );
+      if (busy || !isInsideDesk(this.desk, q.x, q.y) || this._inStageHole(q.x, q.y)) continue;
+      Body.setPosition(o.body, q);
+      n++;
+    }
+    if (n) this._emit('trait', { type: 'gather', playerIndex: e.playerIndex, x: c.x, y: c.y });
+  }
+
+  /** ミソシル：近くに 相手がいると 湯気で 見えにくい */
+  _steamy(e) {
+    const t = traitOf(e);
+    if (t.id !== 'steam' || !e.alive) return false;
+    const R = t.range ?? 170;
+    return this._allPieces().some(
+      (o) => o.alive && o.playerIndex !== e.playerIndex && Math.hypot(o.body.position.x - e.body.position.x, o.body.position.y - e.body.position.y) < R,
+    );
   }
 
   /** サイコロン：サイコロをふって、その目の能力にする */
@@ -417,6 +519,10 @@ export class Game {
       this._emit('trait', { type: 'boost', playerIndex, x: e.body.position.x, y: e.body.position.y });
     }
     Body.setAngularVelocity(e.body, w);
+    // ソフトメン：弾いたあと、指で なぞって 2回まで 曲がれる
+    if (t.id === 'noodle' && !this.turn.curve) this.turn.curve = { budgetMs: t.ms ?? 1400, accel: t.accel ?? 0.4, turnsLeft: t.turns ?? 2 };
+    e.wobbly = false; // プリン：ゆれは 1回で おさまる
+    this._jiggle(playerIndex); // プリン：相手が 弾くと ぷるんと ずれる
     // ブロッケン：はじめて弾いたとき、うしろに ブロックを のこす
     if (t.id === 'block' && !e.blockUsed) this._placeBlock(e, ux, uy);
     // ダイオウケシ：弾いたら、つぎの自分の番は ためる番
@@ -442,6 +548,8 @@ export class Game {
       const t = traitOf(o);
       if (o.alive && o.playerIndex !== i && t.id === 'glare') g = Math.max(g, t.spread ?? 0.09);
     }
+    const me = this.erasers[i];
+    if (me?.wobbly) g = Math.max(g, traitOf(me).wobble ?? 0.14); // プリン：ゆれて ねらいが ブレる
     return g;
   }
 
@@ -512,11 +620,17 @@ export class Game {
   steer(playerIndex, dx, dy) {
     if (playerIndex !== this.turnIndex || !this.turn.curve) return;
     const l = Math.hypot(dx, dy);
+    const c = this.turn.curve;
+    if (l > 1e-6 && !this.turn.steer && c.turnsLeft != null) {
+      if (c.turnsLeft <= 0) return; // ソフトメン：曲がれるのは 2回まで
+      c.turnsLeft--;
+    }
     this.turn.steer = l > 1e-6 ? { x: dx / l, y: dy / l } : null;
   }
 
   canSteer(playerIndex) {
-    return this.phase === 'moving' && playerIndex === this.turnIndex && !!this.turn.curve && this.turn.curve.budgetMs > 0;
+    const c = this.turn.curve;
+    return this.phase === 'moving' && playerIndex === this.turnIndex && !!c && c.budgetMs > 0 && (c.turnsLeft == null || c.turnsLeft > 0 || !!this.turn.steer);
   }
 
   /** (x, y) の近くにある消しゴムの持ち主番号。なければ -1 */
@@ -1062,6 +1176,7 @@ export class Game {
       this._applyTraitsBeforeStep(dt);
       this._applySteer(dt);
       this._applyGrooves(dt);
+      this._applySticky();
       this._applyDeskBrake(dt);
       Engine.update(this.engine, dt);
       this._hatchEggs();
@@ -1258,7 +1373,8 @@ export class Game {
     let hi = 1; // ざらざら（けしくず）
     for (const z of this.waxZones) {
       if (!z.stage && this._guarded(e, z.owner)) continue; // 机の しかけは クロケシにも きく
-      if (z.kind === 'ice' && z.by === e.playerIndex) continue; // アイスケシは 自分の こおりでは すべらない
+      if ((z.kind === 'ice' || z.kind === 'milk') && z.by === e.playerIndex) continue; // アイスケシ・ギュウニュウは 自分の こおり・牛乳では すべらない
+      if (z.kind === 'sugar' && z.by === e.playerIndex && z.turn === this.turnCount) continue; // アゲパン：いま まいている 砂糖では 止まらない
       if (!this._inZone(z, x, y)) continue;
       if (z.scale < 1) lo = Math.min(lo, z.scale);
       else hi = Math.max(hi, z.scale);
@@ -1282,7 +1398,12 @@ export class Game {
         // オウカン：縁の近くでは トゲで 粘る。それ以外は よく転がる
         local *= edgeClearance(this.desk, b.position.x, b.position.y) < (t.range ?? 50) ? t.grip ?? 4 : t.slide ?? 0.8;
       }
-      if (e.toppleUntil > this.time) local *= t.rollSlide ?? 0.55; // トロフィン：倒れて 転がっている
+      if (e.toppleUntil > this.time) local *= t.rollSlide ?? 0.55; // トロフィン・ギュウニュウ：倒れて 転がっている
+      if (t.id === 'steam' && edgeClearance(this.desk, b.position.x, b.position.y) < (t.edge ?? 55)) {
+        // ミソシル：縁の近くでは おわんが くるくる回って すべる
+        local *= t.edgeSlide ?? 0.75;
+        if (b.speed > 0.3) Body.setAngularVelocity(b, b.angularVelocity + (t.edgeSpin ?? 0.01) * k * (b.angularVelocity < 0 ? -1 : 1));
+      }
       if (t.id === 'edgeGrip' && edgeClearance(this.desk, b.position.x, b.position.y) < (t.range ?? 45)) {
         local *= t.scale ?? 3.5;
       }
@@ -1595,6 +1716,42 @@ export class Game {
           }
         }
         break;
+      case 'milkpack': // ギュウニュウ：当てられると 牛乳が こぼれて、倒れて 転がる
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed && power >= (t.minPower ?? 3)) {
+          this._spillMilk(e, t);
+          if (e.toppleUntil < this.time) this._emit('trait', { type: 'topple', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
+          e.toppleUntil = this.time + (t.ms ?? 1000);
+        }
+        break;
+      case 'noodle': // ソフトメン：細いので 当てる力が 弱い
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !o.body.isStatic) {
+          o.absorbNext = t.hitScale ?? 0.7;
+          if (this.turn.curve?.turnsLeft != null) this.turn.curve.budgetMs = 0; // 当たったら もう 曲がらない（自分から 落ちないように）
+        }
+        break;
+      case 'janken': // カラアゲ：1試合に1回 おかわりじゃんけん
+        if (o && o.playerIndex !== e.playerIndex && !e.jankenUsed && o.body.speed > e.body.speed && power >= (t.minPower ?? 3)) {
+          e.jankenUsed = true;
+          const win = Math.random() < 0.5;
+          e.absorbNext = win ? 0.01 : t.lose ?? 1.6;
+          this._emit('trait', { type: 'janken', playerIndex: e.playerIndex, x: pos.x, y: pos.y, value: win ? 1 : 0 });
+        }
+        break;
+      case 'sticky': // ナットウ：自分の番に 当てた相手と くっつく
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !this.turn.stuck && power >= (t.minPower ?? 2) && !o.body.isStatic && o.alive) {
+          this.turn.stuck = { a: e, b: o };
+          this._emit('trait', { type: 'sticky', playerIndex: e.playerIndex, x, y });
+        }
+        break;
+      case 'jiggle': // プリン：当てられると 大きく ゆれる
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed && power >= (t.minPower ?? 2.5) && !e.wobbly) {
+          e.wobbly = true;
+          this._emit('trait', { type: 'wobble', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
+        }
+        break;
+      case 'curry': // カレーライス：お皿が 平たくて、強く 当てられると 飛ばされやすい
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed && power >= (t.minPower ?? 5)) e.absorbNext = t.fly ?? 1.35;
+        break;
       case 'medal': // キンメダル：当てた相手を くるっと 回す
         if (o && o.playerIndex !== e.playerIndex && e.body.speed >= o.body.speed && !o.body.isStatic) {
           const k = (t.spinKick ?? 0.45) * Math.min(1, power / 8) * (Math.random() < 0.5 ? -1 : 1);
@@ -1662,13 +1819,14 @@ export class Game {
     if (this.phase !== 'moving') return;
     for (const e of this._allPieces()) {
       const t = traitOf(e);
-      if (t.id !== 'ice' || !e.alive || e.playerIndex !== this.turnIndex || e.body.speed < 0.6) continue;
+      if ((t.id !== 'ice' && t.id !== 'sugar') || !e.alive || e.playerIndex !== this.turnIndex || e.body.speed < 0.6) continue;
+      const kind = t.id === 'sugar' ? 'sugar' : 'ice'; // アゲパンは 砂糖の道（すべりにくい）
       const p = e.body.position;
       if (e.lastIce && Math.hypot(p.x - e.lastIce.x, p.y - e.lastIce.y) < (t.spacing ?? 34)) continue;
       if (!isInsideDesk(this.desk, p.x, p.y)) continue;
       e.lastIce = { x: p.x, y: p.y };
-      this.waxZones.push({ x: p.x, y: p.y, r: t.radius ?? 30, scale: t.scale ?? 0.45, owner: e.playerIndex, kind: 'ice', by: e.playerIndex });
-      const mine = this.waxZones.filter((z) => z.kind === 'ice' && z.by === e.playerIndex);
+      this.waxZones.push({ x: p.x, y: p.y, r: t.radius ?? 30, scale: t.scale ?? 0.45, owner: e.playerIndex, kind, by: e.playerIndex, turn: this.turnCount });
+      const mine = this.waxZones.filter((z) => z.kind === kind && z.by === e.playerIndex);
       if (mine.length > (t.max ?? 14)) this.waxZones.splice(this.waxZones.indexOf(mine[0]), 1);
     }
   }
@@ -2067,6 +2225,12 @@ export class Game {
       pc.camoHidden = false;
     }
     if (traitOf(e).id === 'dice') this._rollDice(e); // サイコロン：番のたびに サイコロ
+    if (traitOf(e).id === 'curry') this._gather(e); // カレーライス：人気者で みんな 寄ってくる
+    if (traitOf(e).id === 'melt') {
+      // レイトウミカン：番が来るたびに 溶ける
+      e.meltTurns++;
+      this._applyMelt(e);
+    }
     // カードの効果：ふでばこは おしまい・とうめいは のこりを へらす・ためうちは パワー
     e.shield = false;
     if (e.invisLeft > 0) e.invisLeft--;
@@ -2124,6 +2288,9 @@ export class Game {
       hatched: e.hatched,
       camoHidden: e.camoHidden,
       stampUsed: e.stampUsed,
+      meltTurns: e.meltTurns,
+      jankenUsed: e.jankenUsed,
+      wobbly: e.wobbly,
       happy: e.happy,
       powerNext: e.powerNext,
       invisLeft: e.invisLeft,
@@ -2239,6 +2406,9 @@ export class Game {
         hatched: !!pk.hatched,
         camoHidden: !!pk.camoHidden,
         stampUsed: !!pk.stampUsed,
+        meltTurns: pk.meltTurns || 0,
+        jankenUsed: !!pk.jankenUsed,
+        wobbly: !!pk.wobbly,
         happy: !!pk.happy,
         powerNext: pk.powerNext || 0,
         invisLeft: pk.invisLeft || 0,
@@ -2334,6 +2504,7 @@ export class Game {
         reversed: e.reverseNext,
         airborne: e.airborne,
         power: e.powerNext > 0,
+        steamy: this._steamy(e), // ミソシル：湯気で 見えにくい（CPU の ねらいも ズレる）
       },
       // とくせいの見た目（描画用）
       trait: {
@@ -2354,6 +2525,10 @@ export class Game {
         glowing: t.id === 'glow' && !!this.desk.dark,
         toppled: e.toppleUntil > this.time,
         happy: e.happy,
+        steamy: this._steamy(e),
+        melt: traitOf(e).id === 'melt' ? Math.min(1, Math.max(0, e.meltTurns - 1) / (traitOf(e).turns ?? 6)) : 0,
+        wobbly: e.wobbly,
+        jankenUsed: e.jankenUsed,
       },
     };
   }
@@ -2374,6 +2549,10 @@ export class Game {
       blackout: this.isBlackout(),
       blackHole: this.blackHole,
       posts: this.posts.map((p) => ({ x: p.x, y: p.y, r: p.r, w: p.w, h: p.h, angle: p.angle ?? 0, kind: p.kind })),
+      // ナットウで くっついている 2つ（糸を かく）
+      stuck: this.turn.stuck && this.turn.stuck.a.alive && this.turn.stuck.b.alive
+        ? { ax: this.turn.stuck.a.body.position.x, ay: this.turn.stuck.a.body.position.y, bx: this.turn.stuck.b.body.position.x, by: this.turn.stuck.b.body.position.y }
+        : null,
       time: this.time,
       pencils: this.pencils
         .filter((pc) => pc.alive || (pc.fall && pc.fall.t < GAME.fallAnimMs))

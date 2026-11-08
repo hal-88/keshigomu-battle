@@ -80,6 +80,7 @@ export function planCpuShot(game, me, cfg) {
   // 見えにくい相手は ねらいが ズレる（完全に 見えないときは もっと）
   let blur = best.t.effects.clear ? (best.t.trait?.clearAlpha === 0 ? 22 : best.t.def.trait?.aimErrorDeg ?? 14) : 0;
   if (best.t.effects.invisible) blur = Math.max(blur, 22); // とうめい（カード）
+  if (best.t.effects.steamy) blur = Math.max(blur, best.t.def.trait?.aimErrorDeg ?? 12); // ミソシルの 湯気
   if (game.isBlackout()) blur += 18; // ていでんで くらい
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
   // さかさま：反対に飛ぶと わかっているので、反対に ひっぱる

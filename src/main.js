@@ -2,7 +2,7 @@
 
 import './style.css';
 import { DESKS, findDesk } from './config/desks.js';
-import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
+import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection } from './progress/collection.js';
 import { cardHTML } from './ui/cardView.js';
@@ -938,6 +938,7 @@ function showZukan(tab = 'eraser') {
     { id: 'eraser', label: '消しゴム', items: REGULAR_ERASERS.filter((e) => e.kind !== 'chara') },
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
     { id: 'special', label: '特別', items: SPECIAL_ERASERS },
+    { id: 'kyushoku', label: '🍱給食', items: KYUSHOKU_ERASERS },
     { id: 'gacha', label: '文房具', items: STATIONERY_ERASERS },
     { id: 'champion', label: '🏆優勝', items: CHAMPION_ERASERS },
     { id: 'card', label: 'カード', items: CARDS },
@@ -978,7 +979,7 @@ function showZukan(tab = 'eraser') {
 
   let note = 'CPUが使っている消しゴムを 倒すと、自分も使えるようになるよ';
   if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを 倒すと手に入るよ';
-  if (cur.id === 'gacha' || cur.id === 'special') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
+  if (cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
   if (cur.id === 'champion') note = `🏆 トーナメントで 優勝すると、この中から 1つ もらえるよ（これまでの 優勝：${collection.tournamentWins()}回）`;
   if (cur.id === 'card') note = '対戦で 配られたカードが 埋まっていくよ';
   if (cur.id === 'fav') note = `⭐ お気に入りは ${GAME.collection.maxFavorites}つまで。消しゴムを選ぶ画面で いちばん上に 出るよ（はずすときは 消しゴムを タップ）`;
@@ -999,7 +1000,7 @@ function showZukan(tab = 'eraser') {
      <p class="note">${note}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
-       ${cur.id === 'gacha' || cur.id === 'special' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
+       ${cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
      </div>
      <button class="reset-link" data-act="reset">図鑑のデータを 消す</button>`,
     'zukan-screen',
@@ -1083,7 +1084,7 @@ function showGacha() {
 
   const el = screen(
     `<h2 class="head">🎰 ${isEraserGacha ? '消しゴムガチャ' : '特別ガチャ'}</h2>
-     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムも まざるよ</p>' : '<p class="note gacha-phase">文房具と 特別な消しゴムが出るよ。ウルトラレア・レジェンドも…！？</p>'}
+     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムも まざるよ</p>' : '<p class="note gacha-phase">文房具・特別な消しゴム・🍱給食シリーズが出るよ。ウルトラレア・レジェンドも…！？</p>'}
      <p class="note">同じものが 出ることも あるよ。2回目は ✨キラ（光る色ちがい）、3回目からは かけら（${GAME.collection.shardsPerTicket}こで チケット1枚）<br>
        チケットは CPUに勝つと もらえることがあるよ（${GAME.collection.pityMatches}戦ごとに 必ず1枚）。お金は いらないよ</p>
      <div class="gacha-machine">
