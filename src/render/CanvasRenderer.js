@@ -443,6 +443,21 @@ export class CanvasRenderer {
       ctx.lineTo(g.x2 + 3, g.y2 + 3);
       ctx.stroke();
     }
+    // ガス栓から ガスバーナーへの ゴムホース（机に ねているだけ。ぶつからない）
+    const tap = (f.posts || []).find((p) => p.kind === 'tap');
+    const burner = (f.posts || []).find((p) => p.kind === 'burner');
+    if (tap && burner) {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#c2410c';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(tap.x - 10, tap.y + 8);
+      ctx.bezierCurveTo(tap.x - 70, tap.y + 60, burner.x + 70, burner.y - 70, burner.x + 14, burner.y - 4);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,200,160,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
     for (const h of f.holes || []) {
       // 流し：ステンレスの くぼみと はいすい口
       const x = h.x - h.w / 2;
@@ -477,29 +492,269 @@ export class CanvasRenderer {
     ctx.closePath();
   }
 
-  // ガス栓（動かない じゃまもの）
+  // 机の 置物（動かない じゃまもの）
+  //  包丁は 机に ねている（上から見た絵）。ほかは 立っているので、横から見た絵を 画面の上むきに かく
   _drawPost(ctx, p) {
     ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.translate(p.x, p.y);
+    if (p.kind === 'knife') {
+      ctx.rotate(p.angle || 0);
+      this._drawKnife(ctx, p.w, p.h);
+      ctx.restore();
+      return;
+    }
+    ctx.rotate(-(this.view.rot || 0)); // 画面が回っていても 立って見えるように
+    const r = p.r;
+    // 机に落ちる かげ（ここが 当たる場所）
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
-    ctx.arc(p.x + 4, p.y + 6, p.r, 0, Math.PI * 2);
+    ctx.ellipse(3, 3, r * 1.1, r * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    const g = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, 2, p.x, p.y, p.r);
-    g.addColorStop(0, '#fff1b8');
-    g.addColorStop(0.5, '#d4a72c');
+    if (p.kind === 'burner') this._drawBurner(ctx, r);
+    else if (p.kind === 'tap') this._drawGasTap(ctx, r);
+    else if (p.kind === 'beaker') this._drawBeaker(ctx, r);
+    else if (p.kind === 'flask') this._drawFlask(ctx, r);
+    else {
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ガスバーナー：台・つつ・空気調節の輪・青いほのお
+  _drawBurner(ctx, r) {
+    // 台
+    ctx.fillStyle = '#2f353d';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, r * 1.05, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4b535e';
+    ctx.beginPath();
+    ctx.ellipse(0, -1, r * 1.05, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // つつ
+    const top = -r * 2.3;
+    const bw = r * 0.3;
+    const g = ctx.createLinearGradient(-bw, 0, bw, 0);
+    g.addColorStop(0, '#8d97a3');
+    g.addColorStop(0.45, '#f1f4f7');
+    g.addColorStop(1, '#6f7884');
+    ctx.fillStyle = g;
+    ctx.fillRect(-bw, top, bw * 2, -top);
+    ctx.fillStyle = '#3a4048';
+    ctx.beginPath();
+    ctx.ellipse(0, top, bw, bw * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // ガス調節ねじ・空気調節ねじ（金色の輪）
+    ctx.fillStyle = '#c99a1e';
+    ctx.fillRect(-bw * 1.35, -r * 0.75, bw * 2.7, r * 0.3);
+    ctx.fillStyle = '#e6bd45';
+    ctx.fillRect(-bw * 1.25, -r * 1.25, bw * 2.5, r * 0.3);
+    // ゴムホースの口
+    ctx.fillStyle = '#9aa3ad';
+    ctx.fillRect(bw, -r * 0.4, r * 0.6, r * 0.22);
+    // ほのお（ゆらゆら）
+    const t = performance.now() / 120;
+    const fh = r * (1.25 + 0.12 * Math.sin(t) + 0.06 * Math.sin(t * 2.3));
+    const flame = (w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-w, top - 1);
+      ctx.quadraticCurveTo(-w * 1.1, top - h * 0.5, 0, top - h);
+      ctx.quadraticCurveTo(w * 1.1, top - h * 0.5, w, top - 1);
+      ctx.closePath();
+      ctx.fill();
+    };
+    flame(bw * 1.05, fh, 'rgba(120,180,255,0.75)');
+    flame(bw * 0.6, fh * 0.55, 'rgba(40,90,240,0.9)');
+  }
+
+  // ガス栓：金色の 本体と 黄色い コック
+  _drawGasTap(ctx, r) {
+    ctx.fillStyle = '#6b7280';
+    ctx.fillRect(-r * 0.9, -r * 0.35, r * 1.8, r * 0.5); // 台
+    const g = ctx.createLinearGradient(-r * 0.5, 0, r * 0.5, 0);
+    g.addColorStop(0, '#a77d14');
+    g.addColorStop(0.45, '#f6d66a');
     g.addColorStop(1, '#8a6410');
     ctx.fillStyle = g;
+    ctx.fillRect(-r * 0.45, -r * 1.7, r * 0.9, r * 1.45); // 本体
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.ellipse(0, -r * 1.7, r * 0.45, r * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
-    // コック
-    ctx.fillStyle = '#e11d48';
-    ctx.fillRect(p.x - p.r * 0.75, p.y - 4, p.r * 1.5, 8);
-    ctx.fillStyle = '#5b4208';
+    // ホースをつなぐ口（ななめ下）
+    ctx.fillStyle = '#c9a227';
+    ctx.save();
+    ctx.translate(-r * 0.3, -r * 0.9);
+    ctx.rotate(0.5);
+    ctx.fillRect(-r * 1.1, -r * 0.14, r * 1.1, r * 0.28);
+    ctx.restore();
+    // コック（黄色いレバー）
+    ctx.fillStyle = '#facc15';
+    ctx.strokeStyle = '#a16207';
+    ctx.lineWidth = 1.5;
+    this._roundRect(ctx, -r * 0.3, -r * 2.15, r * 1.5, r * 0.4, r * 0.15);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#a16207';
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.arc(0, -r * 1.95, r * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ビーカー：ガラスと 水色の 水・目もり
+  _drawBeaker(ctx, r) {
+    const top = -r * 2.1;
+    const glass = () => {
+      ctx.beginPath();
+      ctx.moveTo(-r, top);
+      ctx.lineTo(-r, -r * 0.2);
+      ctx.quadraticCurveTo(-r, 0, -r * 0.8, 0);
+      ctx.lineTo(r * 0.8, 0);
+      ctx.quadraticCurveTo(r, 0, r, -r * 0.2);
+      ctx.lineTo(r, top);
+    };
+    // 水
+    const lv = top * 0.5;
+    ctx.save();
+    glass();
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(70,170,255,0.6)';
+    ctx.fillRect(-r, lv, r * 2, -lv);
+    ctx.fillStyle = 'rgba(150,215,255,0.8)';
+    ctx.beginPath();
+    ctx.ellipse(0, lv, r, r * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+    // ガラス
+    ctx.fillStyle = 'rgba(220,240,255,0.22)';
+    glass();
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(150,190,225,0.95)';
+    ctx.lineWidth = 2;
+    glass();
+    ctx.stroke();
+    // 口（そそぎ口つき）
+    ctx.beginPath();
+    ctx.ellipse(0, top, r, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-r, top);
+    ctx.lineTo(-r * 1.25, top - r * 0.2);
+    ctx.stroke();
+    // 目もり
+    ctx.lineWidth = 1.2;
+    for (let i = 1; i <= 4; i++) {
+      const y = top * (i / 5);
+      ctx.beginPath();
+      ctx.moveTo(r * 0.35, y);
+      ctx.lineTo(r * (i % 2 ? 0.75 : 0.6), y);
+      ctx.stroke();
+    }
+    // 光
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(-r * 0.75, top * 0.85, r * 0.15, -top * 0.6);
+  }
+
+  // 三角フラスコ：細い首と 緑の 液
+  _drawFlask(ctx, r) {
+    const nw = r * 0.3;
+    const top = -r * 2.6;
+    const neckEnd = -r * 1.75;
+    const body = () => {
+      ctx.beginPath();
+      ctx.moveTo(-nw, top);
+      ctx.lineTo(-nw, neckEnd);
+      ctx.lineTo(-r, -r * 0.18);
+      ctx.quadraticCurveTo(-r * 1.02, 0, -r * 0.8, 0);
+      ctx.lineTo(r * 0.8, 0);
+      ctx.quadraticCurveTo(r * 1.02, 0, r, -r * 0.18);
+      ctx.lineTo(nw, neckEnd);
+      ctx.lineTo(nw, top);
+    };
+    // 液
+    const lv = -r * 0.85;
+    ctx.save();
+    body();
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(60,200,120,0.65)';
+    ctx.fillRect(-r * 1.1, lv, r * 2.2, -lv);
+    ctx.fillStyle = 'rgba(150,240,180,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(0, lv, r * 0.62, r * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // ガラス
+    ctx.fillStyle = 'rgba(220,240,255,0.22)';
+    body();
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(150,190,225,0.95)';
+    ctx.lineWidth = 2;
+    body();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, top, nw * 1.25, nw * 0.4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // 光
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-nw * 0.4, top * 0.9);
+    ctx.lineTo(-nw * 0.4, neckEnd);
+    ctx.lineTo(-r * 0.6, -r * 0.45);
+    ctx.stroke();
+  }
+
+  // 包丁（上から見た絵）。x の − がわが 持つところ
+  _drawKnife(ctx, w, h) {
+    const hl = w * 0.36; // 持つところの長さ
+    const x0 = -w / 2;
+    // かげ
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(x0 + 3, -h / 2 + 4, w, h);
+    // 持つところ
+    ctx.fillStyle = '#5a3a22';
+    this._roundRect(ctx, x0, -h * 0.32, hl, h * 0.64, h * 0.25);
+    ctx.fill();
+    ctx.fillStyle = '#d9d9d9';
+    for (const k of [0.3, 0.7]) {
+      ctx.beginPath();
+      ctx.arc(x0 + hl * k, 0, h * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // つば
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(x0 + hl - 2, -h * 0.4, 5, h * 0.8);
+    // 刃
+    const bx = x0 + hl + 3;
+    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    g.addColorStop(0, '#9aa4ae');
+    g.addColorStop(0.5, '#f3f6f8');
+    g.addColorStop(1, '#c4ccd3');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(bx, -h / 2);
+    ctx.lineTo(w / 2 - h * 0.6, -h / 2);
+    ctx.quadraticCurveTo(w / 2, -h / 2, w / 2, -h * 0.35);
+    ctx.quadraticCurveTo(w / 2 - h * 0.8, h / 2, w / 2 - h * 2, h / 2);
+    ctx.lineTo(bx, h / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(80,90,100,0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // 刃先の光
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(bx + 2, h / 2 - 1.5);
+    ctx.lineTo(w / 2 - h * 2, h / 2 - 1.5);
+    ctx.stroke();
   }
 
   _drawStageZone(ctx, z) {

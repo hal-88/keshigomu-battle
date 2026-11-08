@@ -119,7 +119,9 @@ export class Game {
     this.posts = [];
     for (const p of this.desk.features?.posts || []) {
       if (!isInsideDesk(this.desk, p.x, p.y)) continue;
-      const body = Bodies.circle(p.x, p.y, p.r, { isStatic: true, restitution: p.bounce ?? 0.9, friction: 0.05 });
+      // 丸（ガスバーナー・ビーカーなど）か 四角（包丁。w・h・angle）
+      const opt = { isStatic: true, restitution: p.bounce ?? 0.9, friction: 0.05, angle: p.angle ?? 0 };
+      const body = p.w != null ? Bodies.rectangle(p.x, p.y, p.w, p.h, opt) : Bodies.circle(p.x, p.y, p.r, opt);
       body.label = 'pencil'; // 当たったときの音は えんぴつと同じ（かたい）
       Composite.add(this.engine.world, body);
       this.posts.push({ ...p, body });
@@ -2371,7 +2373,7 @@ export class Game {
       tilt: this.tilt,
       blackout: this.isBlackout(),
       blackHole: this.blackHole,
-      posts: this.posts.map((p) => ({ x: p.x, y: p.y, r: p.r, kind: p.kind })),
+      posts: this.posts.map((p) => ({ x: p.x, y: p.y, r: p.r, w: p.w, h: p.h, angle: p.angle ?? 0, kind: p.kind })),
       time: this.time,
       pencils: this.pencils
         .filter((pc) => pc.alive || (pc.fall && pc.fall.t < GAME.fallAnimMs))

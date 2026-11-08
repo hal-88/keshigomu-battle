@@ -93,14 +93,20 @@ export const DESKS = [
   {
     id: 'rika',
     name: '理科室の机',
-    desc: '真ん中にガス栓。はしの流しに落ちる！',
+    desc: '真ん中にガスバーナー。はしの流しに落ちる！',
     badge: '流し',
     shape: { type: 'rect', w: 720, h: 440 },
     frictionScale: 1.0,
     startSpreadY: 0.34, seatTilt: 0.6,
     look: { style: 'lab', top: '#2b2f36', edge: '#15181d', grain: '#3a404a' },
     features: {
-      posts: [{ kind: 'gas', x: 0, y: 0, r: 24, bounce: 0.9 }],
+      // 置物（動かない）。kind で絵がかわる。ガス栓とバーナーは ゴムホースでつながる
+      posts: [
+        { kind: 'burner', x: 0, y: 0, r: 24, bounce: 0.9 },
+        { kind: 'tap', x: 60, y: -190, r: 15, bounce: 0.8 },
+        { kind: 'beaker', x: -150, y: -140, r: 20, bounce: 0.5 },
+        { kind: 'flask', x: 170, y: 140, r: 22, bounce: 0.5 },
+      ],
       holes: [
         { kind: 'sink', x: -300, y: 0, w: 56, h: 110 },
         { kind: 'sink', x: 300, y: 0, w: 56, h: 110 },
@@ -140,8 +146,13 @@ export const DESKS = [
     look: { style: 'steel', top: '#cfd6dc', edge: '#7c8892', grain: '#bcc5cd' },
     features: {
       zones: [
-        { kind: 'board', x: -150, y: 40, w: 150, h: 100, scale: 2 },
-        { kind: 'board', x: 160, y: -50, w: 150, h: 100, scale: 2 },
+        { kind: 'board', x: -100, y: 25, w: 150, h: 100, scale: 2 },
+        { kind: 'board', x: 100, y: -25, w: 150, h: 100, scale: 2 },
+      ],
+      // まな板の上の 包丁（動かない。四角）
+      posts: [
+        { kind: 'knife', x: -90, y: 30, w: 96, h: 16, angle: -0.35, bounce: 0.6 },
+        { kind: 'knife', x: 90, y: -15, w: 96, h: 16, angle: 0.35, bounce: 0.6 },
       ],
     },
   },
