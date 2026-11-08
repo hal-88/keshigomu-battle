@@ -337,7 +337,7 @@ export function setupOnline(ui) {
                 (e) => `
               <button class="picker-item r-${e.rarity || 'normal'} ${e.id === st.eraserId ? 'on' : ''}" data-id="${e.id}">
                 <canvas></canvas>
-                <span>${e.name}</span>
+                <span>${collection.isFavorite(e.id) ? '★' : ''}${e.name}</span>
               </button>`,
               )
               .join('')}

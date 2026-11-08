@@ -24,6 +24,7 @@ export const GAME = {
   collection: {
     ticketChance: 0.2, // CPU にかったとき、ガチャチケットがもらえる確率
     pityMatches: 5, // この回数 たたかうと（勝っても負けても）、かならず1枚（CPU戦・オンライン）
+    maxFavorites: 3, // お気に入りの消しゴムの数
     streakBonusEvery: 3, // CPU れんしょうチャレンジで、この回数 連勝するごとにボーナスで1枚
     cpuPickLockedChance: 0.6, // CPU が「まだ持っていない消しゴム」を選ぶ確率（出会えるように）
   },

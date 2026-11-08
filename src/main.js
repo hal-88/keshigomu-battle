@@ -14,6 +14,7 @@ import { sfx, unlockAudio } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
 import { rewardsHTML } from './ui/rewardView.js';
 import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
+import { watchFit, stopFit } from './ui/fitScreen.js';
 import { makeBracket, setWinner, readyMatches, matchOf, isOut, champion, roundName } from './tournament/bracket.js';
 import { runAutoMatchAsync } from './tournament/autoMatch.js';
 import { bracketHTML } from './ui/bracketView.js';
@@ -55,8 +56,12 @@ document.addEventListener('click', (e) => {
 function screen(html, cls = '') {
   battle?.destroy();
   battle = null;
-  app.innerHTML = `<div class="screen ${cls}">${html}</div>`;
-  return app.firstElementChild;
+  // 中身は .screen-in に入れる（画面の大きさに 合わせて 小さくするため）
+  app.innerHTML = `<div class="screen ${cls}"><div class="screen-in">${html}</div></div>`;
+  const el = app.firstElementChild;
+  if (html) watchFit(el);
+  else stopFit(); // 対戦画面（中身なし）は 自分で 合わせる
+  return el;
 }
 
 // 描画は Web フォントの読み込みと画面のレイアウトを待ってから
@@ -207,7 +212,7 @@ function deskThumb(d) {
 function showDeskSelect() {
   const el = screen(
     `<h2 class="head">机を 選ぼう</h2>
-     <div class="choices">
+     <div class="choices desk-choices">
        ${DESKS.map(
          (d) => `
          <button class="choice desk-choice" data-id="${d.id}">
@@ -347,20 +352,22 @@ function traitLine(def) {
   return t ? `<div class="trait"><b>✨ ${t.name}</b> ${t.desc}</div>` : '';
 }
 
-function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
+function showEraserSelect(opts) {
+  const { title, selectedId, goLabel, onPick, onBack } = opts;
   let selected = selectedId;
   // 持っている消しゴム・文房具だけ出す（持っていないものは図鑑で見られる）
   const list = collection.ownedErasers();
   const lockedCount = REGULAR_ERASERS.filter((e) => !collection.owns(e.id)).length;
   const el = screen(
     `<h2 class="head">${title}</h2>
-     <p class="note tip">👆 2回タップで すぐ 決定！</p>
-     <div class="choices eraser-choices">
+     <p class="note tip">👆 2回タップで すぐ 決定！　☆を押すと お気に入り（${GAME.collection.maxFavorites}つまで・いちばん上に 出る）</p>
+     <div class="choices eraser-choices fit-scroll">
        ${list
          .map(
            (e) => `
-         <button class="choice eraser-choice ${rarityClass(e)} ${e.id === selected ? 'selected' : ''}" data-id="${e.id}">
+         <button class="choice eraser-choice ${rarityClass(e)} ${e.id === selected ? 'selected' : ''} ${collection.isFavorite(e.id) ? 'fav' : ''}" data-id="${e.id}">
            ${rarityTag(e)}
+           <span class="fav-btn ${collection.isFavorite(e.id) ? 'on' : ''}" data-fav="${e.id}" role="button" aria-label="お気に入り">${collection.isFavorite(e.id) ? '★' : '☆'}</span>
            ${e.champion ? '<div class="badge gacha">🏆優勝</div>' : e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
            ${winBadgeHTML(e.id)}
            <canvas class="eraser-thumb"></canvas>
@@ -405,8 +412,31 @@ function showEraserSelect({ title, selectedId, goLabel, onPick, onBack }) {
       choosable.forEach((x) => x.classList.toggle('selected', x === c));
     };
   });
+  // ☆：お気に入りに 入れる／はずす（入れると いちばん上へ）
+  el.querySelectorAll('.fav-btn').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const r = collection.toggleFavorite(b.dataset.fav);
+      if (!r.ok) {
+        miniToast(el, r.reason);
+        return;
+      }
+      sfx.tap();
+      showEraserSelect({ ...opts, selectedId: selected }); // ならびかえて 出しなおす
+    });
+  });
   el.querySelector('[data-act=back]').onclick = onBack;
   el.querySelector('[data-act=go]').onclick = () => onPick(selected);
+}
+
+/** 画面の下に 少しだけ出る おしらせ */
+function miniToast(el, text) {
+  el.querySelector('.mini-toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'mini-toast';
+  t.textContent = text;
+  el.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
 }
 
 // ---------- 5. カード配布 ----------
@@ -870,11 +900,25 @@ function eraserDetail(el, def) {
        ${traitLine(def)}
        <div class="stats">${statMeters(def.stats)}</div>
        ${engraveHTML(def.id)}
-       <button class="btn" data-act="close">閉じる</button>
+       <div class="row">
+         <button class="btn ${collection.isFavorite(def.id) ? 'fav-on' : ''}" data-act="fav">${collection.isFavorite(def.id) ? '★ お気に入り' : '☆ お気に入りに する'}</button>
+         <button class="btn" data-act="close">閉じる</button>
+       </div>
      </div>`,
   );
   ov.querySelector('.modal').classList.add('meters-in');
   whenFonts(() => drawEraserPreview(ov.querySelector('canvas'), def));
+  const favBtn = ov.querySelector('[data-act=fav]');
+  favBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    const r = collection.toggleFavorite(def.id);
+    if (!r.ok) {
+      miniToast(el, r.reason);
+      return;
+    }
+    favBtn.classList.toggle('fav-on', r.on);
+    favBtn.textContent = r.on ? '★ お気に入り' : '☆ お気に入りに する';
+  };
 }
 
 function showZukan(tab = 'eraser') {
@@ -924,7 +968,7 @@ function showZukan(tab = 'eraser') {
            <small>${count(t)}/${t.items.length}</small></button>`,
        ).join('')}
      </div>
-     <div class="zukan-grid ${cur.id === 'card' ? 'cards' : ''}">${cur.items.map(cell).join('')}</div>
+     <div class="zukan-grid fit-scroll ${cur.id === 'card' ? 'cards' : ''}">${cur.items.map(cell).join('')}</div>
      <p class="note">${note}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>

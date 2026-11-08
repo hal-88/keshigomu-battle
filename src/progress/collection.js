@@ -16,6 +16,7 @@ const fresh = () => ({
   wins: 0,
   pulls: 0,
   bestStreak: 0, // CPU 連勝チャレンジのベスト記録
+  favorites: [], // お気に入りの消しゴム（3つまで。選ぶ画面で いちばん上に出る）
   trophies: [], // トーナメントで優勝した記録 [{ date, size, cup, name, usedEraserId, eraserId }]
 });
 
@@ -60,7 +61,32 @@ const addUnique = (list, ids) => {
 
 export const collection = {
   owns: (id) => data.owned.includes(id),
-  ownedErasers: () => ERASERS.filter((e) => data.owned.includes(e.id)),
+  /** 持っている消しゴム（お気に入りが 先。お気に入りどうしは 登録した順） */
+  ownedErasers: () => {
+    const fav = (data.favorites || []).filter((id) => data.owned.includes(id));
+    const owned = ERASERS.filter((e) => data.owned.includes(e.id));
+    return [...fav.map((id) => owned.find((e) => e.id === id)), ...owned.filter((e) => !fav.includes(e.id))];
+  },
+  isFavorite: (id) => (data.favorites || []).includes(id),
+  favorites: () => [...(data.favorites || [])],
+  /**
+   * お気に入りに 入れる／はずす（3つまで）
+   * @returns {{ ok: boolean, on: boolean, reason?: string }}
+   */
+  toggleFavorite(id) {
+    const fav = data.favorites || [];
+    if (fav.includes(id)) {
+      data.favorites = fav.filter((x) => x !== id);
+      save();
+      return { ok: true, on: false };
+    }
+    if (fav.length >= GAME.collection.maxFavorites) {
+      return { ok: false, on: false, reason: `お気に入りは ${GAME.collection.maxFavorites}つまで。どれかを はずしてね` };
+    }
+    data.favorites = [...fav, id];
+    save();
+    return { ok: true, on: true };
+  },
   hasSeen: (id) => data.seen.includes(id),
   hasSeenCard: (id) => data.cardsSeen.includes(id),
   tickets: () => data.tickets,

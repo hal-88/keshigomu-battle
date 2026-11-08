@@ -30,15 +30,13 @@ body {
 }
 
 /* ---- 共通の画面（ノートのマス目） ---- */
+/* .screen は 画面いっぱいの わく（スクロールしない）。中身は .screen-in。はみ出すときは fitScreen.js が 小さくする */
 .screen {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 18px;
-  padding: 24px 16px;
-  overflow-y: auto;
+  overflow: hidden;
   background-color: var(--bg);
   background-image:
     linear-gradient(var(--line) 1px, transparent 1px),
@@ -47,11 +45,52 @@ body {
 }
 
 /* 画面より長いときも上が切れないように、上下の余白で真ん中に寄せる */
-.screen > :first-child {
+.screen-in {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+.screen-in > :first-child {
   margin-top: auto;
 }
-.screen > :last-child {
+.screen-in > :last-child {
   margin-bottom: auto;
+}
+/* 小さくして 1画面に おさめる */
+.screen-in.scaled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  flex: none;
+  transform-origin: 0 0;
+}
+/* 数が多い一覧：一覧の中だけ スクロール（見出しと ボタンは いつも 出ている） */
+.screen-in.has-scroll > :first-child {
+  margin-top: 0;
+}
+.screen-in.has-scroll > :last-child {
+  margin-bottom: 0;
+}
+.screen-in.has-scroll .fit-scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 4px 6px 10px;
+  box-sizing: border-box;
+  align-content: start;
+}
+.screen-in.has-scroll {
+  gap: 10px;
 }
 
 .head {
@@ -1082,6 +1121,14 @@ canvas.board {
 .overlay.fixed {
   position: fixed;
   z-index: 20;
+}
+/* 小さい画面でも まどが はみ出さないように */
+.overlay .modal,
+.overlay .announce {
+  max-height: calc(100dvh - 24px);
+  max-width: calc(100vw - 24px);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 .modal.detail {
   background: #fff;
@@ -2333,10 +2380,9 @@ canvas.board {
   gap: 12px;
 }
 .bracket-wrap {
-  width: 100%;
-  max-width: 980px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  /* はみ出すときは 画面ごと 小さくする（fitScreen.js） */
+  width: max-content;
+  max-width: none;
   padding-bottom: 6px;
 }
 .bracket {
@@ -2583,4 +2629,122 @@ canvas.board {
   font-size: 0.85em;
   color: #b8860b;
   white-space: nowrap;
+}
+
+/* ---- お気に入り ---- */
+.fav-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  color: #c9b99a;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.fav-btn.on {
+  color: #ffb300;
+  text-shadow: 0 0 6px rgba(255, 190, 0, 0.7);
+}
+.fav-btn:active {
+  transform: scale(1.25);
+}
+.eraser-choice .badge {
+  right: 44px;
+}
+.eraser-choice.fav {
+  box-shadow: 0 0 0 3px #ffd54f, 0 4px 0 rgba(0, 0, 0, 0.12);
+}
+.btn.fav-on {
+  background: #fff3c4;
+  border-color: #ffb300;
+}
+.mini-toast {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  z-index: 40;
+  transform: translateX(-50%);
+  background: rgba(40, 30, 20, 0.92);
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+  padding: 12px 20px;
+  border-radius: 16px;
+  width: max-content;
+  max-width: calc(100vw - 48px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ---- スマホ（たて）：1画面に たくさん 出るように 小さめに ---- */
+@media (max-width: 560px) {
+  .eraser-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .eraser-choice {
+    padding: 8px 8px 10px;
+    border-radius: 14px;
+  }
+  .eraser-choice .choice-desc {
+    display: none;
+  }
+  .eraser-choice .trait {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .eraser-choice .eraser-thumb {
+    height: 46px;
+  }
+  .eraser-choice .choice-name {
+    font-size: 15px;
+  }
+  .eraser-choice .stats {
+    font-size: 11px;
+  }
+  .eraser-choice .rarity-tag {
+    font-size: 9px;
+    padding: 1px 6px;
+  }
+  .eraser-choice .badge {
+    display: none;
+  }
+  .desk-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .desk-choices .choice {
+    padding: 10px;
+  }
+  .desk-choices .choice-desc {
+    font-size: 12px;
+  }
+}
+
+/* 16人の トーナメント表は たてに つめる（1画面に 大きく 出るように） */
+.bracket.n16 .br-matches {
+  gap: 4px;
+}
+.bracket.n16 .br-match {
+  padding: 2px 4px;
+}
+.bracket.n16 .br-slot {
+  min-height: 26px;
+  padding: 0 4px;
+}
+.bracket.n16 .br-eraser {
+  width: 32px;
+  height: 22px;
+}
+.bracket.n16 .br-name small {
+  display: none;
+}
+.bracket.n16 .br-desk {
+  display: none;
 }
