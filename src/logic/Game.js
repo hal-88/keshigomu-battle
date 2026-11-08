@@ -70,6 +70,9 @@ export class Game {
     this.blackout = null; // ていでん { fromTurn, untilTurn }
     this.blackHole = null; // ブラックホール { x, y, r, R, pull, untilTurn }
 
+    this.posts = []; // ステージの 動かない じゃまもの（ガス栓など）
+    this._setupStage();
+
     this.turnIndex = Math.max(0, Math.min(this.players.length - 1, firstTurn)); // いま弾く人（さいしょはルーレットで決めた人）
     this.turnCount = 1; // 全体で何ターン目か
     this.turn = this._newTurn();
@@ -98,11 +101,104 @@ export class Game {
     return { flicked: false, extraFlicks: 0, curve: null, steer: null, homing: null, powerMul: 1, flickAt: -1 };
   }
 
+  // ---- ステージの しかけ（desks.js の features）----
+  //   zones  … すべりやすさが かわる場所（rect か circle。scale が 1より小さいと つるつる、大きいと すべりにくい）
+  //            kind: gap（すき間）/ board（まな板）/ paint（絵の具）/ rim（トレーのふち。わくの線だけ）
+  //   holes  … 穴（rect）。消しゴムの まん中が 入ると 落ちる（流し）
+  //   posts  … 動かない 丸いじゃまもの（ガス栓）
+  //   grooves… みぞ（線）。上を通ると、みぞの向きに 引っぱられる
+  //   spills … { every, r, scale } 何ターンかに1回、どこかに すべる水たまり（牛乳）
+  _setupStage() {
+    const f = this.desk.features || {};
+    for (const z of f.zones || []) this.waxZones.push({ ...z, owner: -1, stage: true });
+    this._addPosts();
+  }
+
+  _addPosts() {
+    for (const p of this.posts) Composite.remove(this.engine.world, p.body);
+    this.posts = [];
+    for (const p of this.desk.features?.posts || []) {
+      if (!isInsideDesk(this.desk, p.x, p.y)) continue;
+      const body = Bodies.circle(p.x, p.y, p.r, { isStatic: true, restitution: p.bounce ?? 0.9, friction: 0.05 });
+      body.label = 'pencil'; // 当たったときの音は えんぴつと同じ（かたい）
+      Composite.add(this.engine.world, body);
+      this.posts.push({ ...p, body });
+    }
+  }
+
+  /** (x, y) が しかけの場所（rect / circle / rim）に 入っているか */
+  _inZone(z, x, y) {
+    if (z.w != null) {
+      const ix = Math.abs(x - z.x) <= z.w / 2;
+      const iy = Math.abs(y - z.y) <= z.h / 2;
+      if (!ix || !iy) return false;
+      if (z.kind === 'rim') {
+        // トレーの ふち：まわりの わくの線だけ
+        const t = z.rim ?? 10;
+        return Math.abs(x - z.x) > z.w / 2 - t || Math.abs(y - z.y) > z.h / 2 - t;
+      }
+      return true;
+    }
+    return (x - z.x) ** 2 + (y - z.y) ** 2 <= z.r * z.r;
+  }
+
+  /** 穴（流し）に 入っているか */
+  _inStageHole(x, y) {
+    return (this.desk.features?.holes || []).some((h) => Math.abs(x - h.x) <= h.w / 2 && Math.abs(y - h.y) <= h.h / 2);
+  }
+
+  /** みぞ：上を 動いている消しゴムを、みぞの向きに 少し 引っぱる */
+  _applyGrooves(dt) {
+    const gs = this.desk.features?.grooves;
+    if (!gs?.length) return;
+    const k = dt / BASE_DT;
+    for (const e of this._allPieces()) {
+      if (!e.alive || e.body.isStatic || e.airborne || e.body.speed < 0.4) continue;
+      const p = e.body.position;
+      for (const g of gs) {
+        if (pointSegDist(p.x, p.y, g.x1, g.y1, g.x2, g.y2) > (g.width ?? 12)) continue;
+        let dx = g.x2 - g.x1;
+        let dy = g.y2 - g.y1;
+        const l = Math.hypot(dx, dy) || 1;
+        dx /= l;
+        dy /= l;
+        const v = e.body.velocity;
+        if (v.x * dx + v.y * dy < 0) [dx, dy] = [-dx, -dy]; // 進んでいる向きに近いほうへ
+        const sp = e.body.speed;
+        const a = (g.pull ?? 0.12) * k;
+        const nx = v.x + (dx * sp - v.x) * a;
+        const ny = v.y + (dy * sp - v.y) * a;
+        const nl = Math.hypot(nx, ny) || 1;
+        Body.setVelocity(e.body, { x: (nx / nl) * sp, y: (ny / nl) * sp });
+        break;
+      }
+    }
+  }
+
+  /** 牛乳が こぼれる（何ターンかに1回。あいている場所に すべる水たまり） */
+  _maybeSpill() {
+    const sp = this.desk.features?.spills;
+    if (!sp || this.turnCount % (sp.every ?? 3) !== 0) return;
+    const { w, h } = deskSize(this.desk);
+    for (let tries = 0; tries < 20; tries++) {
+      const x = (Math.random() - 0.5) * w * 0.8;
+      const y = (Math.random() - 0.5) * h * 0.8;
+      if (!isInsideDesk(this.desk, x, y) || edgeClearance(this.desk, x, y) < sp.r * 0.5) continue;
+      if (this._inStageHole(x, y)) continue;
+      this.waxZones.push({ x, y, r: sp.r ?? 55, scale: sp.scale ?? 0.35, owner: -1, kind: 'milk', stage: true });
+      // 古い水たまりから かわく
+      const milks = this.waxZones.filter((z) => z.kind === 'milk');
+      if (milks.length > (sp.max ?? 3)) this.waxZones.splice(this.waxZones.indexOf(milks[0]), 1);
+      this._emit('stageFx', { type: 'spill', x, y });
+      return;
+    }
+  }
+
   /** はじめの席。1人目は画面の下（手前）で、そこから時計回り（2人なら 手前と むこう） */
   _startPosition(i, n) {
     const { w, h } = deskSize(this.desk);
     const two = n === 2; // ななめの席・たての広がりは 2人のときだけ（3〜4人だと つまってしまう）
-    const a = Math.PI / 2 + (i / n) * Math.PI * 2 + (two ? this.desk.seatTilt ?? 0 : 0);
+    const a = Math.PI / 2 + (i / n) * Math.PI * 2 + (two ? this.desk.seatTilt ?? 0 : 0) + (this.desk.seatTiltAll ?? 0);
     const k = this.desk.startSpread ?? 0.3;
     const ky = two ? this.desk.startSpreadY ?? k : k;
     return { x: Math.cos(a) * w * k, y: Math.sin(a) * h * ky, a };
@@ -963,6 +1059,7 @@ export class Game {
     if (this.phase !== 'over') {
       this._applyTraitsBeforeStep(dt);
       this._applySteer(dt);
+      this._applyGrooves(dt);
       this._applyDeskBrake(dt);
       Engine.update(this.engine, dt);
       this._hatchEggs();
@@ -1158,9 +1255,9 @@ export class Game {
     let lo = 1; // つるつる（ワックス・こおり）
     let hi = 1; // ざらざら（けしくず）
     for (const z of this.waxZones) {
-      if (this._guarded(e, z.owner)) continue;
+      if (!z.stage && this._guarded(e, z.owner)) continue; // 机の しかけは クロケシにも きく
       if (z.kind === 'ice' && z.by === e.playerIndex) continue; // アイスケシは 自分の こおりでは すべらない
-      if ((x - z.x) ** 2 + (y - z.y) ** 2 > z.r * z.r) continue;
+      if (!this._inZone(z, x, y)) continue;
       if (z.scale < 1) lo = Math.min(lo, z.scale);
       else hi = Math.max(hi, z.scale);
     }
@@ -1639,7 +1736,7 @@ export class Game {
       if (!e.alive || e.airborne) continue; // ジャンプ中は 空中なので まだ落ちない
       const p = e.body.position;
       const bh = this.blackHole;
-      const inHole = bh && Math.hypot(p.x - bh.x, p.y - bh.y) < bh.r;
+      const inHole = (bh && Math.hypot(p.x - bh.x, p.y - bh.y) < bh.r) || this._inStageHole(p.x, p.y);
       if (isInsideDesk(this.desk, p.x, p.y) && !inHole) continue;
 
       // クッション（カード）：弾いた消しゴムが ふちで1回 はね返る
@@ -1786,6 +1883,10 @@ export class Game {
       Composite.remove(this.engine.world, pc.body);
     }
     this.waxZones = this.waxZones.filter((z) => isInsideDesk(this.desk, z.x, z.y));
+    for (const p of this.posts) {
+      if (!isInsideDesk(this.desk, p.x, p.y)) Composite.remove(this.engine.world, p.body);
+    }
+    this.posts = this.posts.filter((p) => isInsideDesk(this.desk, p.x, p.y));
   }
 
   _updateFalls(dt) {
@@ -1928,6 +2029,7 @@ export class Game {
     // かたむき・ていでん・ブラックホールの おわり
     if (this.tilt && this.turnCount >= this.tilt.untilTurn) this.tilt = null;
     if (this.blackout && this.turnCount >= this.blackout.untilTurn) this.blackout = null;
+    this._maybeSpill();
     if (this.blackHole && this.turnCount >= this.blackHole.untilTurn) {
       this.blackHole = null;
       this._emit('cardFx', { type: 'holeClose', playerIndex: next, x: 0, y: 0 });
@@ -2178,6 +2280,8 @@ export class Game {
     for (const j of st.junk || []) this._addJunk(j);
     this._nextJid = st.nextJid || this._nextJid;
     this.waxZones = (st.waxZones || []).map((z) => ({ ...z }));
+    this.posts = [];
+    this._addPosts(); // 机の しかけ（ガス栓）は 机の設定から つくりなおす
   }
 
   /** オンラインで通信が切れた人を脱落させる（いまの番ならつぎの人へ） */
@@ -2267,6 +2371,7 @@ export class Game {
       tilt: this.tilt,
       blackout: this.isBlackout(),
       blackHole: this.blackHole,
+      posts: this.posts.map((p) => ({ x: p.x, y: p.y, r: p.r, kind: p.kind })),
       time: this.time,
       pencils: this.pencils
         .filter((pc) => pc.alive || (pc.fall && pc.fall.t < GAME.fallAnimMs))

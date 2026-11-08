@@ -71,6 +71,97 @@ export const DESKS = [
     suddenDeath: { shrinkPerTurn: 55 },
     look: { style: 'wood', top: '#d7b07c', edge: '#8e6236', grain: '#c39662' },
   },
+
+  // ---- 教室シリーズ（しかけつき。features の書き方は Game.js の _setupStage） ----
+  {
+    id: 'han',
+    name: '班の机',
+    desc: '4つの机をくっつけた。すき間で止まる',
+    badge: 'すき間',
+    shape: { type: 'rect', w: 760, h: 520 },
+    frictionScale: 1.0,
+    seatTiltAll: Math.PI / 4, // すき間の十字をさけて、それぞれの机に すわる
+    startSpread: 0.3,
+    look: { style: 'wood', top: '#e3c08e', edge: '#a87a4c', grain: '#cfa46d' },
+    features: {
+      zones: [
+        { kind: 'gap', x: 0, y: 0, w: 14, h: 520, scale: 3.5 }, // たてのすき間（落ちない。止まる）
+        { kind: 'gap', x: 0, y: 0, w: 760, h: 14, scale: 3.5 }, // よこのすき間
+      ],
+    },
+  },
+  {
+    id: 'rika',
+    name: '理科室の机',
+    desc: '真ん中にガス栓。はしの流しに落ちる！',
+    badge: '流し',
+    shape: { type: 'rect', w: 720, h: 440 },
+    frictionScale: 1.0,
+    startSpreadY: 0.34, seatTilt: 0.6,
+    look: { style: 'lab', top: '#2b2f36', edge: '#15181d', grain: '#3a404a' },
+    features: {
+      posts: [{ kind: 'gas', x: 0, y: 0, r: 24, bounce: 0.9 }],
+      holes: [
+        { kind: 'sink', x: -300, y: 0, w: 56, h: 110 },
+        { kind: 'sink', x: 300, y: 0, w: 56, h: 110 },
+      ],
+    },
+  },
+  {
+    id: 'zuko',
+    name: '図工室の机',
+    desc: '彫刻刀のみぞで曲がる。絵の具はつるっ',
+    badge: 'みぞ',
+    shape: { type: 'rect', w: 660, h: 430 },
+    frictionScale: 1.0,
+    startSpreadY: 0.34, seatTilt: 0.6,
+    look: { style: 'old', top: '#c99a62', edge: '#7d5530', grain: '#a9784a' },
+    features: {
+      grooves: [
+        { x1: -250, y1: -120, x2: -40, y2: 30, width: 12, pull: 0.08 },
+        { x1: 60, y1: -150, x2: 230, y2: -20, width: 12, pull: 0.08 },
+        { x1: -120, y1: 120, x2: 150, y2: 90, width: 12, pull: 0.08 },
+      ],
+      zones: [
+        { kind: 'paint', x: 150, y: 60, r: 42, scale: 0.4, color: '#3b82f6' },
+        { kind: 'paint', x: -170, y: -10, r: 36, scale: 0.4, color: '#ef4444' },
+        { kind: 'paint', x: 20, y: -100, r: 30, scale: 0.4, color: '#facc15' },
+      ],
+    },
+  },
+  {
+    id: 'kateika',
+    name: '家庭科室の調理台',
+    desc: 'ステンレスでつるつる。まな板はすべりにくい',
+    badge: 'つるつる',
+    shape: { type: 'rect', w: 680, h: 440 },
+    frictionScale: 0.7,
+    startSpreadY: 0.34, seatTilt: 0.6,
+    look: { style: 'steel', top: '#cfd6dc', edge: '#7c8892', grain: '#bcc5cd' },
+    features: {
+      zones: [
+        { kind: 'board', x: -150, y: 40, w: 150, h: 100, scale: 2 },
+        { kind: 'board', x: 160, y: -50, w: 150, h: 100, scale: 2 },
+      ],
+    },
+  },
+  {
+    id: 'kyushokuTime',
+    name: '給食の時間',
+    desc: 'トレーのふちが段差。牛乳がこぼれる！',
+    badge: '牛乳',
+    shape: { type: 'rect', w: 660, h: 430 },
+    frictionScale: 1.0,
+    startSpreadY: 0.34, seatTilt: 0.6,
+    look: { style: 'wood', top: '#e8cfa2', edge: '#a8835a', grain: '#d6b884' },
+    features: {
+      zones: [
+        { kind: 'rim', x: -150, y: 95, w: 200, h: 140, rim: 12, scale: 3.5 },
+        { kind: 'rim', x: 150, y: -95, w: 200, h: 140, rim: 12, scale: 3.5 },
+      ],
+      spills: { every: 3, r: 50, scale: 0.35, max: 3 }, // 3ターンに1回 牛乳がこぼれる
+    },
+  },
 ];
 
 export const findDesk = (id) => DESKS.find((d) => d.id === id);

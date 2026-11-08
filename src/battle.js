@@ -31,7 +31,7 @@ const PLACE_HINT = {
 // オンラインで、ほかの人の画面にも送る「できごと」（音や演出のため）
 const STREAM_EVENTS = new Set([
   'flick', 'hit', 'fall', 'hold', 'card', 'split', 'pieceFall', 'trait', 'cardFx',
-  'again', 'resume', 'skipped', 'shrinkWarn', 'shrink', 'newCard', 'nextCard',
+  'again', 'resume', 'skipped', 'shrinkWarn', 'shrink', 'newCard', 'nextCard', 'stageFx',
 ]);
 
 /**
@@ -486,6 +486,13 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       renderer.addEffect({ type: 'text', x, y, text: '🍓 混乱！', color: '#ff6f91', stroke: true, size: 24, dur: 1400 });
       if (p.type === 'human') later(400, () => toast(`${p.name}は 混乱！ 次は 反対に飛んじゃうかも`, '#ff6f91'));
     }
+  });
+
+  // 机の しかけ（給食の時間：牛乳が こぼれた）
+  on('stageFx', ({ type, x, y }) => {
+    if (type !== 'spill') return;
+    sfx.boing();
+    renderer.addEffect({ type: 'text', x, y, text: '🥛 こぼれた！', color: '#ffffff', stroke: true, size: 24, dur: 1400 });
   });
 
   on('cardFx', ({ type, playerIndex, x, y }) => {

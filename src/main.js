@@ -212,7 +212,7 @@ function deskThumb(d) {
 function showDeskSelect() {
   const el = screen(
     `<h2 class="head">机を 選ぼう</h2>
-     <div class="choices desk-choices">
+     <div class="choices desk-choices fit-scroll">
        ${DESKS.map(
          (d) => `
          <button class="choice desk-choice" data-id="${d.id}">

@@ -159,7 +159,9 @@ export class CanvasRenderer {
     }
 
     this._drawDesk(ctx, state.desk);
+    this._drawStageUnder(ctx, state.desk.features);
     for (const zone of state.waxZones) this._drawWax(ctx, zone, now);
+    for (const p of state.posts || []) this._drawPost(ctx, p);
     if (state.tilt) this._drawTilt(ctx, state, now);
     if (state.blackHole) this._drawBlackHole(ctx, state.blackHole, now);
     if (state.pendingShrink) this._drawShrinkWarning(ctx, state.desk, state.pendingShrink, now);
@@ -350,6 +352,36 @@ export class CanvasRenderer {
         ctx.fill();
       }
     }
+    if (L.style === 'lab') {
+      // 理科室：黒い天板の つや
+      ctx.globalAlpha = 1;
+      const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+      g.addColorStop(0, 'rgba(255,255,255,0.10)');
+      g.addColorStop(0.5, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,0.06)');
+      ctx.fillStyle = g;
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+    }
+    if (L.style === 'old') {
+      // 図工室：古い木の しみと きず
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(90,55,25,0.18)';
+      for (let i = 0; i < 9; i++) {
+        ctx.beginPath();
+        ctx.ellipse(-w / 2 + ((i * 173) % w), -h / 2 + ((i * 89) % h), 18 + (i % 4) * 8, 10 + (i % 3) * 5, i, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(70,40,15,0.3)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 14; i++) {
+        const x = -w / 2 + ((i * 131) % w);
+        const y = -h / 2 + ((i * 71) % h);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 14 + (i % 5) * 4, y + ((i % 3) - 1) * 6);
+        ctx.stroke();
+      }
+    }
     if (L.style === 'wax') {
       // ワックス机：ななめのつや
       ctx.globalAlpha = 1;
@@ -390,7 +422,164 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
+  // ---- ステージの しかけ ----
+  // みぞ・流し（消しゴムの下に かく）
+  _drawStageUnder(ctx, f) {
+    if (!f) return;
+    ctx.save();
+    for (const g of f.grooves || []) {
+      // 彫刻刀の みぞ：こい線と、ふちの明るい線
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(70,40,15,0.55)';
+      ctx.lineWidth = (g.width ?? 12) * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(g.x1, g.y1);
+      ctx.lineTo(g.x2, g.y2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,230,190,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(g.x1 + 3, g.y1 + 3);
+      ctx.lineTo(g.x2 + 3, g.y2 + 3);
+      ctx.stroke();
+    }
+    for (const h of f.holes || []) {
+      // 流し：ステンレスの くぼみと はいすい口
+      const x = h.x - h.w / 2;
+      const y = h.y - h.h / 2;
+      ctx.fillStyle = '#9aa5ae';
+      this._roundRect(ctx, x - 5, y - 5, h.w + 10, h.h + 10, 10);
+      ctx.fill();
+      const g = ctx.createLinearGradient(x, y, x + h.w, y + h.h);
+      g.addColorStop(0, '#4b5560');
+      g.addColorStop(1, '#1d232a');
+      ctx.fillStyle = g;
+      this._roundRect(ctx, x, y, h.w, h.h, 8);
+      ctx.fill();
+      ctx.fillStyle = '#0b0e12';
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#7d8893';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  _roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ガス栓（動かない じゃまもの）
+  _drawPost(ctx, p) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.arc(p.x + 4, p.y + 6, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    const g = ctx.createRadialGradient(p.x - p.r * 0.4, p.y - p.r * 0.4, 2, p.x, p.y, p.r);
+    g.addColorStop(0, '#fff1b8');
+    g.addColorStop(0.5, '#d4a72c');
+    g.addColorStop(1, '#8a6410');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    // コック
+    ctx.fillStyle = '#e11d48';
+    ctx.fillRect(p.x - p.r * 0.75, p.y - 4, p.r * 1.5, 8);
+    ctx.fillStyle = '#5b4208';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _drawStageZone(ctx, z) {
+    ctx.save();
+    if (z.kind === 'gap') {
+      // 机と机の すき間
+      ctx.fillStyle = 'rgba(60,35,15,0.75)';
+      ctx.fillRect(z.x - z.w / 2, z.y - z.h / 2, z.w, z.h);
+      ctx.fillStyle = 'rgba(255,240,210,0.3)';
+      if (z.w < z.h) ctx.fillRect(z.x - z.w / 2, z.y - z.h / 2, 2, z.h);
+      else ctx.fillRect(z.x - z.w / 2, z.y - z.h / 2, z.w, 2);
+    } else if (z.kind === 'board') {
+      // まな板
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      this._roundRect(ctx, z.x - z.w / 2 + 3, z.y - z.h / 2 + 4, z.w, z.h, 8);
+      ctx.fill();
+      ctx.fillStyle = '#f3e3c3';
+      this._roundRect(ctx, z.x - z.w / 2, z.y - z.h / 2, z.w, z.h, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(160,120,70,0.35)';
+      ctx.lineWidth = 1.5;
+      for (let i = 1; i < 5; i++) {
+        const yy = z.y - z.h / 2 + (i * z.h) / 5;
+        ctx.beginPath();
+        ctx.moveTo(z.x - z.w / 2 + 8, yy);
+        ctx.lineTo(z.x + z.w / 2 - 8, yy + 2);
+        ctx.stroke();
+      }
+    } else if (z.kind === 'rim') {
+      // 給食の トレー：ふちが 段差
+      const t = z.rim ?? 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      this._roundRect(ctx, z.x - z.w / 2 + 3, z.y - z.h / 2 + 5, z.w, z.h, 14);
+      ctx.fill();
+      ctx.fillStyle = '#7fb6a6';
+      this._roundRect(ctx, z.x - z.w / 2, z.y - z.h / 2, z.w, z.h, 14);
+      ctx.fill();
+      ctx.fillStyle = '#a9d6c8';
+      this._roundRect(ctx, z.x - z.w / 2 + t, z.y - z.h / 2 + t, z.w - t * 2, z.h - t * 2, 9);
+      ctx.fill();
+      // お皿のくぼみ
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(z.x - z.w * 0.22, z.y, z.w * 0.16, z.h * 0.26, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(z.x + z.w * 0.22, z.y, z.w * 0.16, z.h * 0.26, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 絵の具・牛乳：水たまり（ふちが でこぼこ）
+      const col = z.kind === 'milk' ? 'rgba(255,255,255,0.88)' : z.color || '#3b82f6';
+      ctx.fillStyle = col;
+      ctx.globalAlpha = z.kind === 'milk' ? 1 : 0.75;
+      ctx.beginPath();
+      const n = 36;
+      const sd = z.x * 0.13 + z.y * 0.07;
+      for (let i = 0; i <= n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const rr = z.r * (0.88 + 0.08 * Math.sin(a * 3 + sd) + 0.05 * Math.sin(a * 5 + sd * 2));
+        const px = z.x + Math.cos(a) * rr;
+        const py = z.y + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = z.kind === 'milk' ? 'rgba(160,190,220,0.7)' : 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.beginPath();
+      ctx.ellipse(z.x - z.r * 0.3, z.y - z.r * 0.3, z.r * 0.22, z.r * 0.1, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   _drawWax(ctx, z, now) {
+    if (z.stage || z.kind === 'milk') return this._drawStageZone(ctx, z);
     if (z.kind === 'ice') return this._drawIce(ctx, z, now);
     if (z.kind === 'crumbs' || (z.scale && z.scale > 1)) return this._drawCrumbs(ctx, z);
     ctx.save();
