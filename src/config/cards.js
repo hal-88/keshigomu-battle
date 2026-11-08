@@ -119,7 +119,7 @@ export const CARDS = [
   },
   {
     id: 'okawari', name: 'おかわり', icon: '🎁', type: 'fun', rarity: 'superrare',
-    desc: 'カードを2枚引いて、すぐに2枚とも使える',
+    desc: 'ちがうカードを2枚引いて、2枚とも いっしょに使う（能力が2つ乗る！）',
     params: { draw: 2 },
   },
   {

@@ -377,6 +377,11 @@ export class Game {
     const dy = b.body.position.y - a.body.position.y;
     const d = Math.hypot(dx, dy) || 1;
     const want = this.pieceExtent(a) + this.pieceExtent(b) + 4;
+    // のびすぎたら・時間がたったら 糸が 切れる（ずっと 動きつづけないように）
+    if (this.time > st.until || d > want + 70) {
+      this.turn.stuck = null;
+      return;
+    }
     const pull = d > want ? Math.min(1.5, (d - want) * 0.05) : 0;
     Body.setVelocity(a.body, { x: vx + (dx / d) * pull, y: vy + (dy / d) * pull });
     Body.setVelocity(b.body, { x: vx - (dx / d) * pull, y: vy - (dy / d) * pull });
@@ -1051,13 +1056,35 @@ export class Game {
       return { ok: true };
     }
 
-    // おかわり：カードを何枚かひいて、このターンにそのまま使える（1枚使うと次のカードに）
+    // おかわり：ちがうカードを何枚かひいて、2枚とも いっしょに 使う（能力が 2つ 乗る）
+    //   場所や 相手を えらぶカードは、そのあと すぐ えらぶ（cardQueue）
     if (def.id === 'okawari') {
       const cards = [];
-      for (let k = 0; k < (prm.draw ?? 2); k++) cards.push(drawRandomCard(['okawari', 'roulette']));
-      p.card = { def: cards[0], used: false };
-      p.cardQueue = cards.slice(1);
-      this._emit('newCard', { playerIndex: i, cards });
+      const no = ['okawari', 'roulette', 'tameuchi', 'thief']; // ターンが 終わる・カードが 入れかわるものは 出ない
+      if (!e.prevTurnPos) no.push('rewind'); // まだ 戻る場所が ない
+      for (let k = 0; k < (prm.draw ?? 2); k++) {
+        const c = drawRandomCard([...no, ...cards.map((x) => x.id)]);
+        cards.push(c);
+      }
+      this._emit('newCard', { playerIndex: i, cards, together: true });
+      const later = [];
+      for (const c of cards) {
+        const needs = c.place || (c.target && this.opponentsOf(i, c.id).length > 1);
+        if (needs) {
+          later.push(c);
+          continue;
+        }
+        p.card = { def: c, used: false };
+        p.cardQueue = [];
+        // 地震・扇風機などで 動き出していても、もう1枚も いっしょに 使う
+        const moving = this.phase !== 'aim';
+        this.phase = 'aim';
+        this.useCard(i, {});
+        if (moving && this.phase === 'aim') this._startMotion('settling');
+      }
+      p.card = later.length ? { def: later[0], used: false } : { def, used: true };
+      p.cardQueue = later.slice(1);
+      if (later.length) this._emit('nextCard', { playerIndex: i, card: later[0], pick: true });
     } else if (p.cardQueue?.length) {
       p.card = { def: p.cardQueue.shift(), used: false };
       this._emit('nextCard', { playerIndex: i, card: p.card.def });
@@ -1739,7 +1766,7 @@ export class Game {
         break;
       case 'sticky': // ナットウ：自分の番に 当てた相手と くっつく
         if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !this.turn.stuck && power >= (t.minPower ?? 2) && !o.body.isStatic && o.alive) {
-          this.turn.stuck = { a: e, b: o };
+          this.turn.stuck = { a: e, b: o, until: this.time + (t.ms ?? 1500) };
           this._emit('trait', { type: 'sticky', playerIndex: e.playerIndex, x, y });
         }
         break;

@@ -230,16 +230,21 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     ov.querySelector('[data-act=cancel]').onclick = closeOverlay;
     ov.querySelector('[data-act=use]').onclick = () => {
       closeOverlay();
-      const opps = game.opponentsOf(i, def.id); // クロケシのガードは えらべない
-      if (def.place === 'seat') startSeating(i, def);
-      else if (def.place) startPlacement(i, def);
-      else if (def.target && opps.length > 1) startTargeting(i, def, opps);
-      else {
-        const r = game.useCard(i, {});
-        if (!r.ok) toast(r.reason, '#ffd54f'); // たとえば「相手はガードしているよ」
-      }
+      beginUse(i, def);
     };
   });
+
+  // カードを使う（場所や 相手を えらぶものは、えらんでから）
+  function beginUse(i, def) {
+    const opps = game.opponentsOf(i, def.id); // クロケシのガードは えらべない
+    if (def.place === 'seat') startSeating(i, def);
+    else if (def.place) startPlacement(i, def);
+    else if (def.target && opps.length > 1) startTargeting(i, def, opps);
+    else {
+      const r = game.useCard(i, {});
+      if (!r.ok) toast(r.reason, '#ffd54f'); // たとえば「相手はガードしているよ」
+    }
+  }
 
   // 相手が2人以上いるとき：だれに使うか、消しゴムをタップしてえらぶ
   function startTargeting(i, def, candidates) {
@@ -687,7 +692,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
               : flipCardHTML(c, '', { isNew: fresh[k] }),
           )
           .join('')}</div>
-        <div class="announce-note">${secret ? '何が出たかは 内緒…' : cards.length > 1 ? '順番に すぐ使えるよ' : 'すぐに 使えるよ（あとで 使ってもいい）'}</div>
+        <div class="announce-note">${secret ? '何が出たかは 内緒…' : cards.length > 1 ? '2枚 いっしょに 使うよ！' : 'すぐに 使えるよ（あとで 使ってもいい）'}</div>
       </div>`);
     ov.querySelectorAll('.flip:not(.secret)').forEach((f, k) => {
       later(350 + k * 450, () => {
@@ -700,8 +705,18 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   });
 
   // おかわりの2枚目以降：1枚使うと次のカードが出てくる
-  on('nextCard', ({ playerIndex, card }) => {
+  on('nextCard', ({ playerIndex, card, pick }) => {
     const p = game.players[playerIndex];
+    // おかわりで 場所や 相手を えらぶカードが 出たら、カードが めくれたあと そのまま えらぶ
+    if (pick) {
+      if (p.type === 'human' && isMyTurn()) {
+        later(2500, () => {
+          if (game.canUseCard(playerIndex) && game.players[playerIndex].card.def.id === card.id) beginUse(playerIndex, card);
+          else if (game.players[playerIndex].card && !game.players[playerIndex].card.used) setHint(`${card.icon} ${card.name}も 使えるよ！ カードを押してね`);
+        });
+      }
+      return;
+    }
     if (!isSecret(p)) later(1000, () => toast(`次のカード：${card.icon} ${card.name}`, CARD_TYPES[card.type].color));
     if (p.type === 'human') setHint('もう1枚カードが使えるよ！');
   });
