@@ -2791,3 +2791,74 @@ canvas.board {
   line-height: 1.7;
   padding: 24px 8px;
 }
+
+/* ---- 設定（効果音）---- */
+.set-head {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+.sfx-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(640px, 100%);
+}
+.sfx-cat {
+  background: #fff;
+  border-radius: 14px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
+}
+.sfx-cat-label {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.sfx-opts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.sfx-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 4px;
+  border: 2px solid #e6dccb;
+  border-radius: 10px;
+  background: #fffaf2;
+  font: inherit;
+  cursor: pointer;
+}
+.sfx-opt b {
+  font-size: 14px;
+}
+.sfx-opt small {
+  font-size: 11px;
+  color: #8a7a66;
+}
+.sfx-opt.on {
+  border-color: #ff6b4a;
+  background: #ffe9e2;
+  box-shadow: 0 0 0 2px rgba(255, 107, 74, 0.25);
+}
+.sfx-opt:active {
+  transform: scale(0.96);
+}
+.sfx-vol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 8px 0;
+  font-weight: 700;
+}
+.sfx-vol input[type='range'] {
+  width: 180px;
+  vertical-align: middle;
+}
+@media (min-width: 700px) {
+  .sfx-opts {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}

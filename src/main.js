@@ -10,7 +10,7 @@ import { GAME } from './config/game.js';
 import { createBattle } from './battle.js';
 import { drawEraser, drawEraserPreview } from './render/drawEraser.js';
 import { flipCardHTML } from './ui/cardView.js';
-import { sfx, unlockAudio } from './audio/sfx.js';
+import { sfx, unlockAudio, isMuted, setMuted, setVolume, resetSound } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
 import { rewardsHTML } from './ui/rewardView.js';
 import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
@@ -53,6 +53,64 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('.btn, .choice, .count-btn, .seg button')) sfx.tap();
 });
 
+// ---- 設定（効果音）----
+// 弾く・ぶつかる・落ちる・勝ち の音を、それぞれ 6種類から えらべる（src/sfx.js の KeshiSfx）
+function showSettings() {
+  const K = window.KeshiSfx;
+  const st = K.getSettings();
+  const el = screen(
+    `<h2 class="head">⚙️ 設定</h2>
+     <h3 class="set-head">🔊 効果音</h3>
+     <p class="note">音を タップすると 試し聞き。えらんだ音が 対戦で 鳴るよ</p>
+     <div class="sfx-cats fit-scroll">
+       ${K.CATS.map(
+         (c) => `
+         <div class="sfx-cat">
+           <div class="sfx-cat-label">${c.label}</div>
+           <div class="sfx-opts">
+             ${c.opts
+               .map(
+                 (o) => `<button class="sfx-opt ${st.choice[c.key] === o.id ? 'on' : ''}" data-cat="${c.key}" data-id="${o.id}">
+                   <b>${o.name}</b><small>${o.word}</small></button>`,
+               )
+               .join('')}
+           </div>
+         </div>`,
+       ).join('')}
+     </div>
+     <div class="sfx-vol">
+       <button class="btn small" data-act="mute">${isMuted() ? '🔇 音なし' : '🔊 音あり'}</button>
+       <label>音量 <input type="range" min="0" max="100" step="5" value="${Math.round(st.volume * 100)}" data-act="vol"></label>
+     </div>
+     <div class="row">
+       <button class="btn ghost" data-act="back">戻る</button>
+       <button class="btn" data-act="reset">はじめにもどす</button>
+     </div>`,
+    'settings-screen',
+  );
+  el.querySelectorAll('.sfx-opt').forEach((b) => {
+    b.onclick = () => {
+      const { cat, id } = b.dataset;
+      K.preview(cat, id);
+      K.setChoice(cat, id);
+      el.querySelectorAll(`.sfx-opt[data-cat="${cat}"]`).forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+  const vol = el.querySelector('[data-act=vol]');
+  vol.oninput = () => setVolume(Number(vol.value) / 100);
+  vol.onchange = () => K.preview('hit', K.getSettings().choice.hit); // はなしたら 今の音量で 試し聞き
+  el.querySelector('[data-act=mute]').onclick = (ev) => {
+    setMuted(!isMuted());
+    ev.currentTarget.textContent = isMuted() ? '🔇 音なし' : '🔊 音あり';
+  };
+  el.querySelector('[data-act=reset]').onclick = () => {
+    resetSound();
+    sfx.tap();
+    showSettings();
+  };
+  el.querySelector('[data-act=back]').onclick = showTitle;
+}
+
 function screen(html, cls = '') {
   battle?.destroy();
   battle = null;
@@ -83,10 +141,12 @@ function showTitle() {
            collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
          }</button>
        </div>
+       <button class="install-link" data-act="settings">⚙️ 設定（効果音）</button>
        ${isInstalled() ? '' : '<button class="install-link" data-act="install">📲 アプリにする（ホーム画面に置く）</button>'}
      </div>`,
     'title-screen',
   );
+  el.querySelector('[data-act=settings]').onclick = showSettings;
   el.querySelector('[data-act=install]')?.addEventListener('click', () => showInstallGuide(el));
   const cv = el.querySelector('.title-art');
   whenFonts(() => {

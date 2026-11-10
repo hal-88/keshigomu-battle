@@ -1,5 +1,11 @@
 // 効果音。音のファイルは使わず、ブラウザの中で音を作る（Web Audio）。
 // iPad などは「画面を触ったあと」でないと音が出せないので、最初のタッチで unlockAudio() を呼ぶ。
+//
+// 弾く・ぶつかる（消しゴムどうし）・落ちる・勝ち の4つは src/sfx.js（KeshiSfx）で鳴らす。
+// 設定画面で それぞれ 6種類から えらべる。音量・ミュートも KeshiSfx と いっしょに かわる。
+import '../sfx.js';
+
+const K = window.KeshiSfx;
 
 let ctx = null;
 let master = null;
@@ -9,14 +15,16 @@ try {
 } catch {
   /* 保存できない環境でも動く */
 }
+K.setMuted(muted); // 右上のスピーカーと そろえる
 
 export function unlockAudio() {
+  K.unlock(); // KeshiSfx も 最初のタッチで 音が出せるように
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.8;
+    master.gain.value = K.getSettings().volume; // 音量は 設定画面の スライダーと同じ
     master.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
@@ -25,11 +33,24 @@ export function unlockAudio() {
 export const isMuted = () => muted;
 export function setMuted(m) {
   muted = m;
+  K.setMuted(m);
   try {
     localStorage.setItem('keshigomu-muted', m ? '1' : '0');
   } catch {
     /* 無視 */
   }
+}
+
+/** 音量（0〜1）。ほかの効果音（カード・ガチャなど）も いっしょに かわる */
+export function setVolume(v) {
+  K.setVolume(v);
+  if (master) master.gain.value = v;
+}
+/** 効果音の設定を はじめに もどす */
+export function resetSound() {
+  K.reset();
+  if (master) master.gain.value = K.getSettings().volume;
+  K.setMuted(muted); // ミュートは 右上の スピーカーの まま
 }
 
 function ready() {
@@ -83,25 +104,25 @@ export const sfx = {
   tap() {
     tone({ freq: 660, dur: 0.05, type: 'triangle', gain: 0.12 });
   },
-  flick(power = 1) {
-    noise({ dur: 0.06, gain: 0.2 + 0.2 * power, freq: 2500, q: 0.8 });
-    tone({ freq: 200, freqEnd: 80, dur: 0.09, type: 'triangle', gain: 0.25 });
+  flick() {
+    K.play('flick');
   },
   hit(power = 5, pencil = false) {
-    const now = performance.now();
-    if (now - lastHit < 60) return; // 鳴らしすぎない
-    lastHit = now;
-    const p = Math.min(1, power / 14);
     if (pencil) {
+      // えんぴつ・置物に 当たったときは 前の かたい音
+      const now = performance.now();
+      if (now - lastHit < 60) return; // 鳴らしすぎない
+      lastHit = now;
+      const p = Math.min(1, power / 14);
       tone({ freq: 900, freqEnd: 700, dur: 0.08, type: 'square', gain: 0.05 + 0.08 * p });
-    } else {
-      tone({ freq: 260 + 200 * p, freqEnd: 120, dur: 0.08, type: 'triangle', gain: 0.12 + 0.22 * p });
-      noise({ dur: 0.05, gain: 0.08 + 0.2 * p, freq: 1800, q: 1.2 });
+      return;
     }
+    // 消しゴムどうし：ぶつかった速さを 0.3〜1 に して KeshiSfx へ
+    const strength = 0.3 + 0.7 * Math.min(1, Math.max(0, power / 14));
+    K.play('hit', { strength });
   },
   fall() {
-    tone({ freq: 800, freqEnd: 110, dur: 0.7, type: 'sine', gain: 0.22 });
-    tone({ freq: 90, freqEnd: 50, dur: 0.25, type: 'sine', gain: 0.3, delay: 0.65 });
+    K.play('fall');
   },
   hold() {
     tone({ freq: 220, freqEnd: 520, dur: 0.18, type: 'triangle', gain: 0.22 });
@@ -141,8 +162,7 @@ export const sfx = {
     noise({ dur: 0.45, gain: 0.3, freq: 600, freqEnd: 200, q: 0.8 });
   },
   win() {
-    [523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, dur: 0.22, type: 'triangle', gain: 0.18, delay: i * 0.12 }));
-    tone({ freq: 1047, dur: 0.5, type: 'triangle', gain: 0.15, delay: 0.5 });
+    K.play('win');
   },
   lose() {
     [392, 349, 311, 262].forEach((f, i) => tone({ freq: f, dur: 0.3, type: 'triangle', gain: 0.16, delay: i * 0.18 }));
