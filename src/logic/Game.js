@@ -73,6 +73,8 @@ export class Game {
     // 風（カゼダコが 毎ターン 流される向き。少しずつ かわる）
     const wa = Math.random() * Math.PI * 2;
     this.wind = { x: Math.cos(wa), y: Math.sin(wa) };
+    this.bamboo = null; // バンブー：机に 置いた 竹 { x, y, angle, len, gap, start, until, every }
+    this._dominoQueue = []; // ドミノン：これから 倒れる ドミノ
     this.posts = []; // ステージの 動かない じゃまもの（ガス栓など）
     this._setupStage();
 
@@ -322,6 +324,12 @@ export class Game {
       brushUntil: 0, // カーリン：ブラシで こすっている 時間
       yut: 0, // ユンノ：いまの 目（1〜5）
       yutPower: 1, // ユンノ：いまの 目の 強さ
+      snow: 1, // ユキダマン：いまの 大きさ
+      shagai: 0, // シャガイン：いまの 面（0〜3）
+      takrawLeft: t.id === 'takraw' ? t.uses ?? 3 : 0, // タクロー：のこりの 宙返り
+      hopLand: false, // ケンパー：着地で 勢いが 落ちる
+      dominoUsed: false, // ドミノン
+      bambooUsed: false, // バンブー
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
     if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
@@ -341,6 +349,7 @@ export class Game {
     if (t.id === 'melt') this._applyMelt(e);
     if (t.id === 'daruma') e.traitMass = t.massScale ?? 1.3; // ダルマン：段が そろっていると 重い
     if (t.id === 'yut') this._rollYut(e, true); // ユンノ：はじめの 目
+    if (t.id === 'shagai') this._rollShagai(e, true); // シャガイン：はじめの 面
     body.plugin = { piece: e };
     if (t.id === 'dice') this._rollDice(e, true);
     this._applyMass(e);
@@ -514,6 +523,175 @@ export class Game {
     this._emit('trait', { type: 'kabaddiBack', playerIndex: e.playerIndex, x: q.x, y: q.y });
   }
 
+  /** シャガイン：4つの 面の どれかが 出て、性格が かわる */
+  _rollShagai(e, quiet = false) {
+    const faces = traitOf(e).faces || [];
+    e.shagai = Math.floor(Math.random() * faces.length);
+    e.traitMass = faces[e.shagai]?.mass ?? 1;
+    this._applyMass(e);
+    if (!quiet) {
+      const f = faces[e.shagai];
+      this._emit('trait', { type: 'shagai', playerIndex: e.playerIndex, x: e.body.position.x, y: e.body.position.y, value: e.shagai, name: `${f.icon} ${f.name}` });
+    }
+  }
+  _shagaiFace(e) {
+    return traitOf(e).faces?.[e.shagai] || {};
+  }
+
+  /** ユキダマン：大きさを なおす（大きいほど 重い） */
+  _applySnow(e) {
+    this._setSize(e, Math.abs(e.snow - 1) < 0.005 ? null : { sizeScale: e.snow, massScale: e.snow * e.snow });
+    e.sizeLeft = 0;
+  }
+
+  /** ケンパー：ぴょんぴょん はねる（はねている 間は 飛び越える） */
+  _applyHop() {
+    const h = this.turn.hop;
+    if (!h || this.phase !== 'moving') return;
+    const e = this.erasers[this.turnIndex];
+    const t = traitOf(e);
+    if (!e.alive || e.airborne || h.n >= (t.hops ?? 3) || e.body.speed < 1) return;
+    const p = e.body.position;
+    if (Math.hypot(p.x - h.sx, p.y - h.sy) < h.next) return;
+    h.n++;
+    h.next += t.step ?? 80;
+    e.airborne = true;
+    e.airUntil = this.time + Math.max(40, ((t.air ?? 45) / Math.max(1, e.body.speed)) * BASE_DT);
+    e.hopLand = true;
+    e.body.collisionFilter.mask = 0;
+    this._emit('trait', { type: 'hop', playerIndex: e.playerIndex, x: p.x, y: p.y, value: h.n });
+  }
+
+  /** モルッキー：止まる ときに まわりの 相手を まとめて 押す */
+  _applyMolkky() {
+    const m = this.turn.molkky;
+    if (!m || m.done || this.phase !== 'moving') return;
+    const e = this.erasers[this.turnIndex];
+    if (!e.alive || e.body.speed > 0.8 || this.time - this.turn.flickAt < 200) return;
+    m.done = true;
+    const t = traitOf(e);
+    const p = e.body.position;
+    const R = t.range ?? 95;
+    let n = 0;
+    for (const o of this._allPieces()) {
+      if (!o.alive || o.playerIndex === e.playerIndex || o.body.isStatic) continue;
+      const dx = o.body.position.x - p.x;
+      const dy = o.body.position.y - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d > R) continue;
+      const k = (t.push ?? 2.2) * (1 - d / R + 0.3);
+      Body.setVelocity(o.body, { x: o.body.velocity.x + (dx / d) * k, y: o.body.velocity.y + (dy / d) * k });
+      n++;
+    }
+    // 回転の せいで 止まる 場所が 少し ずれる
+    const a = Math.random() * Math.PI * 2;
+    Body.setVelocity(e.body, { x: e.body.velocity.x + Math.cos(a) * (t.nudge ?? 1), y: e.body.velocity.y + Math.sin(a) * (t.nudge ?? 1) });
+    this._emit('trait', { type: 'molkky', playerIndex: e.playerIndex, x: p.x, y: p.y, value: n });
+  }
+
+  /** ドミノン：うしろに ドミノを 並べる（1試合1回） */
+  _placeDominoes(e, ux, uy) {
+    const t = traitOf(e);
+    const p = e.body.position;
+    const base = this.pieceExtent(e) + 10;
+    let placed = 0;
+    for (let i = 0; i < (t.count ?? 3); i++) {
+      const d = base + i * (t.gap ?? 24);
+      const q = { x: p.x - ux * d, y: p.y - uy * d };
+      if (!isInsideDesk(this.desk, q.x, q.y) || edgeClearance(this.desk, q.x, q.y) < (t.length ?? 32) / 2) break;
+      const hit = this._allPieces().some(
+        (o) => o.alive && o !== e && Math.hypot(o.body.position.x - q.x, o.body.position.y - q.y) < this.pieceExtent(o) + (t.length ?? 32) / 2,
+      );
+      if (hit) break;
+      this._addPencil(q.x, q.y, Math.atan2(uy, ux) + Math.PI / 2, { length: t.length ?? 32, width: t.width ?? 9, look: 'domino', color: e.def.look.body });
+      this.pencils[this.pencils.length - 1].body.plugin = { domino: true };
+      placed++;
+    }
+    if (placed) {
+      e.dominoUsed = true;
+      this._emit('trait', { type: 'dominoSet', playerIndex: e.playerIndex, x: p.x, y: p.y });
+    }
+  }
+
+  /** ドミノに 消しゴムが 当たった：倒れて 押し返す（となりの ドミノも つぎつぎ） */
+  _dominoHit(body, piece) {
+    const pc = this.pencils.find((x) => x.alive && x.body === body);
+    if (!pc || this._dominoQueue.some((q) => q.pc === pc)) return;
+    this._dominoQueue.push({ pc, at: this.time, by: piece });
+  }
+  _updateDominoes() {
+    if (!this._dominoQueue.length) return;
+    const owner = this.erasers.find((e) => traitOf(e).id === 'domino');
+    const t = owner ? traitOf(owner) : {};
+    const due = this._dominoQueue.filter((q) => q.at <= this.time);
+    this._dominoQueue = this._dominoQueue.filter((q) => q.at > this.time);
+    for (const { pc } of due) {
+      if (!pc.alive) continue;
+      pc.alive = false;
+      pc.fall = { t: 0 };
+      Composite.remove(this.engine.world, pc.body);
+      const c = pc.body.position;
+      // まわりの 消しゴムを 押し返す（持ち主は 押さない）
+      for (const o of this._allPieces()) {
+        if (!o.alive || o.body.isStatic || (owner && o.playerIndex === owner.playerIndex)) continue;
+        const dx = o.body.position.x - c.x;
+        const dy = o.body.position.y - c.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > this.pieceExtent(o) + 30) continue;
+        const k = t.push ?? 3;
+        Body.setVelocity(o.body, { x: o.body.velocity.x + (dx / d) * k, y: o.body.velocity.y + (dy / d) * k });
+      }
+      this._emit('trait', { type: 'domino', playerIndex: owner ? owner.playerIndex : 0, x: c.x, y: c.y });
+      // となりの ドミノも 倒れる
+      for (const nb of this.pencils) {
+        if (!nb.alive || nb.look !== 'domino' || this._dominoQueue.some((q) => q.pc === nb)) continue;
+        if (Math.hypot(nb.body.position.x - c.x, nb.body.position.y - c.y) < (t.gap ?? 24) * 1.6) {
+          this._dominoQueue.push({ pc: nb, at: this.time + (t.chainMs ?? 130) });
+        }
+      }
+    }
+  }
+
+  /** バンブー：竹を 置く（1試合1回） */
+  _placeBamboo(e, ux, uy) {
+    const t = traitOf(e);
+    const p = e.body.position;
+    e.bambooUsed = true;
+    this.bamboo = {
+      x: p.x, y: p.y, angle: Math.atan2(uy, ux),
+      len: t.len ?? 170, gap: t.gap ?? 64,
+      start: this.turnCount, every: t.every ?? 2, until: this.turnCount + (t.turns ?? 6), owner: e.playerIndex,
+    };
+    this._emit('trait', { type: 'bambooSet', playerIndex: e.playerIndex, x: p.x, y: p.y });
+  }
+  /** バンブー：番が かわるとき、リズムで 竹が 閉じる */
+  _bambooTick() {
+    const b = this.bamboo;
+    if (!b) return;
+    if (this.turnCount >= b.until) {
+      this.bamboo = null;
+      return;
+    }
+    const k = this.turnCount - b.start;
+    if (k <= 0 || k % b.every !== 0) return;
+    const c = Math.cos(-b.angle);
+    const sn = Math.sin(-b.angle);
+    const caught = [];
+    for (const e of this.erasers) {
+      if (!e.alive) continue;
+      const dx = e.body.position.x - b.x;
+      const dy = e.body.position.y - b.y;
+      const lx = dx * c - dy * sn;
+      const ly = dx * sn + dy * c;
+      // 竹は 進む向きと 平行に 2本（間の はば gap）
+      if (Math.abs(lx) <= b.len / 2 && Math.abs(ly) <= b.gap / 2) {
+        this.players[e.playerIndex].skipNext = true;
+        caught.push(e.playerIndex);
+      }
+    }
+    this._emit('trait', { type: 'bamboo', playerIndex: b.owner, x: b.x, y: b.y, value: caught.length, name: caught.map((i) => this.players[i].name).join('・') });
+  }
+
   /** カゼダコ：毎ターン 風で 少し 流される */
   _windDrift() {
     const a = Math.atan2(this.wind.y, this.wind.x) + (Math.random() - 0.5) * 0.6;
@@ -646,7 +824,7 @@ export class Game {
       uy = -uy;
     }
     // キラリン：まぶしくて、向きが すこし ブレる
-    const glare = t.id === 'hajiki' ? 0 : this.glareFor(playerIndex); // ハジキング：ねらい通り まっすぐ
+    const glare = t.id === 'hajiki' || t.id === 'boccia' ? 0 : this.glareFor(playerIndex); // ハジキング・ボッチャ：ねらい通り まっすぐ
     if (glare) {
       const a = (Math.random() * 2 - 1) * glare;
       [ux, uy] = [ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a)];
@@ -681,6 +859,8 @@ export class Game {
       e.lastIce = { x: e.body.position.x, y: e.body.position.y };
       this.turn.pebbles = 0;
     }
+    // ボッチャ：いつも 同じ 強さ
+    if (t.id === 'boccia') s = t.fixed ?? 0.72;
     // コマワール：3回 弾くと 回転が 止まって 弱くなる
     if (t.id === 'top') {
       e.topFlicks++;
@@ -689,20 +869,41 @@ export class Game {
         this._emit('trait', { type: 'topTired', playerIndex, x: e.body.position.x, y: e.body.position.y });
       }
     }
-    const v = s * e.maxSpeed * this.turn.powerMul * (e.dicePower || 1) * (t.id === 'yut' ? e.yutPower || 1 : 1); // ユンノの 目
+    const v = s * e.maxSpeed * this.turn.powerMul * (e.dicePower || 1) * (t.id === 'yut' ? e.yutPower || 1 : 1) * (t.id === 'shagai' ? this._shagaiFace(e).power ?? 1 : 1); // ユンノの 目・シャガインの 面
     Body.setVelocity(e.body, { x: ux * v, y: uy * v });
     const spinScale = t.id === 'spinny' ? t.spinScale ?? 1.7 : 1;
     let w = Math.max(-1, Math.min(1, spin)) * PHYSICS.spin.maxAngular * s * spinScale;
     // ドーナッツ：まん中を弾いても くるくる回る
     if (t.autoSpin && Math.abs(w) < t.autoSpin * s) w = (w < 0 ? -1 : 1) * t.autoSpin * Math.max(0.4, s);
     if (t.id === 'tube') w = 0; // 転がるだけで 回らない
-    if (t.id === 'hajiki') w = 0; // ハジキング：回転なしで まっすぐ
+    if (t.id === 'hajiki' || t.id === 'boccia') w = 0; // ハジキング・ボッチャ：回転なしで まっすぐ
     // ナイトン・ブーメ：つかむ 場所（回転の 向き）で 曲がる 向きが きまる。自分は 回らない
     if (t.id === 'knight' || t.id === 'boomerang') {
       const side = spin < 0 ? -1 : 1;
       w = 0;
       if (t.id === 'knight') this.turn.knight = { sx: e.body.position.x, sy: e.body.position.y, side, done: false };
       else this.turn.boom = { side, until: this.time + (t.ms ?? 3000), R: this.boomRadius(playerIndex, v / (e.maxSpeed * this.turn.powerMul || 1)) };
+    }
+    // ケンパー：ぴょんぴょん はねる
+    if (t.id === 'hopscotch') this.turn.hop = { sx: e.body.position.x, sy: e.body.position.y, n: 0, next: t.first ?? 70 };
+    // モルッキー：止まる ときに まとめて 押す
+    if (t.id === 'molkky') this.turn.molkky = { done: false };
+    // ユキダマン：どれだけ 転がったか
+    if (t.id === 'snowball') this.turn.snowFrom = { x: e.body.position.x, y: e.body.position.y };
+    // ドミノン・バンブー：はじめて 弾いたとき
+    if (t.id === 'domino' && !e.dominoUsed) this._placeDominoes(e, ux, uy);
+    if (t.id === 'bamboo' && !e.bambooUsed && !this.bamboo) this._placeBamboo(e, ux, uy);
+    // タクロー：宙返り キック（1試合 3回まで）
+    if (t.id === 'takraw' && e.takrawLeft > 0) {
+      e.takrawLeft--;
+      this.turn.takraw = true;
+      const hop = this.turn.jump ? 0 : this._copterHop(e, ux, uy);
+      if (hop > 0) {
+        e.airborne = true;
+        e.airUntil = this.time + Math.max(50, (hop / Math.max(1, v)) * BASE_DT);
+        e.body.collisionFilter.mask = 0;
+      }
+      this._emit('trait', { type: 'takraw', playerIndex, x: e.body.position.x, y: e.body.position.y, value: e.takrawLeft });
     }
     // カーリン：動いている 間に 1回だけ ブラシ（画面を さわる）
     if (t.id === 'curling' && !this.turn.curve) this.turn.curve = { budgetMs: 4000, accel: 0, turnsLeft: 1, brush: true };
@@ -1423,10 +1624,13 @@ export class Game {
       this._applySticky();
       this._applyKnight();
       this._applyBoomerang(dt);
+      this._applyHop();
+      this._applyMolkky();
       this._applyDeskBrake(dt);
       Engine.update(this.engine, dt);
       this._hatchEggs();
       this._spawnJunk();
+      this._updateDominoes();
       this._iceTrail();
       this._updateGhosts();
       this._updateAir();
@@ -1647,7 +1851,8 @@ export class Game {
       if (e.toppleUntil > this.time) local *= t.rollSlide ?? 0.55; // トロフィン・ギュウニュウ：倒れて 転がっている
       if (e.kiteUntil > this.time) local *= t.glide ?? 0.55; // カゼダコ：風に 乗って ふわっと
       if (e.brushUntil > this.time) local *= t.brushSlide ?? 0.35; // カーリン：ブラシで こすって のびる
-      if (t.id === 'petanque' && this._isShooter(e)) local *= t.ownSlide ?? 1.3; // ペタン：重い玉
+      if (t.id === 'shagai') local *= this._shagaiFace(e).brake ?? 1; // シャガイン：馬は 速い
+      if ((t.id === 'petanque' || t.id === 'homerun') && this._isShooter(e)) local *= t.ownSlide ?? 1.3; // ペタン：重い玉・ホームラン：バットが 重い
       if (t.id === 'beanbag' && this._isShooter(e)) local *= t.ownSlide ?? 1.6; // オテダマ：重くて 遠くまで 進めない
       if (t.id === 'kendama' && b.speed > 0.3 && edgeClearance(this.desk, b.position.x, b.position.y) < (t.edge ?? 30)) {
         // ケンダマン：縁の近くでは 玉に 引っぱられて 外へ
@@ -1723,6 +1928,9 @@ export class Game {
       // とくせい
       const pa = a.plugin?.piece;
       const pb = b.plugin?.piece;
+      // ドミノン：ドミノに 当たったら 倒れる
+      if (a.plugin?.domino && pb) this._dominoHit(a, pb);
+      if (b.plugin?.domino && pa) this._dominoHit(b, pa);
       // 守りのとくせい（ニンジャ・ユウレイ・カガミン）・ふでばこ：ぶつかったこと自体を なかったことにする
       if (pa && pb && (this._defend(pair, pa, pb, power) || this._defend(pair, pb, pa, power))) continue;
       if (pa && pb && this.phase === 'moving') this._cardHit(pair, pa, pb);
@@ -1752,7 +1960,7 @@ export class Game {
       return true;
     }
     const t = traitOf(e);
-    if (!['dodge', 'ghost', 'mirror'].includes(t.id) || e.defUsed || !e.alive) return false;
+    if (!['dodge', 'ghost', 'mirror', 'homerun'].includes(t.id) || e.defUsed || !e.alive) return false;
     if (o.playerIndex === e.playerIndex || power < (t.minPower ?? 2.5)) return false;
     if (o.body.speed <= e.body.speed + 0.3) return false; // 当てられたほうのときだけ
     e.defUsed = true;
@@ -1793,7 +2001,7 @@ export class Game {
       const r = t.reflect ?? 1;
       Body.setVelocity(o.body, { x: -o.body.velocity.x * r, y: -o.body.velocity.y * r });
       Body.setVelocity(e.body, { x: 0, y: 0 });
-      this._emit('trait', { type: 'mirror', playerIndex: e.playerIndex, x: p.x, y: p.y });
+      this._emit('trait', { type: t.id === 'homerun' ? 'homerun' : 'mirror', playerIndex: e.playerIndex, x: p.x, y: p.y }); // ホームラン：バットで 打ち返す
     }
     return true;
   }
@@ -1849,6 +2057,12 @@ export class Game {
       if (overlap) continue;
       e.airborne = false;
       if (!e.ghost) e.body.collisionFilter.mask = 0xffffffff;
+      if (e.hopLand) {
+        // ケンパー：着地の たびに 勢いが 落ちる
+        e.hopLand = false;
+        const kk = traitOf(e).landKeep ?? 0.8;
+        Body.setVelocity(e.body, { x: e.body.velocity.x * kk, y: e.body.velocity.y * kk });
+      }
       if (e.copterLand) {
         // トンボン：着地する 場所が 少し ランダム
         e.copterLand = false;
@@ -1977,6 +2191,36 @@ export class Game {
           } else {
             e.absorbNext = t.front ?? 0.55;
           }
+        }
+        break;
+      case 'shagai': { // シャガイン：羊は やわらか、ヤギは はね返す
+        const f = this._shagaiFace(e);
+        if (!o || o.playerIndex === e.playerIndex) break;
+        if (f.soft && o.body.speed > e.body.speed) e.absorbNext = f.soft;
+        if (f.bounce && !o.body.isStatic) addPush(o, away(), Math.min(4, f.bounce * power));
+        break;
+      }
+      case 'capoeira': // カポエ：自分の番に 当たると 回しげりで まわりの 相手 全員を 押す
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !this.turn.capoDone && power > 2) {
+          this.turn.capoDone = true;
+          const R = t.range ?? 120;
+          for (const x2 of this._allPieces()) {
+            if (!x2.alive || x2.playerIndex === e.playerIndex || x2.body.isStatic) continue;
+            const dx = x2.body.position.x - pos.x;
+            const dy = x2.body.position.y - pos.y;
+            const d = Math.hypot(dx, dy) || 1;
+            if (d > R) continue;
+            addPush(x2, { x: dx / d, y: dy / d }, (t.push ?? 2.4) * (1 - d / R + 0.4));
+          }
+          e.wobbly = true; // 回ったあと ふらつく
+          this._emit('trait', { type: 'capoeira', playerIndex: e.playerIndex, x: pos.x, y: pos.y });
+        }
+        break;
+      case 'takraw': // タクロー：宙返り キックの 最初の 一撃は 2倍
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && this.turn.takraw && !this.turn.takrawHit && !o.body.isStatic) {
+          this.turn.takrawHit = true;
+          addPush(o, away(), Math.min(t.max ?? 7, (t.push ?? 0.9) * power));
+          this._emit('trait', { type: 'takrawHit', playerIndex: e.playerIndex, x, y });
         }
         break;
       case 'boomerang': // ブーメ：回りながら 当たって、相手を 押す
@@ -2465,6 +2709,19 @@ export class Game {
       return;
     }
     if (cur.alive && traitOf(cur).id === 'kabaddi' && this.turn.kabaddi === 2) this._kabaddiBack(cur);
+    if (cur.alive && traitOf(cur).id === 'snowball' && this.turn.snowFrom) {
+      // ユキダマン：転がった ぶん 大きくなる
+      const t = traitOf(cur);
+      const p = cur.body.position;
+      const d = Math.hypot(p.x - this.turn.snowFrom.x, p.y - this.turn.snowFrom.y);
+      const next = Math.min(t.maxSize ?? 1.35, cur.snow + d * (t.grow ?? 0.0008));
+      if (next > cur.snow + 0.01) {
+        cur.snow = next;
+        this._applySnow(cur);
+        this._emit('trait', { type: 'snowGrow', playerIndex: cur.playerIndex, x: p.x, y: p.y });
+      }
+      this.turn.snowFrom = null;
+    }
     this._endTurn();
   }
 
@@ -2556,6 +2813,7 @@ export class Game {
     if (this.blackout && this.turnCount >= this.blackout.untilTurn) this.blackout = null;
     this._maybeSpill();
     this._windDrift();
+    this._bambooTick();
     if (this.blackHole && this.turnCount >= this.blackHole.untilTurn) {
       this.blackHole = null;
       this._emit('cardFx', { type: 'holeClose', playerIndex: next, x: 0, y: 0 });
@@ -2593,6 +2851,12 @@ export class Game {
     if (traitOf(e).id === 'dice') this._rollDice(e); // サイコロン：番のたびに サイコロ
     if (traitOf(e).id === 'curry') this._gather(e); // カレーライス：人気者で みんな 寄ってくる
     if (traitOf(e).id === 'yut') this._rollYut(e); // ユンノ：番の はじめに 棒を 投げる
+    if (traitOf(e).id === 'shagai') this._rollShagai(e); // シャガイン：番の はじめに 面が かわる
+    if (traitOf(e).id === 'snowball' && e.snow > (traitOf(e).minSize ?? 0.75)) {
+      // ユキダマン：溶けて 小さくなる
+      e.snow = Math.max(traitOf(e).minSize ?? 0.75, e.snow * (traitOf(e).melt ?? 0.94));
+      this._applySnow(e);
+    }
     if (traitOf(e).id === 'melt') {
       // レイトウミカン：番が来るたびに 溶ける
       e.meltTurns++;
@@ -2666,6 +2930,11 @@ export class Game {
       pinataBroken: e.pinataBroken,
       yut: e.yut,
       yutPower: e.yutPower,
+      snow: e.snow,
+      shagai: e.shagai,
+      takrawLeft: e.takrawLeft,
+      dominoUsed: e.dominoUsed,
+      bambooUsed: e.bambooUsed,
       happy: e.happy,
       powerNext: e.powerNext,
       invisLeft: e.invisLeft,
@@ -2713,6 +2982,7 @@ export class Game {
       blackout: this.blackout,
       blackHole: this.blackHole,
       wind: this.wind,
+      bamboo: this.bamboo,
       waxZones: this.waxZones,
     };
   }
@@ -2793,6 +3063,11 @@ export class Game {
         pinataBroken: !!pk.pinataBroken,
         yut: pk.yut || 0,
         yutPower: pk.yutPower ?? 1,
+        snow: pk.snow ?? 1,
+        shagai: pk.shagai || 0,
+        takrawLeft: pk.takrawLeft ?? 0,
+        dominoUsed: !!pk.dominoUsed,
+        bambooUsed: !!pk.bambooUsed,
         happy: !!pk.happy,
         powerNext: pk.powerNext || 0,
         invisLeft: pk.invisLeft || 0,
@@ -2827,10 +3102,13 @@ export class Game {
 
     this.pencils = [];
     for (const pc of st.pencils || []) this._addPencil(pc.x, pc.y, pc.angle, pc);
+    for (const pc of this.pencils) if (pc.look === 'domino') pc.body.plugin = { domino: true }; // ドミノン
+    this._dominoQueue = [];
     this.tilt = st.tilt || null;
     this.blackout = st.blackout || null;
     this.blackHole = st.blackHole || null;
     if (st.wind) this.wind = { ...st.wind };
+    this.bamboo = st.bamboo ? { ...st.bamboo } : null;
     this.junk = [];
     this._junkQueue = [];
     this._hatchQueue = [];
@@ -2923,6 +3201,9 @@ export class Game {
         dolls: e.dolls,
         kickUsed: e.kickUsed,
         brushing: e.brushUntil > this.time,
+        shagai: e.shagai,
+        takrawLeft: e.takrawLeft,
+        snow: e.snow,
         center: traitOf(e).id === 'petanque' && Math.hypot(e.body.position.x, e.body.position.y) < (traitOf(e).center ?? 95),
       },
     };
@@ -2944,6 +3225,10 @@ export class Game {
       blackout: this.isBlackout(),
       blackHole: this.blackHole,
       posts: this.posts.map((p) => ({ x: p.x, y: p.y, r: p.r, w: p.w, h: p.h, angle: p.angle ?? 0, kind: p.kind })),
+      // バンブーの 竹（次の 番で 閉じるなら closing）
+      bamboo: this.bamboo
+        ? { ...this.bamboo, closing: (this.turnCount + 1 - this.bamboo.start) % this.bamboo.every === 0 && this.turnCount + 1 < this.bamboo.until }
+        : null,
       // ナットウで くっついている 2つ（糸を かく）
       stuck: this.turn.stuck && this.turn.stuck.a.alive && this.turn.stuck.b.alive
         ? { ax: this.turn.stuck.a.body.position.x, ay: this.turn.stuck.a.body.position.y, bx: this.turn.stuck.b.body.position.x, by: this.turn.stuck.b.body.position.y }

@@ -866,6 +866,220 @@ export const SPECIAL_ART = {
     sparkle(ctx, w / 2 - 1, h / 2 - 1, 3 + 2 * Math.abs(Math.sin(t + 2)));
   },
 
+  // ---- 世界の遊び（後半） ----
+  // ケンパー：けんけんぱの マス（石が のっている）
+  hopscotch(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    ctx.strokeStyle = '#1565c0';
+    ctx.lineWidth = 1.8;
+    const c = w / 3;
+    ctx.strokeRect(-c / 2, h / 2 - c - 2, c, c);
+    ctx.strokeRect(-c, h / 2 - 2 * c - 2, c, c);
+    ctx.strokeRect(0, h / 2 - 2 * c - 2, c, c);
+    ctx.strokeRect(-c / 2, -h / 2 + 2, c, c * 0.9);
+    text(ctx, '1', 0, h / 2 - c / 2 - 2, c * 0.6, '#1565c0');
+    text(ctx, '2', -c / 2, h / 2 - 1.5 * c - 2, c * 0.6, '#1565c0');
+    text(ctx, '3', c / 2, h / 2 - 1.5 * c - 2, c * 0.6, '#1565c0');
+    circle(ctx, 0, -h / 2 + 2 + c * 0.45, c * 0.25);
+    fill(ctx, '#8d6e63');
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    line(ctx, 'rgba(0,0,0,0.3)', 1.2);
+  },
+
+  // ユキダマン：雪玉（大きいほど つぶつぶ）
+  snowball(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 1, 0, 0, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(1, '#cfe8fc');
+    ctx.fillStyle = g;
+    ctx.fill();
+    line(ctx, 'rgba(120,170,210,0.7)', 1.3);
+    ctx.fillStyle = 'rgba(150,190,225,0.55)';
+    for (let i = 0; i < 14; i++) {
+      const a = i * 2.39996;
+      const d = r * Math.sqrt(((i * 37) % 100) / 100) * 0.85;
+      circle(ctx, Math.cos(a) * d, Math.sin(a) * d, 1.6);
+      ctx.fill();
+    }
+    sparkle(ctx, -r * 0.4, -r * 0.4, 3);
+  },
+
+  // ボッチャ：赤い 革の ボール（ぬい目）
+  boccia(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
+    g.addColorStop(0, '#ff8a80');
+    g.addColorStop(1, look.body);
+    ctx.fillStyle = g;
+    ctx.fill();
+    line(ctx, 'rgba(90,0,0,0.5)', 1.3);
+    ctx.save();
+    circle(ctx, 0, 0, r - 1);
+    ctx.clip(); // ぬい目は ボールの 中だけ
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.setLineDash([2, 2]);
+    ctx.lineWidth = 1;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(k * r * 0.95, 0, r * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+  },
+
+  // モルッキー：木の 棒（はしに 数字）
+  molkky(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(110,70,30,0.6)', 1.3);
+    ctx.strokeStyle = 'rgba(140,90,40,0.45)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-w / 2 + 8, -h * 0.25 + i * h * 0.25);
+      ctx.lineTo(w / 2 - 8, -h * 0.2 + i * h * 0.22);
+      ctx.stroke();
+    }
+    circle(ctx, w / 2 - h / 2, 0, h * 0.36);
+    fill(ctx, '#fff8e1');
+    text(ctx, '12', w / 2 - h / 2, 0.5, h * 0.42, '#5d4037');
+  },
+
+  // シャガイン：くるぶしの 骨。出た 動物の 顔
+  shagai(ctx, s, look, tv) {
+    const { w, h } = s;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(120,90,50,0.6)', 1.3);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.32, h * 0.3, 0, 0, Math.PI * 2);
+    fill(ctx, 'rgba(200,170,120,0.45)');
+    const icons = ['🐎', '🐫', '🐑', '🐐'];
+    ctx.font = `${h * 0.55}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icons[tv ? tv.shagai || 0 : 0], 0, 1);
+  },
+
+  // カポエ：黄色と 緑の ベルト・回しげりの 足
+  capoeira(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    fill(ctx, '#009c3b');
+    circle(ctx, 0, 0, r * 0.8);
+    fill(ctx, look.body);
+    ctx.strokeStyle = '#3e2723';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.1);
+    ctx.lineTo(-r * 0.15, r * 0.55);
+    ctx.moveTo(0, r * 0.1);
+    ctx.quadraticCurveTo(r * 0.4, -r * 0.1, r * 0.6, -r * 0.45);
+    ctx.moveTo(0, r * 0.1);
+    ctx.lineTo(0, -r * 0.25);
+    ctx.moveTo(0, -r * 0.2);
+    ctx.lineTo(-r * 0.45, -r * 0.05);
+    ctx.stroke();
+    circle(ctx, -r * 0.05, -r * 0.42, r * 0.14);
+    fill(ctx, '#3e2723');
+    ctx.strokeStyle = 'rgba(0,39,118,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.7, -1.4, 0.2);
+    ctx.stroke();
+  },
+
+  // ドミノン：ドミノの 牌（目）
+  domino(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(0,0,0,0.45)', 1.5);
+    ctx.fillStyle = '#212121';
+    ctx.fillRect(-w / 2 + 3, -1, w - 6, 2);
+    const pip = (x, y) => {
+      circle(ctx, x, y, 2.4);
+      ctx.fill();
+    };
+    ctx.fillStyle = '#212121';
+    pip(-w * 0.22, -h * 0.34);
+    pip(w * 0.22, -h * 0.12);
+    pip(0, -h * 0.23);
+    for (const [x, y] of [[-w * 0.22, h * 0.14], [w * 0.22, h * 0.14], [-w * 0.22, h * 0.34], [w * 0.22, h * 0.34]]) pip(x, y);
+  },
+
+  // ホームラン：野球の ボール（赤い ぬい目）と バット
+  baseball(ctx, s, look) {
+    const r = s.radius;
+    // バット
+    ctx.save();
+    ctx.rotate(-0.6);
+    rr(ctx, r * 0.2, -3, r * 1.4, 6, 3);
+    fill(ctx, '#a1887f');
+    line(ctx, 'rgba(60,40,20,0.5)', 1);
+    ctx.restore();
+    circle(ctx, 0, 0, r);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(0,0,0,0.3)', 1.3);
+    ctx.save();
+    circle(ctx, 0, 0, r - 1);
+    ctx.clip(); // ぬい目は ボールの 中だけ
+    ctx.strokeStyle = '#e53935';
+    ctx.lineWidth = 1.5;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(k * r * 1.15, 0, r * 0.75, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  // バンブー：竹の 節
+  bamboo(ctx, s, look) {
+    const { w, h } = s;
+    for (const y of [-h * 0.25, h * 0.25]) {
+      rr(ctx, -w / 2, y - h * 0.2, w, h * 0.4, h * 0.2);
+      fill(ctx, look.body);
+      line(ctx, 'rgba(50,90,20,0.6)', 1.2);
+      ctx.fillStyle = 'rgba(50,90,20,0.6)';
+      for (const x of [-w * 0.25, w * 0.15]) ctx.fillRect(x, y - h * 0.2, 2, h * 0.4);
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(-w / 2 + 4, -h * 0.35, w - 8, 2);
+  },
+
+  // タクロー：籐（とう）の ボール（あみ目）
+  takraw(ctx, s, look, tv) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    fill(ctx, look.body);
+    ctx.strokeStyle = 'rgba(120,70,0,0.7)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 0.95, r * 0.38, a, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(100,60,0,0.7)', 1.5);
+    // のこり回数
+    const left = tv ? tv.takrawLeft ?? 3 : 3;
+    for (let i = 0; i < 3; i++) {
+      circle(ctx, -6 + i * 6, r + 4, 2.2);
+      fill(ctx, i < left ? '#ff7043' : 'rgba(0,0,0,0.2)');
+    }
+  },
+
   // ---- 世界の遊びシリーズ ----
   // ペタン：鉄の 玉（まんなか ボーナスの ときは 光る）
   petanque(ctx, s, look, tv) {

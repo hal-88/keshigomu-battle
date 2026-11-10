@@ -177,4 +177,132 @@ const drop = (g, i) => { Body.setPosition(g.erasers[i].body, { x: 0, y: 9999 });
   g2.importState(st);
   check('オンライン：人形・ユンノの目', g2.erasers[0].dolls === 1 && Math.abs(g2.erasers[0].size - g.erasers[0].size) < 1e-6 && g2.erasers[1].yutPower === 1.65);
 }
+
+// ---- 後半 ----
+// ケンパー：はねる
+{
+  const g = make('kenpa', 'white-standard');
+  const ev = events(g);
+  Body.setPosition(g.erasers[0].body, { x: -280, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: 0, y: 180 });
+  g.flick(0, 1, 0, 1);
+  run(g);
+  check('ケンパー はねる', ev.filter((x) => x === 'hop').length >= 2, JSON.stringify(ev));
+}
+// ユキダマン：転がると 大きく、番が 来ると 溶ける
+{
+  const g = make('yukidaman', 'white-standard');
+  Body.setPosition(g.erasers[0].body, { x: -280, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: 0, y: 180 });
+  g.flick(0, 1, 0, 0.9);
+  run(g);
+  const big = g.erasers[0].snow;
+  check('ユキダマン 大きくなる', big > 1.05 && g.erasers[0].size > 1.05, `snow ${big.toFixed(2)}`);
+  g.flick(1, 0, -1, 0.2);
+  run(g);
+  check('ユキダマン 溶ける', g.erasers[0].snow < big, `${big.toFixed(2)} → ${g.erasers[0].snow.toFixed(2)}`);
+}
+// ボッチャ：いつも 同じ 強さ
+{
+  const d = (st) => {
+    const g = make('boccia', 'white-standard');
+    Body.setPosition(g.erasers[0].body, { x: -250, y: 0 });
+    Body.setPosition(g.erasers[1].body, { x: 0, y: 180 });
+    g.flick(0, 1, 0, st);
+    run(g);
+    return g.erasers[0].body.position.x;
+  };
+  check('ボッチャ 強さが かわらない', Math.abs(d(0.2) - d(1)) < 3);
+}
+// モルッキー：止まるとき まわりを 押す
+{
+  const g = make('mollucky', 'white-standard');
+  const ev = events(g);
+  Body.setPosition(g.erasers[0].body, { x: -200, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: -60, y: 70 });
+  g.flick(0, 1, 0, 0.35);
+  run(g);
+  check('モルッキー まとめて ドン', ev.includes('molkky'), JSON.stringify(ev));
+}
+// シャガイン：面が かわる
+{
+  const g = make('shagain', 'white-standard', 'study', 1);
+  const ev = events(g);
+  place(g, 300);
+  g.flick(1, -1, 0, 0.3);
+  run(g);
+  check('シャガイン 面が 出る', ev.includes('shagai') && g.erasers[0].shagai >= 0 && g.erasers[0].shagai <= 3, JSON.stringify(ev));
+}
+// カポエ：回しげり
+{
+  const players = ['kapoe', 'white-standard', 'white-standard'].map((id, i) => ({ name: 'P' + i, type: 'cpu', eraser: findEraser(id), color: '' }));
+  const g = new Game({ desk: findDesk('study'), players, firstTurn: 0 });
+  const ev = events(g);
+  Body.setPosition(g.erasers[0].body, { x: -120, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: 0, y: 0 });
+  Body.setPosition(g.erasers[2].body, { x: -20, y: 75 });
+  g.flick(0, 1, 0, 0.7);
+  run(g);
+  check('カポエ 回しげり', ev.includes('capoeira') && g.erasers[0].wobbly, JSON.stringify(ev));
+}
+// ドミノン：ドミノを 立てて、当たると 倒れる
+{
+  const g = make('dominon', 'white-standard');
+  const ev = events(g);
+  Body.setPosition(g.erasers[0].body, { x: 0, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: 0, y: 190 });
+  g.flick(0, 1, 0, 0.3);
+  run(g);
+  const n = g.pencils.filter((p) => p.alive && p.look === 'domino').length;
+  check('ドミノン ドミノを 立てる', n === 3 && ev.includes('dominoSet'), `ドミノ${n}`);
+  Body.setPosition(g.erasers[1].body, { x: -190, y: 0 });
+  g.flick(1, 1, 0, 0.8);
+  run(g);
+  check('ドミノン 当たると 倒れる', ev.includes('domino') && g.pencils.filter((p) => p.alive && p.look === 'domino').length < 3, JSON.stringify(ev));
+}
+// ホームラン：打ち返す
+{
+  const g = make('white-standard', 'homerun');
+  const ev = events(g);
+  shoot(g, 0.8);
+  check('ホームラン 打ち返す', ev.includes('homerun'), JSON.stringify(ev));
+}
+// バンブー：竹で はさむ
+{
+  const g = make('banbuu', 'white-standard');
+  const ev = events(g);
+  Body.setPosition(g.erasers[0].body, { x: -150, y: 0 });
+  Body.setPosition(g.erasers[1].body, { x: 100, y: 150 });
+  g.flick(0, 1, 0, 0.4);
+  run(g);
+  const b = g.bamboo;
+  check('バンブー 竹を 置く', !!b && ev.includes('bambooSet'));
+  // 相手を 竹の 間に 置いて、竹が 閉じるまで すすめる
+  Body.setPosition(g.erasers[1].body, { x: b.x, y: b.y });
+  for (let k = 0; k < 3 && !ev.includes('bamboo'); k++) {
+    const i = g.turnIndex;
+    g.flick(i, 0, i ? -1 : 1, 0.05);
+    run(g);
+  }
+  check('バンブー 閉じて はさむ', ev.includes('bamboo'), JSON.stringify(ev));
+}
+// タクロー：宙返りで 2倍・3回まで
+{
+  const g = make('takuro', 'white-standard');
+  const ev = events(g);
+  shoot(g, 0.6);
+  check('タクロー 宙返り キック', ev.includes('takraw') && ev.includes('takrawHit') && g.erasers[0].takrawLeft === 2, JSON.stringify(ev));
+}
+// オンライン：書き出して 読みこんでも 同じ
+{
+  const g = make('yukidaman', 'takuro');
+  g.erasers[0].snow = 1.2;
+  g._applySnow(g.erasers[0]);
+  g.erasers[1].takrawLeft = 1;
+  g.bamboo = { x: 0, y: 0, angle: 0, len: 170, gap: 64, start: 0, every: 2, until: 6, owner: 0 };
+  const st = g.exportState();
+  const g2 = make('yukidaman', 'takuro');
+  g2.importState(st);
+  check('オンライン：雪玉・タクロー・竹', Math.abs(g2.erasers[0].snow - 1.2) < 1e-6 && g2.erasers[1].takrawLeft === 1 && !!g2.bamboo);
+}
 console.log(`\n${ok} ok / ${ng} ng`);

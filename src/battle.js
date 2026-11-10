@@ -501,6 +501,40 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (type === 'topple') {
       sfx.boing();
       say('🏆 ゴロン！ 倒れた！', '#b8860b');
+    } else if (type === 'hop') {
+      say(['ケン！', 'ケン！', 'パ！'][Math.min(2, (value || 1) - 1)], '#1565c0', 18, 700);
+    } else if (type === 'snowGrow') {
+      say('☃️ 大きくなった！', '#4fc3f7', 18, 1100);
+    } else if (type === 'molkky') {
+      if (value) sfx.hit(6);
+      say(value ? `🪵 まとめて ドン！（${value}こ）` : '🪵 ドン', '#8d6e63', 18, 1100);
+    } else if (type === 'shagai') {
+      sfx.flip();
+      say(`${name}！`, '#fff', 22, 1300);
+      if (p.type === 'human') later(300, () => toast(`シャガイ：${name}${{ 0: '（速い）', 1: '（重い）', 2: '（やわらか）', 3: '（はね返す）' }[value] || ''}`, '#f3e5c8'));
+    } else if (type === 'capoeira') {
+      sfx.whoosh();
+      renderer.addEffect({ type: 'ring', x, y, color: '#ffd600', dur: 600, r: 30, grow: 110 });
+      say('🦶 回しげり！', '#009c3b', 22, 1300);
+    } else if (type === 'dominoSet') {
+      say('ドミノ 準備OK', '#fafafa', 16, 1000);
+    } else if (type === 'domino') {
+      sfx.hit(4, true);
+      say('パタッ', '#fafafa', 16, 600);
+    } else if (type === 'homerun') {
+      sfx.hit(12);
+      renderer.shake(300, 7);
+      say('⚾ カキーン！ ホームラン！', '#e53935', 26, 1700);
+    } else if (type === 'bambooSet') {
+      say('🎋 竹を 置いた！', '#8bc34a', 18, 1100);
+    } else if (type === 'bamboo') {
+      sfx.hit(8, true);
+      say(value ? `🎋 カチャン！ ${name}が はさまれた！` : '🎋 カチャン！', '#558b2f', 20, 1600);
+    } else if (type === 'takraw') {
+      say(`🤸 宙返り キック！（あと${value}回）`, '#ffb300', 20, 1200);
+    } else if (type === 'takrawHit') {
+      sfx.hit(12);
+      say('ドーン！ 2倍！', '#ff7043', 24, 1200);
     } else if (type === 'petanque') {
       sfx.rare();
       say('🎯 まんなか！ パワーアップ', '#ffb300', 20);

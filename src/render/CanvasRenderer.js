@@ -168,6 +168,7 @@ export class CanvasRenderer {
       if (state.phase === 'aim' && cur?.alive && cur.def.trait?.id === 'petanque') this._drawPetanqueRing(ctx, cur.def.trait.center ?? 95, now);
     }
     if (state.stuck) this._drawNattoThreads(ctx, state.stuck, now);
+    if (state.bamboo) this._drawBamboo(ctx, state.bamboo, now);
     if (state.tilt) this._drawTilt(ctx, state, now);
     if (state.blackHole) this._drawBlackHole(ctx, state.blackHole, now);
     if (state.pendingShrink) this._drawShrinkWarning(ctx, state.desk, state.pendingShrink, now);
@@ -840,6 +841,35 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
+  // バンブー：竹 2本（次の 番で 閉じるときは 点めつ）
+  _drawBamboo(ctx, b, now) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.angle);
+    if (b.closing) {
+      const k = 0.5 + 0.5 * Math.sin(now / 150);
+      ctx.fillStyle = `rgba(255,214,0,${0.15 + 0.2 * k})`;
+      ctx.fillRect(-b.len / 2, -b.gap / 2, b.len, b.gap);
+    }
+    for (const y of [-b.gap / 2, b.gap / 2]) {
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(-b.len / 2 + 2, y - 4, b.len, 10);
+      ctx.fillStyle = '#8bc34a';
+      ctx.beginPath();
+      roundRectPath(ctx, -b.len / 2, y - 5, b.len, 10, 5);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(51,105,30,0.7)';
+      for (let i = 1; i < 5; i++) ctx.fillRect(-b.len / 2 + (b.len * i) / 5, y - 5, 2, 10);
+    }
+    if (b.closing) {
+      ctx.fillStyle = 'rgba(80,60,0,0.9)';
+      ctx.font = '800 13px "M PLUS Rounded 1c", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('次の番で 閉じる！', 0, -b.gap / 2 - 10);
+    }
+    ctx.restore();
+  }
+
   // ハゴイタンの 墨で ×（次の番 ねらいの線が 見えない）
   _drawInk(ctx, e) {
     const r = eraserExtent(e.def) * e.size * 0.75;
@@ -1159,6 +1189,31 @@ export class CanvasRenderer {
   }
 
   // ブロッケンが のこした ブロックの壁
+  // ドミノン：立てた ドミノ（上から 見ると 細い 牌）
+  _drawDominoTile(ctx, x, y, angle, L, W, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(-L / 2 + 2, -W / 2 + 4, L, W);
+    ctx.fillStyle = '#fafafa';
+    ctx.beginPath();
+    roundRectPath(ctx, -L / 2, -W / 2, L, W, 2);
+    ctx.fill();
+    ctx.strokeStyle = '#212121';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#212121';
+    ctx.fillRect(-1, -W / 2 + 1, 2, W - 2);
+    for (const px of [-L * 0.3, -L * 0.15, L * 0.22]) {
+      ctx.beginPath();
+      ctx.arc(px, 0, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   _drawBlock(ctx, x, y, angle, L, W, scale, color) {
     ctx.save();
     ctx.translate(x, y);
@@ -1253,6 +1308,7 @@ export class CanvasRenderer {
   _drawPencil(ctx, x, y, angle, L, W, scale = 1, look = 'pencil', color = null) {
     if (look === 'ruler') return this._drawRuler(ctx, x, y, angle, L, W, scale);
     if (look === 'block') return this._drawBlock(ctx, x, y, angle, L, W, scale, color);
+    if (look === 'domino') return this._drawDominoTile(ctx, x, y, angle, L, W, scale);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
@@ -1401,6 +1457,7 @@ export class CanvasRenderer {
       return;
     }
 
+    if (e.def.trait?.id === 'boccia') aim = { ...aim, strength: e.def.trait.fixed ?? 0.72, spin: 0 }; // ボッチャ：いつも 同じ 強さ
     const start = eraserExtent(e.def) * e.size + 10;
     const L = 30 + aim.strength * 220;
     const spin = aim.spin || 0;
