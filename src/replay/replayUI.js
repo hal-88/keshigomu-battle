@@ -4,22 +4,38 @@ import { videoMime, makeReplayVideo, shareOrSave, saveVideo } from './replay.js'
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-/** 結果画面に 入れる HTML（名場面が ない・動画が 作れない 端末では 空） */
+/** 結果画面の 右上に 出す 小さな ボタン（名場面が ない・動画が 作れない 端末では 空） */
 export function clipsHTML(clips) {
   if (!clips?.length || !videoMime()) return '';
-  return `<div class="replay-box">
-      <div class="replay-title">📹 名場面を 動画に（シェア・保存 できるよ）</div>
-      <div class="replay-list">${clips
-        .map((c, i) => `<button class="btn small replay-btn" data-clip="${i}">🎬 ${esc(c.info?.text || '名場面')}</button>`)
-        .join('')}</div>
-    </div>`;
+  return '<button class="replay-mini" data-act="clips">📹 シェアする</button>';
 }
 
-/** ボタンを つなぐ */
+/** ボタンを つなぐ（名場面が 1つなら すぐ 動画に。2つ以上なら えらぶ） */
 export function bindClips(root, clips) {
-  root.querySelectorAll('[data-clip]').forEach((b) => {
-    b.onclick = () => openClip(root, clips[Number(b.dataset.clip)]);
-  });
+  const btn = root.querySelector('[data-act=clips]');
+  if (!btn || !clips?.length) return;
+  btn.onclick = () => {
+    if (clips.length === 1) return openClip(root, clips[0]);
+    const ov = document.createElement('div');
+    ov.className = 'overlay fixed show';
+    ov.innerHTML = `<div class="modal replay-pick">
+        <div class="replay-head">📹 どの 場面を 動画に する？</div>
+        <div class="replay-list">${clips
+          .map((c, i) => `<button class="btn replay-btn" data-clip="${i}">🎬 ${esc(c.info?.text || '名場面')}</button>`)
+          .join('')}</div>
+        <button class="btn ghost" data-act="close">閉じる</button>
+      </div>`;
+    root.appendChild(ov);
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('[data-act=close]')) ov.remove();
+    });
+    ov.querySelectorAll('[data-clip]').forEach((b) => {
+      b.onclick = () => {
+        ov.remove();
+        openClip(root, clips[Number(b.dataset.clip)]);
+      };
+    });
+  };
 }
 
 async function openClip(root, clip) {

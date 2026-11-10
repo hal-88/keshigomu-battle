@@ -1,8 +1,10 @@
-// 名場面リプレイ：消しゴムが 落ちた（倒した・倒された）場面を、2ターン前から 動画にする。
+// 名場面リプレイ：消しゴムが 落ちた（倒した・倒された）場面を、4ターン前から 動画にする。
 //
 // ・対戦中は 画面の様子（Game.getState() を 小さくしたもの）を 30コマ/秒で 記録しておく。
 //   動画は 作らないので、対戦中は 重くならない。ねらっている間は 最後の 2秒だけ 残す。
-// ・だれかが 落ちたら、その 2ターン前から 落ちて 2.6秒後までを 切りとって「クリップ」にする。
+// ・だれかが 落ちたら、その 4ターン前から 落ちて 2.6秒後までを 切りとって「クリップ」にする。
+// ・机の上の もの（ワックス・こおり・牛乳・小石・竹・ガス栓など）も コマごとに 写しておく
+//   （そのままだと 最後の 状態が ずっと 出てしまうので）。
 // ・「動画にする」を 押したら、クリップを 見えないキャンバスに もう一度 かいて、
 //   MediaRecorder で 動画（mp4 か webm）にする。音は 入らない。
 
@@ -24,7 +26,7 @@ export function createReplayRecorder() {
 
   function cut(p, now) {
     const frames = [];
-    for (const k of [p.turn - 1, p.turn, p.turn + 1, p.turn + 2]) {
+    for (const k of [p.turn - 3, p.turn - 2, p.turn - 1, p.turn, p.turn + 1, p.turn + 2]) {
       for (const f of turns.get(k) || []) if (f.t <= p.until) frames.push(f);
     }
     if (frames.length < 5) return;
@@ -56,9 +58,9 @@ export function createReplayRecorder() {
       if (!list) {
         list = [];
         turns.set(turn, list);
-        for (const k of [...turns.keys()]) if (k < turn - 3) turns.delete(k);
+        for (const k of [...turns.keys()]) if (k < turn - 5) turns.delete(k);
       }
-      const f = { t: now, aimPhase: st.phase === 'aim', view: packView(st), aim: aim ? { ...aim } : null, cam: { ...cam } };
+      const f = { t: now, aimPhase: st.phase === 'aim', view: packView(st), desk: snapDesk(st), aim: aim ? { ...aim } : null, cam: { ...cam } };
       list.push(f);
       if (f.aimPhase) {
         // ねらっている間は 最後の 2秒だけ（考えている時間は 動画に いらない）
@@ -83,6 +85,16 @@ export function createReplayRecorder() {
       while (pending.length) cut(pending.shift(), now);
       return [...clips].reverse();
     },
+  };
+}
+
+/** 机の上の もの（あとから かわるもの）を コマごとに 写す */
+function snapDesk(st) {
+  return {
+    waxZones: (st.waxZones || []).map((z) => ({ ...z })),
+    bamboo: st.bamboo ? { ...st.bamboo } : null,
+    stuck: st.stuck ? { ...st.stuck } : null,
+    posts: (st.posts || []).map((p) => ({ ...p })),
   };
 }
 
@@ -147,6 +159,7 @@ export async function makeReplayVideo(clip, onProgress) {
         }
         const f = clip.frames[fi];
         const st = unpackView(f.view, clip.base);
+        if (f.desk) Object.assign(st, f.desk); // その コマの 机の上の もの
         r.setCamera(f.cam.x, f.cam.y, f.cam.zoom);
         r.draw(st, f.aim, now);
         drawCaption(r.ctx, canvas.width, canvas.height, clip.info, now - T0, dur);

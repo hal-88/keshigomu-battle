@@ -3026,3 +3026,35 @@ canvas.board {
 .spin-ctl.with-stamp {
   bottom: 70px; /* オンラインは 右下に スタンプが あるので その上 */
 }
+
+/* 📹 結果画面の 右上の 小さな シェア ボタン */
+.result {
+  position: relative;
+}
+.replay-mini {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 5px 10px;
+  border: 2px solid #e6dccb;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink, #333);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  z-index: 2;
+}
+.replay-mini:active {
+  transform: scale(0.95);
+}
+.replay-pick {
+  width: min(460px, 92vw);
+  text-align: center;
+}
+.replay-pick .replay-list {
+  flex-direction: column;
+  margin: 8px 0;
+}

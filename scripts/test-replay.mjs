@@ -37,6 +37,7 @@ while (g.phase !== 'over' && shots < 40) {
     const o = g.erasers.find((e) => e.alive && e.playerIndex !== g.turnIndex).body.position;
     g.flick(g.turnIndex, o.x - me.x, o.y - me.y, 1);
     shots++;
+    if (shots === 2) g.waxZones.push({ x: 0, y: 0, r: 30, scale: 0.5, owner: 0 }); // とちゅうで 机に ワックス
   }
   g.step(PHYSICS.timeStep);
   now += 16.7;
@@ -51,7 +52,7 @@ check('落ちたら クリップが できる', ko > 0 && clips.length > 0, `落
 const c = clips[0];
 const dur = c.end - c.start;
 const turnsIn = new Set(c.frames.map((f) => f.view.turnIndex)).size;
-check('クリップは 2ターンぶんくらい（長すぎない）', dur > 2000 && dur < 20000, `${(dur / 1000).toFixed(1)}秒 コマ${c.frames.length}`);
+check('クリップは 4ターンぶんくらい（長すぎない）', dur > 2000 && dur < 32000, `${(dur / 1000).toFixed(1)}秒 コマ${c.frames.length}`);
 check('ねらっている 時間は 2秒まで', (() => {
   let run = 0;
   let maxRun = 0;
@@ -64,4 +65,8 @@ check('ねらっている 時間は 2秒まで', (() => {
 })());
 const st = unpackView(c.frames[c.frames.length - 1].view, c.base);
 check('コマから 画面の 状態に もどせる', st.erasers.length === 2 && st.desk && st.players.length === 2, `番の人${turnsIn}種`);
+check(
+  '机の上の ものは その コマの 状態（最後の 状態に ならない）',
+  c.frames[0].desk.waxZones.length === 0 && c.frames[c.frames.length - 1].desk.waxZones.length === 1,
+);
 console.log(`\n${ok} ok / ${ng} ng`);
