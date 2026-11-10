@@ -17,6 +17,7 @@ import { cardHTML, flipCardHTML } from './ui/cardView.js';
 import { sfx, isMuted, setMuted } from './audio/sfx.js';
 import { collection } from './progress/collection.js';
 import { packView, unpackView, packEvent, unpackEvent } from './online/viewCodec.js';
+import { createReplayRecorder } from './replay/replay.js';
 
 // 名前を HTML に入れるときは、記号をそのまま文字として出す
 const esc = (s) =>
@@ -70,6 +71,20 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
   const game = new Game({ desk, players, firstTurn });
   if (online?.state) game.importState(online.state);
   const renderer = new CanvasRenderer(canvas);
+  // 名場面リプレイ：画面の様子と 演出を 記録しておく（落ちた場面を あとで 動画に できる）
+  const replay = createReplayRecorder();
+  {
+    const addFx = renderer.addEffect.bind(renderer);
+    renderer.addEffect = (fx) => {
+      replay.effect(performance.now(), 'fx', fx);
+      addFx(fx);
+    };
+    const shake = renderer.shake.bind(renderer);
+    renderer.shake = (ms, power) => {
+      replay.effect(performance.now(), 'shake', [ms, power]);
+      shake(ms, power);
+    };
+  }
   const input = new FlickInput(canvas, renderer, game);
   if (import.meta.env.DEV) window.__game = game; // 開発中の確認用
 
@@ -408,6 +423,16 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     sfx.fall();
     toast(`${p.name}が 落ちた！`, p.color);
+    // 名場面：倒した・倒された 場面（この端末の 人が かかわったもの）を クリップに
+    {
+      const shooter = game.turnIndex;
+      const mine = (i) => (online ? i === online.myIndex : game.players[i]?.type === 'human');
+      if (mine(playerIndex) || mine(shooter)) {
+        const sp = game.players[shooter];
+        const text = shooter === playerIndex || !sp ? `${p.name}が 落ちた…！` : `${sp.name}が ${p.name}を 落とした！`;
+        replay.knockout(performance.now(), game.turnCount, { text, fallen: playerIndex, shooter }, renderer.flip);
+      }
+    }
     slow = { start: performance.now(), idx: playerIndex };
   });
 
@@ -787,7 +812,10 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       else if (game.players[w].type === 'human') sfx.win();
       else sfx.lose();
     });
-    later(GAME.resultDelayMs, () => onEnd(result, game.players));
+    later(GAME.resultDelayMs, () => {
+      result.clips = replay.finish(performance.now()); // 名場面（動画に できる）
+      onEnd(result, game.players);
+    });
   }
 
   // ---- オンライン：送る・受けとる ----
@@ -1066,6 +1094,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (seat) st.seatMoved = seat.chosen.map((c) => c.pid); // 元の場所は うすくする
     renderer.draw(st, input.aim || cpuAim, now, preview, input.targeting?.candidates);
+    replay.frame(now, st, input.aim || cpuAim, renderer.cam);
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);

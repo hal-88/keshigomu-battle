@@ -2868,3 +2868,52 @@ canvas.board {
   justify-content: center;
   margin-bottom: 4px;
 }
+
+/* 📹 名場面を 動画に */
+.replay-box {
+  margin: 8px auto 4px;
+  padding: 8px 10px;
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+}
+.replay-title {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.replay-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.replay-modal {
+  width: min(680px, 94vw);
+  text-align: center;
+}
+.replay-head {
+  font-weight: 800;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.replay-bar {
+  height: 12px;
+  background: #eee3d2;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.replay-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #ff6b4a;
+  transition: width 0.2s;
+}
+.replay-video {
+  width: 100%;
+  max-height: 52vh;
+  border-radius: 10px;
+  background: #000;
+}

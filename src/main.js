@@ -5,6 +5,7 @@ import { DESKS, findDesk } from './config/desks.js';
 import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, MUKASHI_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection, isMukashiSeason, mukashiUntil } from './progress/collection.js';
+import { clipsHTML, bindClips } from './replay/replayUI.js';
 import { cardHTML } from './ui/cardView.js';
 import { GAME } from './config/game.js';
 import { createBattle } from './battle.js';
@@ -741,9 +742,11 @@ function showResult(result, players) {
        ${streakHTML}
        ${rewardHTML}
        ${ranking}
+       ${clipsHTML(result.clips)}
        <div class="row">${buttons}</div>
      </div>`,
   );
+  bindClips(el, result.clips); // 📹 名場面を 動画に
   if (w != null && players[w].type === 'human') confetti(el);
   if (w != null) whenFonts(() => drawEraserPreview(el.querySelector('.result-eraser'), players[w].eraser));
   if (reward) {

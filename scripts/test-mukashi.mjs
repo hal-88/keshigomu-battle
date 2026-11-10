@@ -125,7 +125,7 @@ const check = (name, cond, info = '') => {
   g.flick(0, 1, 0, 0.9);
   const flew = g.erasers[0].airborne;
   run(g);
-  check('トンボン 手前を 飛び越える', flew && Math.abs(g.erasers[1].body.position.x + 80) < 8 && (!g.erasers[2].alive || g.erasers[2].body.position.x > 105), `flew=${flew} b=${g.erasers[1].body.position.x.toFixed(0)},${g.erasers[1].body.position.y.toFixed(0)} t=${g.erasers[2].alive ? g.erasers[2].body.position.x.toFixed(0) : 'FELL'}`);
+  check('トンボン 手前を 飛び越える', flew && Math.abs(g.erasers[1].body.position.x + 80) < 8 && Math.abs(g.erasers[1].body.position.y) < 8, `flew=${flew} b=${g.erasers[1].body.position.x.toFixed(0)},${g.erasers[1].body.position.y.toFixed(0)} t=${g.erasers[2].alive ? g.erasers[2].body.position.x.toFixed(0) : 'FELL'}`);
   const g2 = make('tonbon', 'white-standard');
   place(g2, 200);
   g2.flick(0, 1, 0, 0.9);
