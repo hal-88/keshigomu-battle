@@ -2970,3 +2970,59 @@ canvas.board {
   border-radius: 2px;
   flex: none;
 }
+
+/* 回転を えらぶ（右下） */
+.spin-ctl {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+  z-index: 5;
+}
+.spin-ctl.show {
+  display: flex;
+}
+.spin-label {
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 2px;
+  color: var(--ink, #333);
+}
+.spin-ctl button {
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  min-width: 38px;
+  height: 36px;
+  border: 2px solid #e6dccb;
+  border-radius: 10px;
+  background: #fffaf2;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.spin-ctl button[data-spin='0'] {
+  font-size: 12px;
+}
+.spin-ctl button.on {
+  border-color: #ff6b4a;
+  background: #ffe9e2;
+}
+@media (max-width: 560px) {
+  .spin-ctl button {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+  .spin-label {
+    display: none;
+  }
+}
+.spin-ctl.with-stamp {
+  bottom: 70px; /* オンラインは 右下に スタンプが あるので その上 */
+}

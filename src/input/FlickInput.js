@@ -19,6 +19,8 @@ export class FlickInput {
     this.placement = null; // { kind, def, playerIndex, onPlace(params) }
     this.preview = null; // 描画用：置く場所のプレビュー
     this.steerDrag = null;
+    // 回転（右下の ボタンで えらぶ。-1〜1。0 なら 消しゴムを つかんだ 場所で きまる）
+    this.spinPreset = 0;
 
     this._down = this._down.bind(this);
     this._move = this._move.bind(this);
@@ -106,9 +108,9 @@ export class FlickInput {
     if (g.phase !== 'aim' || !this._isHumanTurn()) return;
     const slop = GAME.input.touchSlopPx / this.renderer.zoomScale;
     const piece = g.hitTestPiece(w.x, w.y, slop);
-    if (!piece || piece.playerIndex !== g.turnIndex) return;
+    const mine = piece && piece.playerIndex === g.turnIndex;
     // パカッターが分かれているときは、さわったほうを弾く
-    g.selectPiece(g.turnIndex, piece);
+    if (mine) g.selectPiece(g.turnIndex, piece);
 
     this._capture(ev);
     const st = g.getState().erasers[g.turnIndex];
@@ -118,9 +120,11 @@ export class FlickInput {
       sx: p.x,
       sy: p.y,
       playerIndex: g.turnIndex,
-      // 消しゴムの中心から、触ったところまでのずれ（回転の計算用）
-      gx: w.x - st.x,
-      gy: w.y - st.y,
+      // 画面の どこからでも 引っぱれる（画面の 端に いても 大きく 引けるように）。
+      // 自分の 消しゴムを つかんだ ときは、中心からの ずれで 回転も かかる
+      anywhere: !mine,
+      gx: mine ? w.x - st.x : 0,
+      gy: mine ? w.y - st.y : 0,
       ext: g.extentOf(g.turnIndex),
     };
     this.aim = { playerIndex: g.turnIndex, dirX: 0, dirY: 0, strength: 0, spin: 0 };
@@ -177,7 +181,8 @@ export class FlickInput {
       rawX: d.x, // Game.flick にわたす向き
       rawY: d.y,
       strength: pull < minPullPx ? 0 : Math.min(1, pull / maxPullPx),
-      spin: this._spin(ax, ay),
+      // 回転：ボタンで えらんでいれば それ。なければ つかんだ 場所で
+      spin: this.spinPreset || (this.drag.anywhere ? 0 : this._spin(ax, ay)),
     };
   }
 

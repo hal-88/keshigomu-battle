@@ -58,6 +58,14 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       <div class="toast" data-el="toast"></div>
       <div class="hint" data-el="hint"></div>
       <button class="card-btn" data-el="cardBtn"></button>
+      <div class="spin-ctl ${online ? 'with-stamp' : ''}" data-el="spinCtl" aria-label="回転">
+        <span class="spin-label">回転</span>
+        <button data-spin="-1" aria-label="左に 強く">↺↺</button>
+        <button data-spin="-0.5" aria-label="左に">↺</button>
+        <button data-spin="0" class="on" aria-label="なし">なし</button>
+        <button data-spin="0.5" aria-label="右に">↻</button>
+        <button data-spin="1" aria-label="右に 強く">↻↻</button>
+      </div>
       ${online ? '<button class="stamp-btn" data-el="stampBtn" aria-label="スタンプ">💬</button><div class="stamp-palette" data-el="stamps"></div>' : ''}
       <div class="banner" data-el="banner">
         <span data-el="bannerText"></span>
@@ -205,7 +213,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (game.extrasOf(game.turnIndex).length) {
       setHint('2つに分かれているよ。弾くほうを 触ってね');
     } else {
-      setHint(flickedOnce.has(game.turnIndex) ? '' : `${p.name}の消しゴムを 引っぱって 離そう！`);
+      setHint(flickedOnce.has(game.turnIndex) ? '' : `画面の どこからでも 引っぱって 離そう！ 回転は 右下で えらべるよ`);
     }
   }
 
@@ -227,7 +235,22 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (!show) btn.dataset.pi = '';
     btn.classList.toggle('show', show);
+    // 回転の ボタン：自分の 番で ねらっている ときだけ
+    const spinShow = p.type === 'human' && isMyTurn() && game.phase === 'aim' && !input.placement && !input.targeting && !overlayOpen;
+    $('spinCtl').classList.toggle('show', spinShow);
   }
+
+  // 回転を えらぶ（どこから 引っぱっても かかる。弾いたら 「なし」に もどる）
+  function setSpin(v) {
+    input.spinPreset = v;
+    $('spinCtl').querySelectorAll('[data-spin]').forEach((b) => b.classList.toggle('on', Number(b.dataset.spin) === v));
+  }
+  $('spinCtl').querySelectorAll('[data-spin]').forEach((b) => {
+    b.addEventListener('click', () => {
+      sfx.tap();
+      setSpin(Number(b.dataset.spin));
+    });
+  });
 
   $('cardBtn').addEventListener('click', () => {
     const i = game.turnIndex;
@@ -398,6 +421,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
 
   // ---- ゲームからの知らせ ----
   on('flick', ({ playerIndex, strength, backfire }) => {
+    setSpin(0); // 回転は 毎回 「なし」に もどす
     sfx.flick(strength);
     if (backfire) {
       sfx.boing();
