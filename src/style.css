@@ -3058,3 +3058,88 @@ canvas.board {
   flex-direction: column;
   margin: 8px 0;
 }
+
+/* ガチャの 種類を かえる（◀ ▶・スワイプ） */
+.gacha-screen .screen-in {
+  touch-action: pan-y;
+}
+.gacha-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+}
+.gacha-arrow {
+  font: inherit;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #e6dccb;
+  background: #fff;
+  cursor: pointer;
+}
+.gacha-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.gacha-dots {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.gacha-dot {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 2px solid #e6dccb;
+  background: #fffaf2;
+  color: #8a7a66;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+.gacha-dot small {
+  font-size: 10px;
+}
+.gacha-dot.on {
+  border-color: #ff6b4a;
+  background: #ffe9e2;
+  color: var(--ink, #333);
+}
+/* ガチャごとの 色 */
+.gacha-machine.mode-asobi .gacha-dome {
+  border-color: #26a69a;
+}
+.gacha-machine.mode-asobi .gacha-body {
+  background: #26a69a;
+  box-shadow: 0 6px 0 #1b7f75;
+}
+.gacha-machine.mode-mukashi .gacha-dome {
+  border-color: #c62828;
+}
+.gacha-machine.mode-mukashi .gacha-body {
+  background: #c62828;
+  box-shadow: 0 6px 0 #8e1b1b;
+}
+/* スワイプで すべりこむ */
+.gacha-machine.slide-l {
+  animation: gacha-in-l 0.28s ease-out;
+}
+.gacha-machine.slide-r {
+  animation: gacha-in-r 0.28s ease-out;
+}
+@keyframes gacha-in-l {
+  from { transform: translateX(60px); opacity: 0.2; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes gacha-in-r {
+  from { transform: translateX(-60px); opacity: 0.2; }
+  to { transform: none; opacity: 1; }
+}

@@ -22,6 +22,10 @@ export function isMukashiSeason(date = new Date()) {
 /** 昔あそびガチャが 終わる日（画面に 出す） */
 export const mukashiUntil = () => `${GAME.collection.mukashi.to[0]}/${GAME.collection.mukashi.to[1]}`;
 const isMukashi = (e) => e.kind === 'mukashi';
+/** あそびシリーズ（世界の遊び・昔あそび）は「あそびガチャ」から 出る */
+const isAsobi = (e) => e.kind === 'sekai' || e.kind === 'mukashi';
+/** ガチャの 種類（スワイプで えらぶ）。お正月は 昔あそびガチャも */
+export const gachaModes = () => (isMukashiSeason() ? ['mukashi', 'normal', 'asobi'] : ['normal', 'asobi']);
 
 const fresh = () => ({
   owned: [...START_ERASER_IDS], // 使える消しゴム・文房具
@@ -129,14 +133,22 @@ export const collection = {
       const fresh = MUKASHI_ERASERS.filter((e) => !own(e));
       return { kind: 'mukashi', items: [...MUKASHI_ERASERS], fresh, total: MUKASHI_ERASERS.length, owned: MUKASHI_ERASERS.filter(own).length };
     }
-    const newLimited = GACHA_ERASERS.filter((e) => !own(e));
+    if (mode === 'asobi') {
+      // 🌏あそびガチャ：世界の遊び・昔あそび（昔あそびは ふだん まれ）
+      const list = GACHA_ERASERS.filter(isAsobi);
+      const fresh = list.filter((e) => !own(e));
+      return { kind: fresh.length ? 'asobi' : 'done', items: list, fresh, total: list.length, owned: list.filter(own).length };
+    }
+    // 🎰特別ガチャ：文房具・特別・給食。ぜんぶ 集めたら まだ 持っていない ふつうの 消しゴムも まざる
+    const limited = GACHA_ERASERS.filter((e) => !isAsobi(e));
+    const newLimited = limited.filter((e) => !own(e));
     const newRegular = newLimited.length ? [] : REGULAR_ERASERS.filter((e) => !own(e));
     return {
       kind: newLimited.length ? 'gacha' : newRegular.length ? 'eraser' : 'done',
-      items: [...GACHA_ERASERS, ...newRegular],
+      items: [...limited, ...newRegular],
       fresh: [...newLimited, ...newRegular],
-      total: GACHA_ERASERS.length,
-      owned: GACHA_ERASERS.filter(own).length,
+      total: limited.length,
+      owned: limited.filter(own).length,
     };
   },
   isKira: (id) => (data.kira || []).includes(id),
