@@ -2953,3 +2953,20 @@ canvas.board {
   color: #fff;
   text-decoration: none;
 }
+
+/* 🌏 世界の遊び：国旗と 生まれた国 */
+.country-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef6ff;
+  font-weight: 700;
+  font-size: 13px;
+}
+.country-line .flag {
+  border-radius: 2px;
+  flex: none;
+}

@@ -866,6 +866,287 @@ export const SPECIAL_ART = {
     sparkle(ctx, w / 2 - 1, h / 2 - 1, 3 + 2 * Math.abs(Math.sin(t + 2)));
   },
 
+  // ---- 世界の遊びシリーズ ----
+  // ペタン：鉄の 玉（まんなか ボーナスの ときは 光る）
+  petanque(ctx, s, look, tv) {
+    const r = s.radius;
+    if (tv && tv.center) {
+      circle(ctx, 0, 0, r + 5);
+      fill(ctx, 'rgba(255,213,79,0.55)');
+    }
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 1, 0, 0, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.35, look.body);
+    g.addColorStop(1, '#546e7a');
+    ctx.fillStyle = g;
+    ctx.fill();
+    // みぞ
+    ctx.strokeStyle = 'rgba(55,71,79,0.6)';
+    ctx.lineWidth = 1.5;
+    for (const k of [-0.45, 0, 0.45]) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 0.95, r * Math.abs(k) + 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(38,50,56,0.6)', 1.3);
+  },
+
+  // ケリハネ：羽根（上から）。重りと カラフルな 羽
+  jianzi(ctx, s, look, tv) {
+    const r = s.radius;
+    const cols = [look.body, '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#fb8c00'];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.beginPath();
+      ctx.ellipse(r * 0.5, 0, r * 0.52, r * 0.2, 0, 0, Math.PI * 2);
+      fill(ctx, cols[i]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.1, 0);
+      ctx.lineTo(r * 0.95, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+    circle(ctx, 0, 0, r * 0.32);
+    fill(ctx, tv && tv.kickUsed ? '#9e9e9e' : '#ffd54f');
+    circle(ctx, 0, 0, r * 0.32);
+    line(ctx, 'rgba(120,80,0,0.6)', 1.2);
+    circle(ctx, 0, 0, r * 0.1);
+    fill(ctx, '#5d4037');
+  },
+
+  // マンカラン：木の 盤と 小石
+  mancala(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(70,40,20,0.6)', 1.3);
+    const pits = [-0.33, -0.11, 0.11, 0.33];
+    const stones = ['#90caf9', '#f48fb1', '#fff59d', '#a5d6a7'];
+    for (const [j, y] of [[0, -h * 0.22], [1, h * 0.22]]) {
+      pits.forEach((px, i) => {
+        circle(ctx, px * w, y, h * 0.17);
+        fill(ctx, '#6d4024');
+        for (let k = 0; k < 3; k++) {
+          circle(ctx, px * w + (k - 1) * 2.5, y + ((k + i + j) % 2 ? 1.5 : -1.5), 1.8);
+          fill(ctx, stones[(i + k + j) % 4]);
+        }
+      });
+    }
+    for (const x of [-w / 2 + 6, w / 2 - 6]) {
+      ctx.beginPath();
+      ctx.ellipse(x, 0, 4, h * 0.36, 0, 0, Math.PI * 2);
+      fill(ctx, '#6d4024');
+    }
+  },
+
+  // カバディン：オレンジの ユニフォームと 手を 広げた 人
+  kabaddi(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(120,60,0,0.5)', 1.3);
+    // 体と 手
+    ctx.strokeStyle = '#3e2723';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.32, -h * 0.25);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(w * 0.32, -h * 0.25);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, h * 0.25);
+    ctx.stroke();
+    circle(ctx, 0, -h * 0.18, h * 0.14);
+    fill(ctx, '#8d6e63');
+    // 白と 緑の すじ（3色）
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-w / 2 + 3, h * 0.28, w - 6, 2.5);
+    ctx.fillStyle = '#138808';
+    ctx.fillRect(-w / 2 + 3, h * 0.36, w - 6, 2.5);
+    text(ctx, 'カバディ', 0, h * 0.06 + 9, h * 0.22, '#fff', w * 0.9);
+  },
+
+  // ナイトン：チェスの ナイト（馬の 頭）
+  knight(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    fill(ctx, look.body);
+    circle(ctx, 0, 0, r * 0.82);
+    line(ctx, 'rgba(255,255,255,0.35)', 1.5);
+    ctx.fillStyle = '#eceff1';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.35, r * 0.55);
+    ctx.lineTo(-r * 0.2, -r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.45, -r * 0.2, -r * 0.2, -r * 0.55);
+    ctx.lineTo(0, -r * 0.62);
+    ctx.quadraticCurveTo(r * 0.55, -r * 0.45, r * 0.5, r * 0.05);
+    ctx.lineTo(r * 0.15, -r * 0.05);
+    ctx.lineTo(r * 0.35, r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    circle(ctx, r * 0.15, -r * 0.3, 2);
+    fill(ctx, '#263238');
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(0,0,0,0.5)', 1.3);
+  },
+
+  // カーリン：カーリングの 石（取っ手つき）
+  curling(ctx, s, look, tv) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
+    g.addColorStop(0, '#e0e0e0');
+    g.addColorStop(1, look.body);
+    ctx.fillStyle = g;
+    ctx.fill();
+    circle(ctx, 0, 0, r * 0.72);
+    fill(ctx, '#d32f2f');
+    rr(ctx, -r * 0.55, -r * 0.14, r * 1.1, r * 0.28, r * 0.14);
+    fill(ctx, '#fdd835');
+    line(ctx, 'rgba(120,90,0,0.6)', 1);
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(0,0,0,0.4)', 1.3);
+    if (tv && tv.brushing) {
+      const t = now() / 60;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const y = -r + 6 + i * 6;
+        ctx.beginPath();
+        ctx.moveTo(r + 4 + Math.sin(t + i) * 4, y);
+        ctx.lineTo(r + 14 + Math.sin(t + i) * 4, y);
+        ctx.stroke();
+      }
+    }
+  },
+
+  // ユンノ：4本の 棒（出た目の ぶんだけ 平らな 面が 上）
+  yut(ctx, s, look, tv) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, '#c62828');
+    line(ctx, 'rgba(0,0,0,0.3)', 1.2);
+    const v = tv ? tv.yut || 0 : 3;
+    const flat = v === 5 ? 0 : v; // モは 4本とも まるい面（うら）
+    for (let i = 0; i < 4; i++) {
+      const x = -w * 0.33 + i * w * 0.22;
+      rr(ctx, x - 4, -h / 2 + 4, 8, h - 8, 4);
+      fill(ctx, i < flat ? look.body : '#8d6e63');
+      line(ctx, 'rgba(60,30,10,0.5)', 1);
+      if (i < flat) {
+        ctx.strokeStyle = 'rgba(120,60,20,0.8)';
+        ctx.lineWidth = 1;
+        for (const yy of [-h * 0.2, 0, h * 0.2]) {
+          ctx.beginPath();
+          ctx.moveTo(x - 2.5, yy - 2);
+          ctx.lineTo(x + 2.5, yy + 2);
+          ctx.moveTo(x + 2.5, yy - 2);
+          ctx.lineTo(x - 2.5, yy + 2);
+          ctx.stroke();
+        }
+      }
+    }
+  },
+
+  // ブーメ：ブーメラン（くの字）。アボリジナルアートの 点もよう
+  boomerang(ctx, s, look) {
+    const { w, h } = s;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, h * 0.1);
+    ctx.quadraticCurveTo(-w * 0.1, -h * 0.9, 0, -h * 0.5);
+    ctx.quadraticCurveTo(w * 0.1, -h * 0.9, w / 2, h * 0.1);
+    ctx.quadraticCurveTo(w * 0.45, h * 0.5, w * 0.35, h * 0.35);
+    ctx.quadraticCurveTo(w * 0.05, -h * 0.15, 0, -h * 0.05);
+    ctx.quadraticCurveTo(-w * 0.05, -h * 0.15, -w * 0.35, h * 0.35);
+    ctx.quadraticCurveTo(-w * 0.45, h * 0.5, -w / 2, h * 0.1);
+    ctx.closePath();
+    fill(ctx, look.body);
+    line(ctx, 'rgba(90,50,20,0.6)', 1.3);
+    const dots = ['#fff', '#ffeb3b', '#e53935'];
+    for (let i = 0; i < 12; i++) {
+      const tt = i / 11;
+      const x = -w * 0.42 + tt * w * 0.84;
+      const y = -h * 0.05 - Math.sin(tt * Math.PI) * h * 0.38 + h * 0.08;
+      circle(ctx, x, y, 1.6);
+      fill(ctx, dots[i % 3]);
+    }
+  },
+
+  // ピニャ：ピニャータ（星の 形の かざり・ひらひら）。割れると ひびと 穴
+  pinata(ctx, s, look, tv) {
+    const { w, h } = s;
+    const cols = [look.body, '#ffeb3b', '#29b6f6', '#66bb6a', '#ab47bc'];
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, cols[0]);
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = cols[(i + 1) % cols.length];
+      ctx.fillRect(-w / 2 + 3, -h / 2 + 4 + i * (h - 8) / 5, w - 6, (h - 8) / 10);
+    }
+    // ひらひら
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-w / 2 + 4 + i * (w - 8) / 5, h / 2 - 1);
+      ctx.lineTo(-w / 2 + 1 + i * (w - 8) / 5, h / 2 + 6);
+      ctx.lineTo(-w / 2 + 7 + i * (w - 8) / 5, h / 2 + 6);
+      ctx.closePath();
+      fill(ctx, cols[i % cols.length]);
+    }
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    line(ctx, 'rgba(0,0,0,0.3)', 1.3);
+    if (tv && tv.broken) {
+      circle(ctx, w * 0.1, -h * 0.05, h * 0.2);
+      fill(ctx, '#3e2723');
+      ctx.strokeStyle = '#3e2723';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.1, -h * 0.05);
+      ctx.lineTo(-w * 0.3, -h * 0.4);
+      ctx.moveTo(w * 0.1, -h * 0.05);
+      ctx.lineTo(w * 0.4, h * 0.3);
+      ctx.stroke();
+    } else {
+      sparkle(ctx, -w * 0.3, -h * 0.3, 3, '#fff');
+    }
+  },
+
+  // マトリョ：マトリョーシカ（顔と 花もよう）。復活すると 色が かわる
+  matryoshka(ctx, s, look, tv) {
+    const { w, h } = s;
+    const body = ['#d32f2f', '#1e88e5', '#43a047'][Math.min(2, tv ? tv.dolls || 0 : 0)];
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, body);
+    line(ctx, 'rgba(0,0,0,0.35)', 1.3);
+    // スカーフと 顔
+    ctx.beginPath();
+    ctx.ellipse(0, -h * 0.16, w * 0.36, h * 0.26, 0, 0, Math.PI * 2);
+    fill(ctx, '#fff3e0');
+    ctx.beginPath();
+    ctx.ellipse(0, -h * 0.16, w * 0.24, h * 0.18, 0, 0, Math.PI * 2);
+    fill(ctx, '#ffe0c2');
+    eyes(ctx, w * 0.09, -h * 0.18, 1.8);
+    circle(ctx, -w * 0.13, -h * 0.1, 2.2);
+    fill(ctx, 'rgba(244,67,54,0.45)');
+    circle(ctx, w * 0.13, -h * 0.1, 2.2);
+    fill(ctx, 'rgba(244,67,54,0.45)');
+    // エプロンの 花
+    ctx.beginPath();
+    ctx.ellipse(0, h * 0.22, w * 0.3, h * 0.2, 0, 0, Math.PI * 2);
+    fill(ctx, '#fff8e1');
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      circle(ctx, Math.cos(a) * 4, h * 0.22 + Math.sin(a) * 4, 2.6);
+      fill(ctx, '#ffca28');
+    }
+    circle(ctx, 0, h * 0.22, 2);
+    fill(ctx, '#e53935');
+  },
+
   // ---- 昔あそびシリーズ ----
   // オテダマ：着物の 布の お手玉。ぬい目が 十字
   otedama(ctx, s, look) {

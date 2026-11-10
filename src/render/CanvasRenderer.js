@@ -162,6 +162,11 @@ export class CanvasRenderer {
     this._drawStageUnder(ctx, state.desk.features);
     for (const zone of state.waxZones) this._drawWax(ctx, zone, now);
     for (const p of state.posts || []) this._drawPost(ctx, p);
+    // ペタン：ねらっている間は「まんなか ボーナス」の 輪を 見せる
+    {
+      const cur = state.erasers[state.turnIndex];
+      if (state.phase === 'aim' && cur?.alive && cur.def.trait?.id === 'petanque') this._drawPetanqueRing(ctx, cur.def.trait.center ?? 95, now);
+    }
     if (state.stuck) this._drawNattoThreads(ctx, state.stuck, now);
     if (state.tilt) this._drawTilt(ctx, state, now);
     if (state.blackHole) this._drawBlackHole(ctx, state.blackHole, now);
@@ -869,6 +874,48 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
+  _drawPetanqueRing(ctx, r, now) {
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.lineDashOffset = -now / 40;
+    ctx.strokeStyle = 'rgba(255,193,7,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,193,7,0.12)';
+    ctx.fill();
+    ctx.fillStyle = 'rgba(160,110,0,0.9)';
+    ctx.font = '800 14px "M PLUS Rounded 1c", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🎯 ここから 弾くと パワーアップ', 0, -r - 8);
+    ctx.restore();
+  }
+
+  // マンカランの 小石（上に 来ると 止まる）
+  _drawPebble(ctx, z) {
+    ctx.save();
+    const cols = ['#90caf9', '#f48fb1', '#fff59d'];
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + z.x * 0.05;
+      const x = z.x + Math.cos(a) * z.r * 0.4;
+      const y = z.y + Math.sin(a) * z.r * 0.4;
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath();
+      ctx.ellipse(x + 1.5, y + 2, z.r * 0.42, z.r * 0.32, a, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = cols[i];
+      ctx.beginPath();
+      ctx.ellipse(x, y, z.r * 0.42, z.r * 0.32, a, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // アゲパンの 砂糖の道（すべりにくい）
   _drawSugar(ctx, z) {
     ctx.save();
@@ -888,6 +935,7 @@ export class CanvasRenderer {
   _drawWax(ctx, z, now) {
     if (z.stage || z.kind === 'milk') return this._drawStageZone(ctx, z);
     if (z.kind === 'sugar') return this._drawSugar(ctx, z);
+    if (z.kind === 'pebble') return this._drawPebble(ctx, z);
     if (z.kind === 'ice') return this._drawIce(ctx, z, now);
     if (z.kind === 'crumbs' || (z.scale && z.scale > 1)) return this._drawCrumbs(ctx, z);
     ctx.save();
@@ -1380,6 +1428,8 @@ export class CanvasRenderer {
     }
     // ハジキング：当たる 相手と、その相手が 飛ぶ 向きまで 見える
     if (e.def.trait?.id === 'hajiki') this._drawHajikiGuide(ctx, state, e, aim);
+    // ナイトン（L字）・ブーメ（弧）：進む 道を 点線で
+    if (e.def.trait?.id === 'knight' || e.def.trait?.id === 'boomerang') this._drawCurvedGuide(ctx, e, aim);
     // チクワ：のぞき穴で、ねらいの線が 長く見える（点線）
     if (e.def.trait?.id === 'scope') {
       const G = e.def.trait.guide ?? 260;
@@ -1405,6 +1455,48 @@ export class CanvasRenderer {
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'white';
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /** ナイトン・ブーメ：曲がる 道（いまの 回転した 座標で かく。つかむ 場所で 向きが かわる） */
+  _drawCurvedGuide(ctx, e, aim) {
+    const t = e.def.trait;
+    const side = (aim.spin || 0) < 0 ? -1 : 1;
+    const me = eraserExtent(e.def) * e.size;
+    ctx.save();
+    ctx.setLineDash([7, 7]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    let end;
+    let dir;
+    if (t.id === 'knight') {
+      const leg = t.leg ?? 110;
+      const b = 60 + 140 * aim.strength;
+      ctx.moveTo(me + 4, 0);
+      ctx.lineTo(leg, 0);
+      ctx.lineTo(leg, side * b);
+      end = { x: leg, y: side * b };
+      dir = { x: 0, y: side };
+    } else {
+      const R = 30 + 110 * aim.strength;
+      const a0 = -side * Math.PI / 2;
+      const span = 5.2;
+      ctx.arc(0, side * R, R, a0, a0 + side * span, side < 0);
+      const ae = a0 + side * span;
+      end = { x: Math.cos(ae) * R, y: side * R + Math.sin(ae) * R };
+      dir = { x: -Math.sin(ae) * side, y: Math.cos(ae) * side };
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    const ha = Math.atan2(dir.y, dir.x);
+    ctx.beginPath();
+    ctx.moveTo(end.x + Math.cos(ha) * 10, end.y + Math.sin(ha) * 10);
+    ctx.lineTo(end.x + Math.cos(ha + 2.5) * 10, end.y + Math.sin(ha + 2.5) * 10);
+    ctx.lineTo(end.x + Math.cos(ha - 2.5) * 10, end.y + Math.sin(ha - 2.5) * 10);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 

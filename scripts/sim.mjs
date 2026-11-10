@@ -62,7 +62,7 @@ for (let m = 0; m < N; m++) {
       let ms = 0;
       const run = () => {
         while (g.phase === 'moving' || g.phase === 'settling' || g.phase === 'shrinking') {
-          if (g.canSteer(shooter)) {
+          if (g.canSteer(shooter) && !g.turn.curve?.brush) { // カーリンの ブラシは CPU は 使わない（本番と 同じ）
             const t = pickTarget(g, shooter);
             if (t) {
               const me = g.getState().erasers[shooter];

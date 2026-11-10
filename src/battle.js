@@ -405,7 +405,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (game.players[playerIndex].type === 'human') {
       flickedOnce.add(playerIndex);
-      setHint(game.turn.curve ? '画面をなぞると 曲がるよ！' : '');
+      setHint(game.turn.curve?.brush ? '動いている間に 画面を さわると ブラシで のびるよ！' : game.turn.curve ? '画面をなぞると 曲がるよ！' : '');
     }
   });
 
@@ -501,6 +501,48 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (type === 'topple') {
       sfx.boing();
       say('🏆 ゴロン！ 倒れた！', '#b8860b');
+    } else if (type === 'petanque') {
+      sfx.rare();
+      say('🎯 まんなか！ パワーアップ', '#ffb300', 20);
+    } else if (type === 'kabaddi') {
+      say('カバディ！ カバディ！', '#ff9933', 24, 1400);
+      // その国の 遊び方：「カバディ」と 声に 出す（音あり のときだけ）
+      if (!isMuted() && 'speechSynthesis' in window) {
+        try {
+          const u = new SpeechSynthesisUtterance('カバディ、カバディ');
+          u.lang = 'ja-JP';
+          u.rate = 1.4;
+          u.pitch = 1.3;
+          speechSynthesis.cancel();
+          speechSynthesis.speak(u);
+        } catch {
+          /* 声が 出せない 端末 */
+        }
+      }
+      if (p.type === 'human') setHint('カバディ！ もう1回 弾けるよ');
+    } else if (type === 'kabaddiBack') {
+      say('あっ もどった…', '#ff9933', 16, 1000);
+    } else if (type === 'knight') {
+      sfx.whoosh();
+      say('♞ カクッ！', '#eceff1', 20, 900);
+    } else if (type === 'brush') {
+      sfx.whoosh();
+      say('🧹 ゴシゴシ！', '#90caf9', 22, 1100);
+    } else if (type === 'yut') {
+      sfx.flip();
+      const strong = value >= 4;
+      say(`🥢 ${name}！`, strong ? '#ffd54f' : value <= 1 ? '#bdbdbd' : '#fff', strong ? 28 : 22, 1600);
+      if (p.type === 'human') later(300, () => toast(`ユンノリ：${name}${value === 5 ? ' ものすごく 強い！' : value === 4 ? ' 強い！' : value === 1 ? ' 弱い…' : ''}`, strong ? '#ffd54f' : '#fff'));
+    } else if (type === 'kickback') {
+      sfx.boing();
+      say('🪶 けり上げ！', '#e53935', 22, 1300);
+    } else if (type === 'doll') {
+      sfx.rare();
+      say(`🪆 中から もう1人！（あと${left}人）`, '#d32f2f', 20, 1600);
+    } else if (type === 'pinata') {
+      sfx.rare();
+      renderer.shake(250, 5);
+      say('🎉 割れた！ お菓子と カード！', '#ec407a', 22, 1600);
     } else if (type === 'ink') {
       sfx.whoosh();
       say('墨で ×！', '#212121', 22);

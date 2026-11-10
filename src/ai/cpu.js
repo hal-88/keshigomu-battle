@@ -86,15 +86,62 @@ export function planCpuShot(game, me, cfg) {
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
   // さかさま：反対に飛ぶと わかっているので、反対に ひっぱる
   const rev = game.isReversed(me) ? -1 : 1;
-  const dirX = Math.cos(ang) * rev;
-  const dirY = Math.sin(ang) * rev;
+  let dirX = Math.cos(ang) * rev;
+  let dirY = Math.sin(ang) * rev;
   // ショウジョウヅツ：ねらった向きに 進めないときは、そっと弾いて 向きを かえる
   if (game.erasers[me].def.trait?.id === 'tube') {
     const [ax, ay] = game.aimDir(me, dirX, dirY);
     const cos = (ax * dirX + ay * dirY) / ((Math.hypot(ax, ay) * Math.hypot(dirX, dirY)) || 1);
     if (cos < 0.97) strength = Math.min(strength, 0.28);
   }
-  const spin = rand(cfg.spin ?? 0);
+  let spin = rand(cfg.spin ?? 0);
+  // ナイトン（L字）・ブーメ（弧）：曲がって 当たるように ねらいなおす
+  const mt = game.erasers[me].def.trait;
+  if ((mt?.id === 'knight' || mt?.id === 'boomerang') && !game.isReversed(me)) {
+    const err = ang - Math.atan2(best.uy, best.ux); // ねらいの ずれは そのまま
+    const mp = game.erasers[me].body.position;
+    const tx = best.t.x - mp.x;
+    const ty = best.t.y - mp.y;
+    const D = Math.hypot(tx, ty) || 1;
+    const base = Math.atan2(ty, tx);
+    // 曲がる向き：机の まんなかに 近い ほうを とおる
+    const sideScore = (sd, off) => {
+      const a = base - sd * off;
+      const cx = mp.x + Math.cos(a) * Math.min(D, mt.leg ?? 110);
+      const cy = mp.y + Math.sin(a) * Math.min(D, mt.leg ?? 110);
+      return -Math.hypot(cx, cy);
+    };
+    if (mt.id === 'knight') {
+      const leg = mt.leg ?? 110;
+      if (D > leg + 10) {
+        const b = Math.sqrt(D * D - leg * leg);
+        const off = Math.atan2(b, leg);
+        const sd = sideScore(1, off) >= sideScore(-1, off) ? 1 : -1;
+        const a = base - sd * off + err;
+        dirX = Math.cos(a);
+        dirY = Math.sin(a);
+        strength = Math.min(1, strength * ((leg + b) / D) * 1.05);
+        spin = sd * 0.3;
+      }
+    } else {
+      // 円の 直径が 相手までの きょりより 少し 大きくなる 強さを さがす
+      let lo = 0.25;
+      let hi = 1;
+      for (let k = 0; k < 14; k++) {
+        const mid = (lo + hi) / 2;
+        if (game.boomRadius(me, mid) * 2 >= D * 1.15) hi = mid;
+        else lo = mid;
+      }
+      strength = hi;
+      const R = game.boomRadius(me, strength);
+      const off = Math.asin(Math.min(1, D / (2 * R)));
+      const sd = sideScore(1, off) >= sideScore(-1, off) ? 1 : -1;
+      const a = base - sd * off + err;
+      dirX = Math.cos(a);
+      dirY = Math.sin(a);
+      spin = sd * 0.3;
+    }
+  }
   return { dirX, dirY, strength, spin, target: best.t.playerIndex };
 }
 

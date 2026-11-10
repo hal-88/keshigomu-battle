@@ -11,7 +11,7 @@
 //                    ほかの数字は強さ（しくみは logic/Game.js の「とくせい」のところ）
 // rarity … normal / rare / superrare / ultra（SSR）/ legend（UR）。強さは変わらない。
 //          レアほど CPU が使うことが少なく、ガチャでも出にくい（ERASER_RARITY の weight）
-// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」、'kyushoku' は給食シリーズ、'mukashi' は昔あそびシリーズ（図鑑で分けて表示）
+// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」、'kyushoku' は給食シリーズ、'mukashi' は昔あそびシリーズ、'sekai' は世界の遊びシリーズ（図鑑で分けて表示）
 // gacha … true ならガチャでしか手に入らない（文房具・とくべつ消しゴム）。
 //         それ以外は、はじめから持っている（START_ERASER_IDS）か、CPUにかつと手に入る
 
@@ -636,6 +636,128 @@ export const ERASERS = [
     trait: { id: 'corner', name: '角アタック', desc: '全部の力が 少し高い。最初に 相手に当てた 一撃だけ 超強力', allUp: 1.06, push: 0.8, max: 9 },
   },
 
+  // ---- 世界の遊びシリーズ（ガチャ限定。country … 生まれた 国・地域と 国旗。flag は ui/flags.js） ----
+  {
+    id: 'petan', rarity: 'normal', gacha: true, kind: 'sekai',
+    name: 'ペタン',
+    desc: '鉄の 玉を 投げる ペタンク',
+    country: { name: 'フランス', flag: 'fr' },
+    shape: { type: 'circle', radius: 23 },
+    look: { art: 'petanque', body: '#b0bec5' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: { id: 'petanque', name: 'まんなか ボーナス', desc: '机の まんなか 近くから 弾くと、弾く力が アップ（1.3倍）。でも 重い玉なので、あまり 遠くまで 進まない', center: 95, boost: 1.3, ownSlide: 1.3 },
+  },
+  {
+    id: 'kerihane', rarity: 'normal', gacha: true, kind: 'sekai',
+    name: 'ケリハネ',
+    desc: '羽根を けって 遊ぶ ジエンズ（毽子）',
+    country: { name: '中国', flag: 'cn' },
+    shape: { type: 'circle', radius: 22 },
+    look: { art: 'jianzi', body: '#e53935' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'kickback', name: 'けり上げ', desc: '1試合に1回、落ちる 直前に 羽根を けり上げて 机に もどる。でも 羽根なので 軽くて 飛ばされやすい', weight: 0.8 },
+  },
+  {
+    id: 'mancalan', rarity: 'normal', gacha: true, kind: 'sekai',
+    name: 'マンカラン',
+    desc: '小石を 動かして 遊ぶ マンカラ',
+    country: { name: 'アフリカの国々', flag: 'af' },
+    shape: { type: 'rect', w: 60, h: 30, chamfer: 12 },
+    look: { art: 'mancala', body: '#a1663a' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'pebbles', name: '小石まき', desc: '弾いて 通った 道に 小石を 3つ 落とす。小石の 上に 来た 相手は そこで 止まる。でも 次の番からは 自分も 止まってしまう', perShot: 3, max: 6, spacing: 55, radius: 17, scale: 5 },
+  },
+  {
+    id: 'kabaddin', rarity: 'normal', gacha: true, kind: 'sekai',
+    name: 'カバディン',
+    desc: '「カバディ」と 言いながら せめる カバディ',
+    country: { name: 'インド', flag: 'in' },
+    shape: { type: 'rect', w: 48, h: 34, chamfer: 8 },
+    look: { art: 'kabaddi', body: '#ff9933' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'kabaddi', name: 'カバディ！', desc: '「カバディ！」で 自分の番に 2回 つづけて 弾ける（2回目は 弱め）。でも 2回目の あと、スタート地点の ほうへ 少し もどってしまう', second: 0.45, back: 0.45 },
+  },
+  {
+    id: 'naiton', rarity: 'rare', gacha: true, kind: 'sekai',
+    name: 'ナイトン',
+    desc: 'チェスの 駒「ナイト（騎士）」',
+    country: { name: 'ヨーロッパ', flag: 'eu' },
+    shape: { type: 'circle', radius: 24 },
+    look: { art: 'knight', body: '#37474f' },
+    stats: { power: 4, balance: 3, speed: 2 },
+    trait: { id: 'knight', name: 'L字ジャンプ', desc: '弾くと 少し 進んでから 直角に 曲がって、相手の 横から 当たる（つかむ 場所で 曲がる 向きが かわる。矢印に 道が 出るよ）。でも まっすぐ 進めない', leg: 110, keep: 0.95 },
+  },
+  {
+    id: 'kaarin', rarity: 'rare', gacha: true, kind: 'sekai',
+    name: 'カーリン',
+    desc: '氷の上を すべらせる カーリングの 石',
+    country: { name: 'スコットランド', flag: 'sc' },
+    shape: { type: 'circle', radius: 25 },
+    look: { art: 'curling', body: '#9e9e9e' },
+    stats: { power: 3, balance: 4, speed: 2 },
+    trait: { id: 'curling', name: 'ブラシ', desc: '弾いて 動いている 間に 画面を さわると、ブラシで こすって 1回だけ 進む きょりを のばせる。でも 重い石なので、半分より 弱く 弾くと あまり 動かない', brushMs: 800, brushSlide: 0.35, minPower: 0.45, weak: 0.7 },
+  },
+  {
+    id: 'yunno', rarity: 'rare', gacha: true, kind: 'sekai',
+    name: 'ユンノ',
+    desc: '4本の 棒を 投げる ユンノリ',
+    country: { name: '韓国', flag: 'kr' },
+    shape: { type: 'rect', w: 52, h: 34, chamfer: 6 },
+    look: { art: 'yut', body: '#f5deb3' },
+    stats: { power: 4, balance: 3, speed: 2 },
+    trait: {
+      id: 'yut', name: 'ユンノリ',
+      desc: '自分の番の はじめに 4本の 棒を 投げて、出た目で 弾く 強さが 決まる。最高の「モ」なら ものすごく 強い。でも 運まかせで、「ト」だと ほとんど 進まない',
+      // 目（出やすさは 本物の ユンノリと だいたい 同じ）
+      faces: [
+        { name: 'ト', animal: 'ブタ', power: 0.6, weight: 4 },
+        { name: 'ケ', animal: 'イヌ', power: 0.85, weight: 6 },
+        { name: 'コル', animal: 'ヒツジ', power: 1.05, weight: 4 },
+        { name: 'ユッ', animal: 'ウシ', power: 1.3, weight: 1 },
+        { name: 'モ', animal: 'ウマ', power: 1.65, weight: 1 },
+      ],
+    },
+  },
+  {
+    id: 'bume', rarity: 'superrare', gacha: true, kind: 'sekai',
+    name: 'ブーメ',
+    desc: '投げると もどってくる ブーメラン',
+    country: { name: 'オーストラリア', flag: 'au' },
+    shape: { type: 'rect', w: 60, h: 26, chamfer: 12 },
+    look: { art: 'boomerang', body: '#c68642' },
+    stats: { power: 4, balance: 2, speed: 3 },
+    trait: { id: 'boomerang', name: 'もどってくる', desc: '弾くと 弧を えがいて、元の 場所の 近くに もどってくる（つかむ 場所で 曲がる 向きが かわる）。当てても 自分は 落ちにくい。でも 遠くの 相手は 押し切れない', travel: 0.9, loop: 0.85, ms: 3000, push: 0.3, max: 4 },
+  },
+  {
+    id: 'pinya', rarity: 'superrare', gacha: true, kind: 'sekai',
+    name: 'ピニャ',
+    desc: 'お祭りで 割る ピニャータ',
+    country: { name: 'メキシコ', flag: 'mx' },
+    shape: { type: 'rect', w: 50, h: 40, chamfer: 10 },
+    look: { art: 'pinata', body: '#ec407a' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: {
+      id: 'pinata', name: 'おかしと カード',
+      desc: '1試合に1回、強く 当てられると 割れて、お菓子と いっしょに 能力カードが 1枚 出てくる（自分の ものに なる）。でも 割れたあとは 軽くなる',
+      breakPower: 5, afterMass: 0.92,
+      drops: [
+        { w: 12, h: 12, color: '#ffeb3b' },
+        { w: 12, h: 12, color: '#29b6f6' },
+        { w: 12, h: 12, color: '#66bb6a' },
+      ],
+    },
+  },
+  {
+    id: 'matoryo', rarity: 'ultra', gacha: true, kind: 'sekai',
+    name: 'マトリョ',
+    desc: '中に 小さい 人形が 入った マトリョーシカ',
+    country: { name: 'ロシア', flag: 'ru' },
+    shape: { type: 'rect', w: 40, h: 50, chamfer: 18 },
+    look: { art: 'matryoshka', body: '#d32f2f' },
+    stats: { power: 3, balance: 2, speed: 4 },
+    trait: { id: 'matryoshka', name: '中から もう1人', desc: '落ちても、中から 一回り 小さい 人形が 出てきて 机の まんなかで 復活（2回まで）。でも 復活する たびに 小さく 軽くなって、人形を 開けている 次の番は お休み', lives: 2, shrink: 0.75, lighter: 0.6 },
+  },
+
   // ---- 昔あそびシリーズ（ガチャ限定。お正月は「🎍昔あそびガチャ」、ふだんは 特別ガチャから まれに 出る） ----
   {
     id: 'otedama', rarity: 'normal', gacha: true, kind: 'mukashi',
@@ -934,6 +1056,8 @@ export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => !e.kind);
 export const KYUSHOKU_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'kyushoku');
 // 昔あそびシリーズ（ガチャ限定。お正月は 昔あそびガチャ）
 export const MUKASHI_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'mukashi');
+// 世界の遊びシリーズ（ガチャ限定）
+export const SEKAI_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'sekai');
 export const SPECIAL_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'special');
 
 export const findEraser = (id) => ERASERS.find((e) => e.id === id);
