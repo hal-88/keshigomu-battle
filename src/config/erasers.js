@@ -11,7 +11,7 @@
 //                    ほかの数字は強さ（しくみは logic/Game.js の「とくせい」のところ）
 // rarity … normal / rare / superrare / ultra（SSR）/ legend（UR）。強さは変わらない。
 //          レアほど CPU が使うことが少なく、ガチャでも出にくい（ERASER_RARITY の weight）
-// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」、'kyushoku' は給食シリーズ（図鑑で分けて表示）
+// kind … 'chara' はキャラ消しゴム、'special' はガチャ限定の「とくべつ消しゴム」、'kyushoku' は給食シリーズ、'mukashi' は昔あそびシリーズ（図鑑で分けて表示）
 // gacha … true ならガチャでしか手に入らない（文房具・とくべつ消しゴム）。
 //         それ以外は、はじめから持っている（START_ERASER_IDS）か、CPUにかつと手に入る
 
@@ -636,6 +636,107 @@ export const ERASERS = [
     trait: { id: 'corner', name: '角アタック', desc: '全部の力が 少し高い。最初に 相手に当てた 一撃だけ 超強力', allUp: 1.06, push: 0.8, max: 9 },
   },
 
+  // ---- 昔あそびシリーズ（ガチャ限定。お正月は「🎍昔あそびガチャ」、ふだんは 特別ガチャから まれに 出る） ----
+  {
+    id: 'otedama', rarity: 'normal', gacha: true, kind: 'mukashi',
+    name: 'オテダマ',
+    desc: '中に 豆が入った お手玉',
+    shape: { type: 'rect', w: 42, h: 36, chamfer: 14 },
+    look: { art: 'otedama', body: '#e57373' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'beanbag', name: 'ポテッ', desc: '中が 豆で ぐにゃっとしていて、当てられても ポテッと その場で 止まる。でも 重くて あまり 遠くまで 進めない', catch: 0.8, ownSlide: 1.6 },
+  },
+  {
+    id: 'korobee', rarity: 'normal', gacha: true, kind: 'mukashi',
+    name: 'コロビー',
+    desc: 'すきとおった ビー玉',
+    shape: { type: 'circle', radius: 19 },
+    look: { art: 'marble', body: '#4fc3f7' },
+    stats: { power: 4, balance: 2, speed: 3 },
+    trait: { id: 'marble', name: 'まっすぐ', desc: '当てた相手を まっすぐ 強く はじく。でも 丸いので 自分も 止まらずに 転がっていく', push: 0.3, max: 5, slide: 0.72 },
+  },
+  {
+    id: 'hagoitan', rarity: 'normal', gacha: true, kind: 'mukashi',
+    name: 'ハゴイタン',
+    desc: '羽根つきの 羽子板',
+    shape: { type: 'rect', w: 60, h: 30, chamfer: 8 },
+    look: { art: 'hagoita', body: '#f3d9a4' },
+    stats: { power: 4, balance: 2, speed: 3 },
+    trait: { id: 'ink', name: '墨で ×', desc: '自分の番に 当てた相手の 顔に 墨で ×。相手は 次の番、ねらいの線が 見えない。でも 板が 平たくて 軽く、飛ばされやすい', weight: 0.82, minPower: 2 },
+  },
+  {
+    id: 'kazedako', rarity: 'normal', gacha: true, kind: 'mukashi',
+    name: 'カゼダコ',
+    desc: '空を 飛ぶ 凧',
+    shape: { type: 'rect', w: 46, h: 46, chamfer: 3 },
+    look: { art: 'kite', body: '#fff3e0' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'kite', name: '風に乗る', desc: '弱く 弾くと（半分 くらいまで）風に乗って、思ったより 遠くまで ふわっと 進む。でも 毎ターン 風で 少し 流される', softMax: 0.5, glide: 0.55, ms: 1600, wind: 10 },
+  },
+  {
+    id: 'komawaru', rarity: 'rare', gacha: true, kind: 'mukashi',
+    name: 'コマワール',
+    desc: 'くるくる回る こま',
+    shape: { type: 'circle', radius: 24 },
+    look: { art: 'koma', body: '#c62828' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'top', name: '回転アタック', desc: '回りながら 進んで、当たった相手を はじき飛ばす。でも 3回 弾くと 回転が 止まって、ふらついて 弱くなる', turns: 3, push: 0.35, max: 5, autoSpin: 0.3, tiredPower: 0.85, tiredWobble: 0.1 },
+  },
+  {
+    id: 'menkon', rarity: 'rare', gacha: true, kind: 'mukashi',
+    name: 'メンコン',
+    desc: '武者絵の めんこ',
+    shape: { type: 'circle', radius: 26 },
+    look: { art: 'menko', body: '#1565c0' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'menko', name: 'ひっくり返し', desc: '1試合に1回、自分の番に 強く当てた相手を ひっくり返す。ひっくり返った相手は 次の番 弾けない。でも ペラペラなので、当てられると 飛ばされやすい', minPower: 6, front: 1.3 },
+  },
+  {
+    id: 'tonbon', rarity: 'rare', gacha: true, kind: 'mukashi',
+    name: 'トンボン',
+    desc: 'くるくる飛ぶ 竹とんぼ',
+    shape: { type: 'rect', w: 64, h: 18, chamfer: 9 },
+    look: { art: 'taketombo', body: '#d7b56d' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'copter', name: 'ふわっと飛ぶ', desc: '強く 弾くと くるくる 浮いて、すぐ前の 消しゴムを 飛び越えて、奥の 相手に 当たる。でも 着地する 場所が 少し ランダム', minPower: 0.6, reach: 320, drift: 1.0 },
+  },
+  {
+    id: 'kendaman', rarity: 'superrare', gacha: true, kind: 'mukashi',
+    name: 'ケンダマン',
+    desc: '糸で 玉が つながった けん玉',
+    shape: { type: 'rect', w: 52, h: 34, chamfer: 10 },
+    look: { art: 'kendama', body: '#a1887f' },
+    stats: { power: 3, balance: 3, speed: 3 },
+    trait: { id: 'kendama', name: '2回ヒット', desc: '自分の番に 当てると、糸で つながった 玉が 少し おくれて もう1回 当たる。でも 縁の近くでは 玉に 引っぱられて 落ちやすい', push: 2.4, delayMs: 200, edge: 30, pull: 0.12 },
+  },
+  {
+    id: 'daruman', rarity: 'superrare', gacha: true, kind: 'mukashi',
+    name: 'ダルマン',
+    desc: 'だるま落とし',
+    shape: { type: 'circle', radius: 27 },
+    look: { art: 'darumaotoshi', body: '#d32f2f' },
+    stats: { power: 2, balance: 4, speed: 3 },
+    trait: {
+      id: 'daruma', name: '段が 飛ぶ',
+      desc: '強く 当てられると 段が 1つ 抜けて、相手のほうへ 飛んでいく（3段まで）。でも 段が 減るたびに 軽くなる',
+      count: 3, breakPower: 5, massScale: 1.3, massStep: 0.85, shoot: 4,
+      drops: [
+        { w: 30, h: 14, color: '#43a047' },
+        { w: 30, h: 14, color: '#fdd835' },
+        { w: 30, h: 14, color: '#1e88e5' },
+      ],
+    },
+  },
+  {
+    id: 'hajiking', rarity: 'ultra', gacha: true, kind: 'mukashi',
+    name: 'ハジキング',
+    desc: 'おはじき。消しバトの ルーツ（ご先祖さま）！',
+    shape: { type: 'circle', radius: 22 },
+    look: { art: 'ohajiki', body: '#80deea' },
+    stats: { power: 4, balance: 2, speed: 3 },
+    trait: { id: 'hajiki', name: '元祖 弾く', desc: '「弾く」遊びの 元祖。ねらいの線で、当てた相手が どっちに 飛ぶかまで 見える。回転も ブレもなく ねらい通りに まっすぐ 進む。でも 平たくて 軽いので、当てられると 弱い', weight: 0.9, weak: 1.1 },
+  },
+
   // ---- 給食シリーズ（ガチャ限定。毎日出るものほど ノーマル、たまにしか出ない 人気メニューほど レア） ----
   {
     id: 'gyunyu', rarity: 'normal', gacha: true, kind: 'kyushoku',
@@ -831,6 +932,8 @@ export const GACHA_ERASERS = ERASERS.filter((e) => e.gacha);
 export const STATIONERY_ERASERS = GACHA_ERASERS.filter((e) => !e.kind);
 // 給食シリーズ（ガチャ限定）
 export const KYUSHOKU_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'kyushoku');
+// 昔あそびシリーズ（ガチャ限定。お正月は 昔あそびガチャ）
+export const MUKASHI_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'mukashi');
 export const SPECIAL_ERASERS = GACHA_ERASERS.filter((e) => e.kind === 'special');
 
 export const findEraser = (id) => ERASERS.find((e) => e.id === id);

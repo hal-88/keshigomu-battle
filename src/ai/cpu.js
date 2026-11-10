@@ -82,6 +82,7 @@ export function planCpuShot(game, me, cfg) {
   if (best.t.effects.invisible) blur = Math.max(blur, 22); // とうめい（カード）
   if (best.t.effects.steamy) blur = Math.max(blur, best.t.def.trait?.aimErrorDeg ?? 12); // ミソシルの 湯気
   if (game.isBlackout()) blur += 18; // ていでんで くらい
+  if (game.erasers[me].inked) blur += 10; // ハゴイタンの 墨で ねらいの線が 見えない
   const ang = Math.atan2(best.uy, best.ux) + (rand(cfg.angleErrorDeg + blur) * Math.PI) / 180;
   // さかさま：反対に飛ぶと わかっているので、反対に ひっぱる
   const rev = game.isReversed(me) ? -1 : 1;

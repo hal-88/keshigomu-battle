@@ -1,10 +1,27 @@
 // 図鑑のデータ（持っている消しゴム・見たもの・ガチャチケット）。
 // この端末のブラウザの中だけに保存する（1台に1つ）。保存できない環境でもゲームは動く。
 
-import { ERASERS, START_ERASER_IDS, GACHA_ERASERS, REGULAR_ERASERS, CHAMPION_ERASERS, findEraser, pickByRarity } from '../config/erasers.js';
+import { ERASERS, START_ERASER_IDS, GACHA_ERASERS, REGULAR_ERASERS, CHAMPION_ERASERS, MUKASHI_ERASERS, findEraser, pickByRarity } from '../config/erasers.js';
 import { GAME } from '../config/game.js';
 
 const KEY = 'keshigomu-collection-v1';
+
+/** お正月（昔あそびガチャの 期間）か。URL に ?newyear が あれば いつでも（ためす用） */
+export function isMukashiSeason(date = new Date()) {
+  try {
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('newyear')) return true;
+  } catch {
+    /* 無視 */
+  }
+  const { from, to } = GAME.collection.mukashi;
+  const md = (date.getMonth() + 1) * 100 + date.getDate();
+  const a = from[0] * 100 + from[1];
+  const b = to[0] * 100 + to[1];
+  return a <= b ? md >= a && md <= b : md >= a || md <= b; // 年を またぐ
+}
+/** 昔あそびガチャが 終わる日（画面に 出す） */
+export const mukashiUntil = () => `${GAME.collection.mukashi.to[0]}/${GAME.collection.mukashi.to[1]}`;
+const isMukashi = (e) => e.kind === 'mukashi';
 
 const fresh = () => ({
   owned: [...START_ERASER_IDS], // 使える消しゴム・文房具
@@ -105,8 +122,13 @@ export const collection = {
    * ガチャ限定を ぜんぶ集めたら、まだ持っていない ふつうの消しゴムも まざる
    * fresh … まだ持っていないもの（新しいもの保証で 出る）
    */
-  gachaPool() {
+  gachaPool(mode = 'normal') {
     const own = (e) => data.owned.includes(e.id);
+    if (mode === 'mukashi') {
+      // 🎍昔あそびガチャ：昔あそびシリーズだけ
+      const fresh = MUKASHI_ERASERS.filter((e) => !own(e));
+      return { kind: 'mukashi', items: [...MUKASHI_ERASERS], fresh, total: MUKASHI_ERASERS.length, owned: MUKASHI_ERASERS.filter(own).length };
+    }
     const newLimited = GACHA_ERASERS.filter((e) => !own(e));
     const newRegular = newLimited.length ? [] : REGULAR_ERASERS.filter((e) => !own(e));
     return {
@@ -120,8 +142,8 @@ export const collection = {
   isKira: (id) => (data.kira || []).includes(id),
   shards: () => data.shards || 0,
   /** あと何回で 新しいものが かくてい（持っていないものが もうないときは null） */
-  pullsToNew() {
-    if (!collection.gachaPool().fresh.length) return null;
+  pullsToNew(mode = 'normal') {
+    if (!collection.gachaPool(mode).fresh.length) return null;
     return Math.max(1, GAME.collection.gachaNewEvery - (data.pullsSinceNew || 0));
   },
   gachaLeft: () => collection.gachaPool().items.length,
@@ -190,13 +212,20 @@ export const collection = {
    * @returns {{ def, kind: 'new'|'kira'|'shard', shards: number, ticketBack: boolean, forced: boolean } | null}
    *   new … はじめて／kira … 2回目（キラに なった）／shard … 3回目から（かけら +1。5こで チケット1枚）
    */
-  pullGacha() {
+  pullGacha(mode = 'normal') {
     const c = GAME.collection;
-    const pool = collection.gachaPool();
+    const pool = collection.gachaPool(mode);
     if (data.tickets < 1 || !pool.items.length) return null;
     // ダブりが つづいたら、かならず 持っていないものを
     const forced = pool.fresh.length > 0 && (data.pullsSinceNew || 0) >= c.gachaNewEvery - 1;
-    const def = pickByRarity(forced ? pool.fresh : pool.items);
+    let list = forced ? pool.fresh : pool.items;
+    if (mode !== 'mukashi') {
+      // 昔あそびシリーズは ふだんの ガチャでは まれに（お正月は 昔あそびガチャで）
+      const muk = list.filter(isMukashi);
+      const rest = list.filter((e) => !isMukashi(e));
+      if (muk.length && rest.length) list = Math.random() < c.mukashi.offChance ? muk : rest;
+    }
+    const def = pickByRarity(list);
     data.tickets--;
     data.pulls++;
     let kind;

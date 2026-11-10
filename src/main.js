@@ -2,9 +2,9 @@
 
 import './style.css';
 import { DESKS, findDesk } from './config/desks.js';
-import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
+import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, MUKASHI_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
-import { collection } from './progress/collection.js';
+import { collection, isMukashiSeason, mukashiUntil } from './progress/collection.js';
 import { cardHTML } from './ui/cardView.js';
 import { GAME } from './config/game.js';
 import { createBattle } from './battle.js';
@@ -137,7 +137,7 @@ function showTitle() {
        <button class="btn big primary" data-act="start">始める</button>
        <div class="row title-sub">
          <button class="btn" data-act="zukan">📖 図鑑 <small>${collection.ownedErasers().length}/${ERASERS.length}</small></button>
-         <button class="btn" data-act="gacha">🎰 ガチャ ${
+         <button class="btn" data-act="gacha">${isMukashiSeason() ? '🎍' : '🎰'} ガチャ ${
            collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
          }</button>
        </div>
@@ -166,7 +166,7 @@ function showTitle() {
   });
   el.querySelector('[data-act=start]').onclick = showModeSelect;
   el.querySelector('[data-act=zukan]').onclick = () => showZukan();
-  el.querySelector('[data-act=gacha]').onclick = showGacha;
+  el.querySelector('[data-act=gacha]').onclick = () => showGacha();
 }
 
 // ---------- 2. モード ----------
@@ -999,6 +999,7 @@ function showZukan(tab = 'eraser') {
     { id: 'chara', label: 'キャラ', items: REGULAR_ERASERS.filter((e) => e.kind === 'chara') },
     { id: 'special', label: '特別', items: SPECIAL_ERASERS },
     { id: 'kyushoku', label: '🍱給食', items: KYUSHOKU_ERASERS },
+    { id: 'mukashi', label: '🎍昔あそび', items: MUKASHI_ERASERS },
     { id: 'gacha', label: '文房具', items: STATIONERY_ERASERS },
     { id: 'champion', label: '🏆優勝', items: CHAMPION_ERASERS },
     { id: 'card', label: 'カード', items: CARDS },
@@ -1039,7 +1040,7 @@ function showZukan(tab = 'eraser') {
 
   let note = 'CPUが使っている消しゴムを 倒すと、自分も使えるようになるよ';
   if (cur.id === 'chara') note = 'キャラ消しゴムも、CPUが使っているのを 倒すと手に入るよ';
-  if (cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
+  if (cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku' || cur.id === 'mukashi') note = `🎫 チケット ${collection.tickets()}枚。ガチャで手に入るよ（CPUに勝つと チケットが もらえることがあるよ）`;
   if (cur.id === 'champion') note = `🏆 トーナメントで 優勝すると、この中から 1つ もらえるよ（これまでの 優勝：${collection.tournamentWins()}回）`;
   if (cur.id === 'card') note = '対戦で 配られたカードが 埋まっていくよ';
   if (cur.id === 'fav') note = `⭐ お気に入りは ${GAME.collection.maxFavorites}つまで。消しゴムを選ぶ画面で いちばん上に 出るよ（はずすときは 消しゴムを タップ）`;
@@ -1060,7 +1061,7 @@ function showZukan(tab = 'eraser') {
      <p class="note">${note}</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
-       ${cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
+       ${cur.id === 'gacha' || cur.id === 'special' || cur.id === 'kyushoku' || cur.id === 'mukashi' ? '<button class="btn primary" data-act="gacha">🎰 ガチャへ</button>' : ''}
      </div>`,
     'zukan-screen',
   );
@@ -1089,7 +1090,7 @@ function showZukan(tab = 'eraser') {
     });
   }
   el.querySelector('[data-act=back]').onclick = showTitle;
-  el.querySelector('[data-act=gacha]')?.addEventListener('click', showGacha);
+  el.querySelector('[data-act=gacha]')?.addEventListener('click', () => showGacha());
 }
 
 // ---------- ガチャ ----------
@@ -1102,13 +1103,15 @@ const CAPSULE_HINT = {
   legend: '👑 ま、まさか…レジェンド！？ 👑<br>',
 };
 
-function showGacha() {
+function showGacha(mode = isMukashiSeason() ? 'mukashi' : 'normal') {
+  if (mode === 'mukashi' && !isMukashiSeason()) mode = 'normal';
   const tickets = collection.tickets();
   // ガチャ限定（文房具・とくべつ消しゴム）をぜんぶ集めたら、ふつうの消しゴムのガチャになる
-  const pool = collection.gachaPool();
+  const pool = collection.gachaPool(mode);
   const isEraserGacha = pool.kind === 'eraser';
+  const isMukashiGacha = mode === 'mukashi';
   const canPull = tickets > 0 && pool.items.length > 0;
-  const toNew = collection.pullsToNew();
+  const toNew = collection.pullsToNew(mode);
   const capsules = Array.from({ length: 16 }, (_, i) => {
     // 下からつみあがるように、少しずつずらして並べる
     const row = Math.floor(i / 4);
@@ -1123,14 +1126,24 @@ function showGacha() {
   if (canPull && pool.kind === 'done') msg = '全部 集めた！ すごい！ ダブると キラや かけらに なるよ';
 
   const el = screen(
-    `<h2 class="head">🎰 ${isEraserGacha ? '消しゴムガチャ' : '特別ガチャ'}</h2>
-     ${isEraserGacha ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムも まざるよ</p>' : '<p class="note gacha-phase">文房具・特別な消しゴム・🍱給食シリーズが出るよ。ウルトラレア・レジェンドも…！？</p>'}
+    `<h2 class="head">${isMukashiGacha ? '🎍 昔あそびガチャ' : `🎰 ${isEraserGacha ? '消しゴムガチャ' : '特別ガチャ'}`}</h2>
+     ${isMukashiSeason() ? `<div class="tabs gacha-tabs">
+         <button class="tab ${isMukashiGacha ? 'on' : ''}" data-mode="mukashi">🎍 昔あそびガチャ <small>${mukashiUntil()}まで</small></button>
+         <button class="tab ${isMukashiGacha ? '' : 'on'}" data-mode="normal">🎰 特別ガチャ</button>
+       </div>` : ''}
+     ${
+       isMukashiGacha
+         ? '<p class="note gacha-phase">🎍 お正月だけの ガチャ！ お手玉・こま・けん玉…昔あそびシリーズだけが 出るよ</p>'
+         : isEraserGacha
+           ? '<p class="note gacha-phase">🎉 ガチャ限定を 全部集めたから、まだ持っていない 普通の消しゴムも まざるよ</p>'
+           : '<p class="note gacha-phase">文房具・特別な消しゴム・🍱給食シリーズが出るよ（🎍昔あそびシリーズも まれに）。ウルトラレア・レジェンドも…！？</p>'
+     }
      <p class="note">同じものが 出ることも あるよ。2回目は ✨キラ（光る色ちがい）、3回目からは かけら（${GAME.collection.shardsPerTicket}こで チケット1枚）<br>
        チケットは CPUに勝つと もらえることがあるよ（${GAME.collection.pityMatches}戦ごとに 必ず1枚）。お金は いらないよ</p>
      <div class="gacha-machine">
        <div class="gacha-dome">${capsules || '<span class="gacha-empty">空っぽ！</span>'}</div>
        <div class="gacha-body">
-         <div class="gacha-label">${isEraserGacha ? '消しゴム' : '特別'}</div>
+         <div class="gacha-label">${isMukashiGacha ? '昔あそび' : isEraserGacha ? '消しゴム' : '特別'}</div>
          <button class="gacha-handle" data-act="pull" ${canPull ? '' : 'disabled'} aria-label="回す"><span></span></button>
          <div class="gacha-out"></div>
        </div>
@@ -1149,11 +1162,12 @@ function showGacha() {
     'gacha-screen',
   );
   el.querySelector('[data-act=back]').onclick = showTitle;
-  el.querySelector('[data-act=zukan]').onclick = () => showZukan(isEraserGacha ? 'eraser' : 'special');
+  el.querySelector('[data-act=zukan]').onclick = () => showZukan(isMukashiGacha ? 'mukashi' : isEraserGacha ? 'eraser' : 'special');
+  el.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => showGacha(b.dataset.mode)));
 
   const handle = el.querySelector('[data-act=pull]');
   handle.onclick = () => {
-    const res = collection.pullGacha();
+    const res = collection.pullGacha(mode);
     if (!res) return;
     const def = res.def;
     handle.disabled = true;
@@ -1267,7 +1281,7 @@ function showGacha() {
       requestAnimationFrame(loop);
     }
     ov.addEventListener('click', (e) => {
-      if (e.target === ov || e.target.closest('[data-act=close]')) showGacha();
+      if (e.target === ov || e.target.closest('[data-act=close]')) showGacha(mode);
     });
   }
 }

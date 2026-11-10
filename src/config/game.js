@@ -29,6 +29,9 @@ export const GAME = {
     shardsPerTicket: 5, // ダブり（3回目から）の かけらが この数で チケット1枚
     streakBonusEvery: 3, // CPU れんしょうチャレンジで、この回数 連勝するごとにボーナスで1枚
     cpuPickLockedChance: 0.6, // CPU が「まだ持っていない消しゴム」を選ぶ確率（出会えるように）
+    // 昔あそびシリーズ：お正月（12/28〜1/15）は「🎍昔あそびガチャ」が出る。ふだんは 特別ガチャから この確率で 出る
+    // （URL に ?newyear を つけると、いつでも お正月あつかい。ためす用）
+    mukashi: { from: [12, 28], to: [1, 15], offChance: 0.08 },
   },
 
   // 大きい机（autoCamera: true）で、消しゴムのいるあたりにカメラを寄せる

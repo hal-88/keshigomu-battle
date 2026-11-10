@@ -2862,3 +2862,9 @@ canvas.board {
     grid-template-columns: repeat(6, 1fr);
   }
 }
+
+/* 🎍 昔あそびガチャ（お正月）と 特別ガチャの きりかえ */
+.gacha-tabs {
+  justify-content: center;
+  margin-bottom: 4px;
+}

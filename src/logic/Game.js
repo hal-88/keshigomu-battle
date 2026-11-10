@@ -70,6 +70,9 @@ export class Game {
     this.blackout = null; // ていでん { fromTurn, untilTurn }
     this.blackHole = null; // ブラックホール { x, y, r, R, pull, untilTurn }
 
+    // 風（カゼダコが 毎ターン 流される向き。少しずつ かわる）
+    const wa = Math.random() * Math.PI * 2;
+    this.wind = { x: Math.cos(wa), y: Math.sin(wa) };
     this.posts = []; // ステージの 動かない じゃまもの（ガス栓など）
     this._setupStage();
 
@@ -260,7 +263,7 @@ export class Game {
       grip: 0, // すべりどめ中のブレーキの倍率（0 はなし）
       // とくせいの状態
       covered: t.id === 'cover',
-      parts: t.id === 'parts' ? t.count ?? 3 : 0,
+      parts: t.id === 'parts' || t.id === 'daruma' ? t.count ?? 3 : 0, // ガッタインの パーツ・ダルマンの 段
       gathered: 0,
       confused: false,
       clear: false,
@@ -306,6 +309,12 @@ export class Game {
       meltTurns: 0, // レイトウミカン：自分の番が来た回数
       jankenUsed: false, // カラアゲ：じゃんけんを したか
       wobbly: false, // プリン：当てられて ゆれている（次の番 ねらいが ブレる）
+      // 昔あそびシリーズ
+      inked: false, // ハゴイタンに 墨で × を 書かれた（次の番 ねらいの線が 見えない）
+      topFlicks: 0, // コマワール：弾いた回数（3回で 回転が 止まる）
+      menkoUsed: false, // メンコン：ひっくり返しを 使ったか
+      kiteUntil: 0, // カゼダコ：風に 乗っている 時間
+      copterLand: false, // トンボン：着地のとき 少し ずれる
     };
     if (e.covered) e.traitMass = t.massScale ?? 1.45;
     if (t.weight) e.traitMass = t.weight; // カラッポ（かるい）・ダイオウケシ（おもい）
@@ -323,6 +332,7 @@ export class Game {
       e.frictionMul = 1 / k;
     }
     if (t.id === 'melt') this._applyMelt(e);
+    if (t.id === 'daruma') e.traitMass = t.massScale ?? 1.3; // ダルマン：段が そろっていると 重い
     body.plugin = { piece: e };
     if (t.id === 'dice') this._rollDice(e, true);
     this._applyMass(e);
@@ -385,6 +395,53 @@ export class Game {
     const pull = d > want ? Math.min(1.5, (d - want) * 0.05) : 0;
     Body.setVelocity(a.body, { x: vx + (dx / d) * pull, y: vy + (dy / d) * pull });
     Body.setVelocity(b.body, { x: vx - (dx / d) * pull, y: vy - (dy / d) * pull });
+  }
+
+  /**
+   * トンボン：まっすぐ 進む先で、すぐ前の 消しゴムを 飛び越えるきょり（飛ばないときは 0）。
+   * 手前が 相手 1人だけなら ふつうに 当てる。その うしろに もう1人 相手がいるときに 飛び越える
+   */
+  _copterHop(e, ux, uy) {
+    const t = traitOf(e);
+    const me = this.pieceExtent(e);
+    const p = e.body.position;
+    const hits = [];
+    for (const o of [...this._allPieces(), ...this.junk]) {
+      if (o === e || !o.alive || !o.body) continue;
+      const ext = o.def ? this.pieceExtent(o) : Math.hypot(o.w, o.h) / 2;
+      const dx = o.body.position.x - p.x;
+      const dy = o.body.position.y - p.y;
+      const along = dx * ux + dy * uy;
+      const side = Math.abs(dx * uy - dy * ux);
+      if (along <= 0 || side > me + ext) continue;
+      hits.push({ along, ext, foe: !!o.def && o.playerIndex !== e.playerIndex });
+    }
+    if (!hits.length) return 0;
+    hits.sort((a, b) => a.along - b.along);
+    const first = hits[0];
+    const behind = hits.slice(1).some((h) => h.foe && h.along - first.along < (t.reach ?? 320));
+    if (first.foe && !behind) return 0;
+    return first.along + first.ext + me + 4;
+  }
+
+  /** カゼダコ：毎ターン 風で 少し 流される */
+  _windDrift() {
+    const a = Math.atan2(this.wind.y, this.wind.x) + (Math.random() - 0.5) * 0.6;
+    this.wind = { x: Math.cos(a), y: Math.sin(a) };
+    for (const k of this.erasers) {
+      const t = traitOf(k);
+      if (t.id !== 'kite' || !k.alive || k.body.isStatic) continue;
+      const p = k.body.position;
+      const q = { x: p.x + this.wind.x * (t.wind ?? 10), y: p.y + this.wind.y * (t.wind ?? 10) };
+      if (!isInsideDesk(this.desk, q.x, q.y) || this._inStageHole(q.x, q.y)) continue;
+      const ext = this.pieceExtent(k);
+      const busy = this._allPieces().some(
+        (x) => x.alive && x !== k && Math.hypot(x.body.position.x - q.x, x.body.position.y - q.y) < this.pieceExtent(x) + ext + 2,
+      );
+      if (busy) continue;
+      Body.setPosition(k.body, q);
+      this._emit('trait', { type: 'wind', playerIndex: k.playerIndex, x: q.x, y: q.y });
+    }
   }
 
   /** ギュウニュウ：牛乳が こぼれる（古いのから かわく） */
@@ -499,7 +556,7 @@ export class Game {
       uy = -uy;
     }
     // キラリン：まぶしくて、向きが すこし ブレる
-    const glare = this.glareFor(playerIndex);
+    const glare = t.id === 'hajiki' ? 0 : this.glareFor(playerIndex); // ハジキング：ねらい通り まっすぐ
     if (glare) {
       const a = (Math.random() * 2 - 1) * glare;
       [ux, uy] = [ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a)];
@@ -510,6 +567,14 @@ export class Game {
       [ux, uy] = [r.x, r.y];
       Body.setAngle(e.body, e.body.angle + r.turn); // 指で すこしだけ 向きを かえられる
     }
+    // コマワール：3回 弾くと 回転が 止まって 弱くなる
+    if (t.id === 'top') {
+      e.topFlicks++;
+      if (e.topFlicks === (t.turns ?? 3) + 1) {
+        e.maxSpeed *= t.tiredPower ?? 0.85;
+        this._emit('trait', { type: 'topTired', playerIndex, x: e.body.position.x, y: e.body.position.y });
+      }
+    }
     const v = s * e.maxSpeed * this.turn.powerMul * (e.dicePower || 1);
     Body.setVelocity(e.body, { x: ux * v, y: uy * v });
     const spinScale = t.id === 'spinny' ? t.spinScale ?? 1.7 : 1;
@@ -517,6 +582,8 @@ export class Game {
     // ドーナッツ：まん中を弾いても くるくる回る
     if (t.autoSpin && Math.abs(w) < t.autoSpin * s) w = (w < 0 ? -1 : 1) * t.autoSpin * Math.max(0.4, s);
     if (t.id === 'tube') w = 0; // 転がるだけで 回らない
+    if (t.id === 'hajiki') w = 0; // ハジキング：回転なしで まっすぐ
+    if (t.id === 'top' && e.topFlicks > (t.turns ?? 3)) w *= 0.3; // コマワール：回転が 止まった
     // ロケッター：強く弾くと まっすぐ突進
     if (t.id === 'rocket' && s >= (t.minPower ?? 0.8) && !backfire) {
       e.boostUntil = this.time + (t.ms ?? 520);
@@ -527,6 +594,21 @@ export class Game {
     // ソフトメン：弾いたあと、指で なぞって 2回まで 曲がれる
     if (t.id === 'noodle' && !this.turn.curve) this.turn.curve = { budgetMs: t.ms ?? 1400, accel: t.accel ?? 0.4, turnsLeft: t.turns ?? 2 };
     e.wobbly = false; // プリン：ゆれは 1回で おさまる
+    e.inked = false; // ハゴイタンの 墨は 1回で おしまい
+    // カゼダコ：弱く 弾くと 風に 乗って ふわっと 進む
+    if (t.id === 'kite' && s <= (t.softMax ?? 0.5)) {
+      e.kiteUntil = this.time + (t.ms ?? 1600);
+      this._emit('trait', { type: 'kite', playerIndex, x: e.body.position.x, y: e.body.position.y });
+    }
+    // トンボン：くるくる 浮いて、ほかの消しゴムを 飛び越える
+    const hop = t.id === 'copter' && !this.turn.jump && s >= (t.minPower ?? 0.6) ? this._copterHop(e, ux, uy) : 0;
+    if (hop > 0) {
+      e.airborne = true;
+      e.airUntil = this.time + Math.max(50, (hop / Math.max(1, v)) * BASE_DT);
+      e.copterLand = true;
+      e.body.collisionFilter.mask = 0;
+      this._emit('cardFx', { type: 'jump', playerIndex, x: e.body.position.x, y: e.body.position.y });
+    }
     this._jiggle(playerIndex); // プリン：相手が 弾くと ぷるんと ずれる
     // ブロッケン：はじめて弾いたとき、うしろに ブロックを のこす
     if (t.id === 'block' && !e.blockUsed) this._placeBlock(e, ux, uy);
@@ -555,6 +637,8 @@ export class Game {
     }
     const me = this.erasers[i];
     if (me?.wobbly) g = Math.max(g, traitOf(me).wobble ?? 0.14); // プリン：ゆれて ねらいが ブレる
+    const mt = me ? traitOf(me) : {};
+    if (mt.id === 'top' && me.topFlicks >= (mt.turns ?? 3)) g = Math.max(g, mt.tiredWobble ?? 0.1); // コマワール：ふらつく
     return g;
   }
 
@@ -1167,6 +1251,7 @@ export class Game {
       let ax = p.x - (d.other ? d.other.body.position.x : d.x);
       let ay = p.y - (d.other ? d.other.body.position.y : d.y);
       if (!d.other) [ax, ay] = [-ax, -ay];
+      if (d.toward && d.other) [ax, ay] = [-ax, -ay]; // ダルマン：抜けた段は 相手のほうへ 飛ぶ
       const base = Math.atan2(ay, ax) || 0;
       const w = d.w * e.size;
       const h = d.h * e.size;
@@ -1185,7 +1270,7 @@ export class Game {
         }
       }
       if (!spot) continue; // すきまがなければ、こなごなになった（置かない）
-      const sp = 1.5 + Math.min(4, e.body.speed * 0.5);
+      const sp = d.shoot != null ? d.shoot : 1.5 + Math.min(4, e.body.speed * 0.5);
       this._addJunk({
         x: spot.x, y: spot.y, angle: e.body.angle + (Math.random() - 0.5),
         w, h, color: d.color, kind: d.kind,
@@ -1374,7 +1459,7 @@ export class Game {
           const d = Math.hypot(dx, dy) || 1;
           const p = et.push ?? 3.2;
           Body.setVelocity(o.body, { x: o.body.velocity.x + (dx / d) * p, y: o.body.velocity.y + (dy / d) * p });
-          this._emit('trait', { type: 'tail', playerIndex: e.playerIndex, x: o.body.position.x, y: o.body.position.y });
+          this._emit('trait', { type: et.id === 'kendama' ? 'kendama' : 'tail', playerIndex: e.playerIndex, x: o.body.position.x, y: o.body.position.y });
         }
       }
       // ジシャクン：近くを動いている相手を、すこし 引きよせる
@@ -1426,6 +1511,14 @@ export class Game {
         local *= edgeClearance(this.desk, b.position.x, b.position.y) < (t.range ?? 50) ? t.grip ?? 4 : t.slide ?? 0.8;
       }
       if (e.toppleUntil > this.time) local *= t.rollSlide ?? 0.55; // トロフィン・ギュウニュウ：倒れて 転がっている
+      if (e.kiteUntil > this.time) local *= t.glide ?? 0.55; // カゼダコ：風に 乗って ふわっと
+      if (t.id === 'beanbag' && this._isShooter(e)) local *= t.ownSlide ?? 1.6; // オテダマ：重くて 遠くまで 進めない
+      if (t.id === 'kendama' && b.speed > 0.3 && edgeClearance(this.desk, b.position.x, b.position.y) < (t.edge ?? 30)) {
+        // ケンダマン：縁の近くでは 玉に 引っぱられて 外へ
+        const d = Math.hypot(b.position.x, b.position.y) || 1;
+        const pl = (t.pull ?? 0.12) * k;
+        Body.setVelocity(b, { x: b.velocity.x + (b.position.x / d) * pl, y: b.velocity.y + (b.position.y / d) * pl });
+      }
       if (t.id === 'steam' && edgeClearance(this.desk, b.position.x, b.position.y) < (t.edge ?? 55)) {
         // ミソシル：縁の近くでは おわんが くるくる回って すべる
         local *= t.edgeSlide ?? 0.75;
@@ -1620,6 +1713,13 @@ export class Game {
       if (overlap) continue;
       e.airborne = false;
       if (!e.ghost) e.body.collisionFilter.mask = 0xffffffff;
+      if (e.copterLand) {
+        // トンボン：着地する 場所が 少し ランダム
+        e.copterLand = false;
+        const a = Math.random() * Math.PI * 2;
+        const d = traitOf(e).drift ?? 1.6;
+        Body.setVelocity(e.body, { x: e.body.velocity.x + Math.cos(a) * d, y: e.body.velocity.y + Math.sin(a) * d });
+      }
       this._emit('cardFx', { type: 'land', playerIndex: e.playerIndex, x: e.body.position.x, y: e.body.position.y });
     }
   }
@@ -1742,6 +1842,58 @@ export class Game {
             e.absorbNext = t.front ?? 0.55;
           }
         }
+        break;
+      case 'beanbag': // オテダマ：当てられても ポテッと その場で 止まる
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed) e.absorbNext = t.catch ?? 0.45;
+        break;
+      case 'marble': // コロビー：当てた相手を まっすぐ 強く はじく
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !o.body.isStatic) addPush(o, away(), Math.min(t.max ?? 5, (t.push ?? 0.3) * power));
+        break;
+      case 'ink': // ハゴイタン：当てた相手の 顔に 墨で ×
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && power >= (t.minPower ?? 2)) {
+          const oe = this.erasers[o.playerIndex];
+          if (oe && !oe.inked) {
+            oe.inked = true;
+            this._emit('trait', { type: 'ink', playerIndex: o.playerIndex, x: o.body.position.x, y: o.body.position.y });
+          }
+        }
+        break;
+      case 'top': // コマワール：回っている間は 当たった相手を はじき飛ばす
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && e.topFlicks <= (t.turns ?? 3) && !o.body.isStatic) {
+          addPush(o, away(), Math.min(t.max ?? 5, (t.push ?? 0.35) * power));
+        }
+        break;
+      case 'menko': // メンコン：強く 当てた相手を ひっくり返す（1試合1回）。当てられると 弱い
+        if (o && o.playerIndex !== e.playerIndex) {
+          if (this._isShooter(e) && !e.menkoUsed && power >= (t.minPower ?? 6) && o.alive) {
+            e.menkoUsed = true;
+            this.players[o.playerIndex].skipNext = true;
+            this._emit('trait', { type: 'menko', playerIndex: o.playerIndex, x: o.body.position.x, y: o.body.position.y });
+          } else if (o.body.speed > e.body.speed && power >= 3) {
+            e.absorbNext = t.front ?? 1.3;
+          }
+        }
+        break;
+      case 'kendama': // ケンダマン：少し おくれて 玉が もう1回 当たる
+        if (o && o.playerIndex !== e.playerIndex && this._isShooter(e) && !this.turn.tailDone && power > 2) {
+          this.turn.tailDone = true;
+          e.tailAt = this.time + (t.delayMs ?? 200);
+          e.tailTarget = o;
+        }
+        break;
+      case 'daruma': // ダルマン：強く 当てられると 段が 抜けて 相手のほうへ 飛ぶ
+        if (o && o.playerIndex !== e.playerIndex && e.parts > 0 && o.body.speed > e.body.speed && power >= (t.breakPower ?? 5) && this.time - e.lastBreakAt > 300) {
+          e.parts--;
+          e.lastBreakAt = this.time;
+          e.traitMass *= t.massStep ?? 0.85;
+          this._applyMass(e);
+          const drop = t.drops?.[e.parts];
+          if (drop) this._junkQueue.push({ from: e, other: o, x, y, ...drop, kind: 'part', toward: true, shoot: t.shoot ?? 4 });
+          this._emit('trait', { type: 'darumaOff', playerIndex: e.playerIndex, x: pos.x, y: pos.y, left: e.parts });
+        }
+        break;
+      case 'hajiki': // ハジキング：平たくて 軽いので 当てられると 弱い
+        if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed && power >= 3) e.absorbNext = t.weak ?? 1.2;
         break;
       case 'milkpack': // ギュウニュウ：当てられると 牛乳が こぼれて、倒れて 転がる
         if (o && o.playerIndex !== e.playerIndex && o.body.speed > e.body.speed && power >= (t.minPower ?? 3)) {
@@ -2217,6 +2369,7 @@ export class Game {
     if (this.tilt && this.turnCount >= this.tilt.untilTurn) this.tilt = null;
     if (this.blackout && this.turnCount >= this.blackout.untilTurn) this.blackout = null;
     this._maybeSpill();
+    this._windDrift();
     if (this.blackHole && this.turnCount >= this.blackHole.untilTurn) {
       this.blackHole = null;
       this._emit('cardFx', { type: 'holeClose', playerIndex: next, x: 0, y: 0 });
@@ -2318,6 +2471,9 @@ export class Game {
       meltTurns: e.meltTurns,
       jankenUsed: e.jankenUsed,
       wobbly: e.wobbly,
+      inked: e.inked,
+      topFlicks: e.topFlicks,
+      menkoUsed: e.menkoUsed,
       happy: e.happy,
       powerNext: e.powerNext,
       invisLeft: e.invisLeft,
@@ -2364,6 +2520,7 @@ export class Game {
       tilt: this.tilt,
       blackout: this.blackout,
       blackHole: this.blackHole,
+      wind: this.wind,
       waxZones: this.waxZones,
     };
   }
@@ -2436,6 +2593,9 @@ export class Game {
         meltTurns: pk.meltTurns || 0,
         jankenUsed: !!pk.jankenUsed,
         wobbly: !!pk.wobbly,
+        inked: !!pk.inked,
+        topFlicks: pk.topFlicks || 0,
+        menkoUsed: !!pk.menkoUsed,
         happy: !!pk.happy,
         powerNext: pk.powerNext || 0,
         invisLeft: pk.invisLeft || 0,
@@ -2473,6 +2633,7 @@ export class Game {
     this.tilt = st.tilt || null;
     this.blackout = st.blackout || null;
     this.blackHole = st.blackHole || null;
+    if (st.wind) this.wind = { ...st.wind };
     this.junk = [];
     this._junkQueue = [];
     this._hatchQueue = [];
@@ -2532,6 +2693,7 @@ export class Game {
         airborne: e.airborne,
         power: e.powerNext > 0,
         steamy: this._steamy(e), // ミソシル：湯気で 見えにくい（CPU の ねらいも ズレる）
+        inked: e.inked, // ハゴイタンの 墨（ねらいの線が 見えない）
       },
       // とくせいの見た目（描画用）
       trait: {
@@ -2556,6 +2718,9 @@ export class Game {
         melt: traitOf(e).id === 'melt' ? Math.min(1, Math.max(0, e.meltTurns - 1) / (traitOf(e).turns ?? 6)) : 0,
         wobbly: e.wobbly,
         jankenUsed: e.jankenUsed,
+        topTired: traitOf(e).id === 'top' && e.topFlicks >= (traitOf(e).turns ?? 3),
+        kite: e.kiteUntil > this.time,
+        menkoUsed: e.menkoUsed,
       },
     };
   }

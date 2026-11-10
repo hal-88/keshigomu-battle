@@ -866,6 +866,310 @@ export const SPECIAL_ART = {
     sparkle(ctx, w / 2 - 1, h / 2 - 1, 3 + 2 * Math.abs(Math.sin(t + 2)));
   },
 
+  // ---- 昔あそびシリーズ ----
+  // オテダマ：着物の 布の お手玉。ぬい目が 十字
+  otedama(ctx, s, look) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    fill(ctx, look.body);
+    // 小花もよう
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let i = 0; i < 9; i++) {
+      const x = -w / 2 + 7 + ((i * 13) % (w - 14));
+      const y = -h / 2 + 7 + ((i * 11) % (h - 14));
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        circle(ctx, x + Math.cos(a) * 2, y + Math.sin(a) * 2, 1.2);
+        ctx.fill();
+      }
+    }
+    // ぬい目
+    ctx.strokeStyle = 'rgba(120,20,20,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(0, -h / 2 + 3);
+    ctx.lineTo(0, h / 2 - 3);
+    ctx.moveTo(-w / 2 + 3, 0);
+    ctx.lineTo(w / 2 - 3, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    rr(ctx, -w / 2, -h / 2, w, h, s.chamfer);
+    gloss(ctx, w / 2);
+    line(ctx, 'rgba(120,20,20,0.45)', 1.3);
+  },
+
+  // コロビー：ビー玉。ガラスと 中の 色の すじ
+  marble(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.35, 1, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.35, look.body);
+    g.addColorStop(1, 'rgba(0,120,170,0.85)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    // 中の すじ
+    ctx.lineWidth = 3;
+    for (const [c, k] of [['#ff7043', 1], ['#ffee58', -1]]) {
+      ctx.strokeStyle = c;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.6, k * r * 0.1);
+      ctx.bezierCurveTo(-r * 0.2, k * -r * 0.5, r * 0.2, k * r * 0.5, r * 0.6, k * -r * 0.1);
+      ctx.stroke();
+    }
+    circle(ctx, -r * 0.35, -r * 0.4, r * 0.22);
+    fill(ctx, 'rgba(255,255,255,0.85)');
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(0,90,130,0.6)', 1.3);
+  },
+
+  // ハゴイタン：羽子板と 羽根
+  hagoita(ctx, s, look) {
+    const { w, h } = s;
+    // 持つところ
+    rr(ctx, w * 0.12, -h * 0.16, w * 0.38, h * 0.32, 3);
+    fill(ctx, '#8d6e63');
+    // 板
+    rr(ctx, -w / 2, -h / 2, w * 0.66, h, 8);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(120,80,30,0.5)', 1.3);
+    // 絵（着物の 人）
+    rr(ctx, -w / 2 + 6, -h / 2 + 4, w * 0.5, h - 8, 6);
+    fill(ctx, '#e91e63');
+    circle(ctx, -w * 0.18, -h * 0.08, h * 0.2);
+    fill(ctx, '#ffe0c2');
+    ctx.beginPath();
+    ctx.arc(-w * 0.18, -h * 0.13, h * 0.22, Math.PI, 0);
+    fill(ctx, '#212121');
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillRect(-w / 2 + 8, h * 0.18, w * 0.44, 3);
+    // 羽根
+    circle(ctx, w * 0.42, -h * 0.34, 3.5);
+    fill(ctx, '#212121');
+    for (const [a, c] of [[-0.9, '#e53935'], [-0.3, '#fdd835'], [0.3, '#43a047']]) {
+      ctx.save();
+      ctx.translate(w * 0.42, -h * 0.34);
+      ctx.rotate(a);
+      ctx.beginPath();
+      ctx.ellipse(0, -7, 2.5, 6, 0, 0, Math.PI * 2);
+      fill(ctx, c);
+      ctx.restore();
+    }
+  },
+
+  // カゼダコ：角凧。「風」の字と 竹の 骨
+  kite(ctx, s, look, tv) {
+    const { w, h } = s;
+    rr(ctx, -w / 2, -h / 2, w, h, 2);
+    fill(ctx, look.body);
+    ctx.strokeStyle = 'rgba(140,100,50,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2);
+    ctx.lineTo(w / 2, h / 2);
+    ctx.moveTo(w / 2, -h / 2);
+    ctx.lineTo(-w / 2, h / 2);
+    ctx.stroke();
+    rr(ctx, -w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 2);
+    line(ctx, '#e53935', 3);
+    text(ctx, '風', 0, 1, h * 0.6, '#c62828', w);
+    // しっぽ
+    ctx.strokeStyle = '#e53935';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.quadraticCurveTo(6, h / 2 + 6, 0, h / 2 + 11);
+    ctx.stroke();
+    // 風に 乗っている ときの すじ
+    if (tv && tv.kite) {
+      const t = now() / 120;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const y = -h / 2 + 8 + i * 14;
+        const o = (t + i * 7) % 16;
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 - 18 + o, y);
+        ctx.lineTo(-w / 2 - 6 + o, y);
+        ctx.stroke();
+      }
+    }
+  },
+
+  // コマワール：こま（上から）。回っている間は すじが 回る
+  koma(ctx, s, look, tv) {
+    const r = s.radius;
+    const cols = [look.body, '#fdd835', '#2e7d32', '#fff', look.body];
+    for (let i = 0; i < cols.length; i++) {
+      circle(ctx, 0, 0, r * (1 - i * 0.18));
+      fill(ctx, cols[i]);
+    }
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(0,0,0,0.4)', 1.3);
+    // 心棒
+    circle(ctx, 0, 0, r * 0.12);
+    fill(ctx, '#5d4037');
+    if (!(tv && tv.topTired)) {
+      const a = now() / 60;
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (0.45 + i * 0.18), a + i, a + i + 0.9);
+        ctx.stroke();
+      }
+    }
+  },
+
+  // メンコン：丸めんこ。「武」の字
+  menko(ctx, s, look) {
+    const r = s.radius;
+    circle(ctx, 0, 0, r);
+    fill(ctx, '#fbc02d');
+    circle(ctx, 0, 0, r * 0.84);
+    fill(ctx, look.body);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.fillStyle = i % 2 ? '#e53935' : '#fff';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r * 0.84, 0, Math.PI / 6);
+      ctx.closePath();
+      ctx.globalAlpha = 0.25;
+      ctx.fill();
+      ctx.restore();
+    }
+    circle(ctx, 0, 0, r * 0.5);
+    fill(ctx, '#fff');
+    text(ctx, '武', 0, 1, r * 0.75, '#c62828', r);
+    circle(ctx, 0, 0, r);
+    line(ctx, 'rgba(0,0,0,0.4)', 1.3);
+  },
+
+  // トンボン：竹とんぼ（羽根と まん中の 軸）
+  taketombo(ctx, s, look) {
+    const { w, h } = s;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, -h * 0.2);
+      ctx.quadraticCurveTo(k * w * 0.3, -h / 2, k * w / 2, -h * 0.15);
+      ctx.lineTo(k * w / 2, h * 0.25);
+      ctx.quadraticCurveTo(k * w * 0.3, h / 2, 0, h * 0.2);
+      ctx.closePath();
+      fill(ctx, k < 0 ? look.body : '#c49a4f');
+      line(ctx, 'rgba(110,80,30,0.6)', 1.2);
+    }
+    ctx.strokeStyle = 'rgba(110,80,30,0.35)';
+    ctx.lineWidth = 1;
+    for (const x of [-w * 0.32, -w * 0.16, w * 0.16, w * 0.32]) {
+      ctx.beginPath();
+      ctx.moveTo(x, -h * 0.3);
+      ctx.lineTo(x, h * 0.3);
+      ctx.stroke();
+    }
+    circle(ctx, 0, 0, h * 0.32);
+    fill(ctx, '#8d6e63');
+    circle(ctx, 0, 0, h * 0.32);
+    line(ctx, 'rgba(60,40,20,0.6)', 1.2);
+  },
+
+  // ケンダマン：けん（木）と 糸で つながった 赤い玉
+  kendama(ctx, s, look) {
+    const { w, h } = s;
+    // 糸
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.1, 0);
+    ctx.bezierCurveTo(w * 0.05, h * 0.45, w * 0.15, -h * 0.4, w * 0.25, 0);
+    ctx.stroke();
+    // けん（十字と 皿）
+    rr(ctx, -w / 2 + 2, -h * 0.12, w * 0.45, h * 0.24, 3);
+    fill(ctx, look.body);
+    rr(ctx, -w * 0.32, -h / 2 + 2, w * 0.12, h - 4, 3);
+    fill(ctx, look.body);
+    for (const y of [-h / 2 + 5, h / 2 - 5]) {
+      circle(ctx, -w * 0.26, y, 5);
+      fill(ctx, '#bcaaa4');
+      line(ctx, 'rgba(80,50,30,0.5)', 1);
+    }
+    // 玉
+    const r = h * 0.38;
+    circle(ctx, w / 2 - r - 1, 0, r);
+    const g = ctx.createRadialGradient(w / 2 - r - 4, -4, 1, w / 2 - r - 1, 0, r);
+    g.addColorStop(0, '#ff8a80');
+    g.addColorStop(1, '#c62828');
+    ctx.fillStyle = g;
+    ctx.fill();
+    line(ctx, 'rgba(100,0,0,0.5)', 1.2);
+    circle(ctx, w / 2 - r - 1, 0, r * 0.18);
+    fill(ctx, '#3e2723');
+  },
+
+  // ダルマン：だるま落とし（上から）。まわりに 残っている 段、まん中に だるまの 顔
+  darumaotoshi(ctx, s, look, tv) {
+    const r = s.radius;
+    const left = tv ? tv.parts ?? 3 : 3;
+    const cols = ['#43a047', '#fdd835', '#1e88e5'];
+    for (let i = left - 1; i >= 0; i--) {
+      circle(ctx, 0, 0, r * (0.72 + 0.1 * (i + 1)));
+      fill(ctx, cols[i]);
+      line(ctx, 'rgba(0,0,0,0.3)', 1);
+    }
+    const hr = r * 0.72;
+    circle(ctx, 0, 0, hr);
+    fill(ctx, look.body);
+    line(ctx, 'rgba(90,0,0,0.5)', 1.3);
+    ctx.beginPath();
+    ctx.ellipse(0, -hr * 0.1, hr * 0.6, hr * 0.5, 0, 0, Math.PI * 2);
+    fill(ctx, '#fff3e0');
+    eyes(ctx, hr * 0.25, -hr * 0.15, 2.6);
+    ctx.strokeStyle = '#212121';
+    ctx.lineWidth = 2;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(k * hr * 0.1, -hr * 0.42);
+      ctx.lineTo(k * hr * 0.42, -hr * 0.35);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillRect(-hr * 0.35, hr * 0.5, hr * 0.7, 3);
+  },
+
+  // ハジキング：おはじき。平たい ガラスに 花もよう。キラッ
+  ohajiki(ctx, s, look) {
+    const r = s.radius;
+    ctx.beginPath();
+    for (let i = 0; i <= 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const rr2 = r * (0.95 + 0.05 * Math.sin(a * 5));
+      i ? ctx.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2) : ctx.moveTo(Math.cos(a) * rr2, Math.sin(a) * rr2);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.5, look.body);
+    g.addColorStop(1, 'rgba(0,150,170,0.85)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    line(ctx, 'rgba(0,110,130,0.6)', 1.3);
+    // 花
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a) * r * 0.32, Math.sin(a) * r * 0.32, r * 0.22, r * 0.12, a, 0, Math.PI * 2);
+      fill(ctx, 'rgba(255,128,171,0.85)');
+    }
+    circle(ctx, 0, 0, r * 0.14);
+    fill(ctx, '#ffeb3b');
+    const t = now() / 400;
+    sparkle(ctx, -r * 0.45, -r * 0.45, 3 + 2 * Math.abs(Math.sin(t)));
+    sparkle(ctx, r * 0.5, r * 0.3, 2 + 2 * Math.abs(Math.sin(t + 2)));
+  },
+
   // ---- 給食シリーズ ----
   // ギュウニュウ：牛乳パック（上から見ると 屋根の 折り目）
   milkpack(ctx, s, look) {

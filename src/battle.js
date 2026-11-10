@@ -476,6 +476,26 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (type === 'topple') {
       sfx.boing();
       say('🏆 ゴロン！ 倒れた！', '#b8860b');
+    } else if (type === 'ink') {
+      sfx.whoosh();
+      say('墨で ×！', '#212121', 22);
+      if (p.type === 'human') later(400, () => toast(`${p.name}は 顔に 墨！ 次は ねらいの線が 見えないよ`, '#424242'));
+    } else if (type === 'kite') {
+      say('🪁 風に 乗った！', '#29b6f6', 18, 1000);
+    } else if (type === 'wind') {
+      say('ひゅ〜', '#81d4fa', 16, 800);
+    } else if (type === 'topTired') {
+      say('回転が 止まった…', '#8d6e63', 18, 1200);
+    } else if (type === 'menko') {
+      sfx.hit(10);
+      say('バシッ！ ひっくり返った！', '#1565c0', 22, 1500);
+      later(400, () => toast(`${p.name}は ひっくり返って 次の番 お休み！`, '#1565c0'));
+    } else if (type === 'kendama') {
+      sfx.hit(6);
+      say('もう1回 カツン！', '#c62828', 20);
+    } else if (type === 'darumaOff') {
+      sfx.hit(8, true);
+      say(`段が 抜けた！（残り${left}）`, '#d32f2f', 20);
     } else if (type === 'jiggle') {
       say('ぷるん', '#ffb300', 18, 700);
     } else if (type === 'wobble') {

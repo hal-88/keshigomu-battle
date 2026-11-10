@@ -205,6 +205,7 @@ export class CanvasRenderer {
       if (air > 1) this._drawAirShadow(ctx, e);
       drawEraser(ctx, e.def, e.x + jx, e.y + jy, e.angle, { scale: e.size * air, alpha, tv: e.trait, shadow: !e.trait.clear && air === 1 });
       if (e.effects.shield) this._drawShield(ctx, e, now);
+      if (e.effects.inked) this._drawInk(ctx, e); // ハゴイタンの 墨で ×
       if (e.trait.clear && e.trait.camo) this._drawCamo(ctx, e, state.desk);
       // キラ（ガチャで 2回出た）は にじ色に 光る（見た目だけ）
       if (state.players[e.playerIndex]?.kira && alpha > 0.5) drawKira(ctx, e.def, e.x + jx, e.y + jy, e.angle, e.size * air, now);
@@ -834,6 +835,23 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
+  // ハゴイタンの 墨で ×（次の番 ねらいの線が 見えない）
+  _drawInk(ctx, e) {
+    const r = eraserExtent(e.def) * e.size * 0.75;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(20,20,20,0.85)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-r, -r);
+    ctx.lineTo(r, r);
+    ctx.moveTo(r, -r);
+    ctx.lineTo(-r, r);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ナットウで くっついた 2つの あいだの ネバネバの 糸
   _drawNattoThreads(ctx, s, now) {
     ctx.save();
@@ -1324,6 +1342,16 @@ export class CanvasRenderer {
     const e = state.erasers[aim.playerIndex];
     const len = Math.hypot(aim.dirX, aim.dirY);
     if (!e || !e.alive || len < 1e-6 || aim.strength <= 0) return;
+    // ハゴイタンの 墨で ×：ねらいの線が 見えない（強さの ゲージだけ）
+    if (e.effects?.inked) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(20,20,20,0.8)';
+      ctx.font = '800 16px "M PLUS Rounded 1c", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('墨で 見えない！', e.x, e.y - eraserExtent(e.def) * e.size - 14);
+      ctx.restore();
+      return;
+    }
 
     const start = eraserExtent(e.def) * e.size + 10;
     const L = 30 + aim.strength * 220;
@@ -1350,6 +1378,8 @@ export class CanvasRenderer {
       ctx.quadraticCurveTo(p1.x, p1.y, end.x, end.y);
       ctx.stroke();
     }
+    // ハジキング：当たる 相手と、その相手が 飛ぶ 向きまで 見える
+    if (e.def.trait?.id === 'hajiki') this._drawHajikiGuide(ctx, state, e, aim);
     // チクワ：のぞき穴で、ねらいの線が 長く見える（点線）
     if (e.def.trait?.id === 'scope') {
       const G = e.def.trait.guide ?? 260;
@@ -1375,6 +1405,68 @@ export class CanvasRenderer {
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'white';
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /** ハジキング：まっすぐ 進んで 最初に 当たる 相手と、その相手が 飛ぶ向き（いまの 回転した 座標で かく） */
+  _drawHajikiGuide(ctx, state, e, aim) {
+    const ang = Math.atan2(aim.dirY, aim.dirX);
+    const c = Math.cos(-ang);
+    const s = Math.sin(-ang);
+    const me = eraserExtent(e.def) * e.size;
+    let best = null;
+    for (const o of [...state.erasers, ...state.extras]) {
+      if (!o.alive || o === e || o.playerIndex === e.playerIndex) continue;
+      if (o.trait?.clear && o.trait.clearAlpha === 0) continue; // 見えない 相手は わからない
+      if (o.effects?.invisible) continue;
+      const dx = o.x - e.x;
+      const dy = o.y - e.y;
+      const lx = dx * c - dy * s;
+      const ly = dx * s + dy * c;
+      const R = me + eraserExtent(o.def) * o.size;
+      if (lx <= 0 || Math.abs(ly) >= R) continue;
+      const hit = lx - Math.sqrt(R * R - ly * ly);
+      if (hit < 0) continue;
+      if (!best || hit < best.hit) best = { hit, lx, ly };
+    }
+    const L = best ? best.hit : 330;
+    ctx.save();
+    ctx.setLineDash([6, 8]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,150,170,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(me + 6, 0);
+    ctx.lineTo(L, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (best) {
+      // 当たる ときの 自分の 場所（うすい 丸）
+      ctx.beginPath();
+      ctx.arc(best.hit, 0, me, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,150,170,0.7)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // 相手が 飛ぶ 向き
+      const vx = best.lx - best.hit;
+      const vy = best.ly;
+      const vl = Math.hypot(vx, vy) || 1;
+      const ex = best.lx + (vx / vl) * 110;
+      const ey = best.ly + (vy / vl) * 110;
+      ctx.strokeStyle = 'rgba(255,87,34,0.95)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(best.lx, best.ly);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      const ha = Math.atan2(vy, vx);
+      ctx.fillStyle = 'rgba(255,87,34,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(ex + Math.cos(ha) * 10, ey + Math.sin(ha) * 10);
+      ctx.lineTo(ex + Math.cos(ha + 2.5) * 10, ey + Math.sin(ha + 2.5) * 10);
+      ctx.lineTo(ex + Math.cos(ha - 2.5) * 10, ey + Math.sin(ha - 2.5) * 10);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
   }
 
