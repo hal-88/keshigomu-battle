@@ -43,6 +43,57 @@ export function setupOnline(ui) {
     showMenu: (msg) => showMenu(msg),
   });
 
+  // ---------- 招待リンク（LINE などで 送る。タップすると その部屋に 入れる） ----------
+  function inviteUrl(code) {
+    const u = new URL(location.href);
+    const keep = u.searchParams.has('local'); // テストモードは そのまま
+    u.search = '';
+    u.hash = '';
+    u.searchParams.set('room', code);
+    if (keep) u.searchParams.set('local', '');
+    return u.toString().replace('local=', 'local');
+  }
+  async function shareInvite(code, el) {
+    const url = inviteUrl(code);
+    const text = `消しゴムバトルで あそぼう！ 合言葉は ${code}。リンクを タップすると 部屋に 入れるよ`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: '消しゴムバトル', text, url });
+        return;
+      } catch (e) {
+        if (e?.name === 'AbortError') return;
+      }
+    }
+    // 共有メニューが ない 端末：LINE で 送る・コピー
+    const ov = document.createElement('div');
+    ov.className = 'overlay fixed show';
+    ov.innerHTML = `<div class="modal invite-modal">
+        <div class="invite-head">📨 友だちを さそう</div>
+        <p class="note">このリンクを 送ると、タップするだけで 部屋に 入れるよ</p>
+        <input class="invite-url" readonly value="${esc(url)}">
+        <div class="row">
+          <a class="btn line-btn" href="https://line.me/R/share?text=${encodeURIComponent(`${text}\n${url}`)}" target="_blank" rel="noopener">LINEで 送る</a>
+          <button class="btn" data-act="copy">リンクを コピー</button>
+          <button class="btn ghost" data-act="close">閉じる</button>
+        </div>
+      </div>`;
+    el.appendChild(ov);
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('[data-act=close]')) ov.remove();
+    });
+    ov.querySelector('[data-act=copy]').onclick = async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+      } catch {
+        const inp = ov.querySelector('.invite-url');
+        inp.select();
+        document.execCommand?.('copy');
+      }
+      btn.textContent = 'コピーしたよ！';
+    };
+  }
+
   const testBadge = () =>
     isTestMode()
       ? '<p class="test-badge">🧪 テストモード：このパソコンの 別のタブと 対戦できるよ（Firebase の設定前）</p>'
@@ -53,9 +104,11 @@ export function setupOnline(ui) {
     const owned = collection.ownedErasers();
     if (!st.eraserId || !collection.owns(st.eraserId)) st.eraserId = owned[0].id;
     const eraser = findEraser(st.eraserId);
+    const invite = st.inviteCode;
     const el = screen(
       `<h2 class="head">🌐 オンライン</h2>
        ${testBadge()}
+       ${invite ? `<div class="invite-banner">📨 合言葉 <b>${esc(invite)}</b> の 部屋に さそわれたよ！<br><small>名前を 入れて「この部屋に 入る」を 押してね</small></div>` : ''}
        <div class="online-card">
          <label class="online-label">名前（ニックネーム・${ONLINE.nameMaxLength}文字まで）
            <input class="slot-name online-name" maxlength="${ONLINE.nameMaxLength}" value="${esc(st.name)}" autocomplete="off" enterkeyhint="done">
@@ -68,12 +121,19 @@ export function setupOnline(ui) {
          </div>
        </div>
        ${message ? `<p class="error-msg">${esc(message)}</p>` : ''}
-       <div class="row">
-         <button class="btn big primary" data-act="create">部屋を 作る</button>
-         <button class="btn big" data-act="join">合言葉で 入る</button>
-       </div>
-       <button class="btn big tour-create" data-act="createTour">🏆 トーナメントの 部屋を 作る<small>（16人まで。足りない分は CPU）</small></button>
-       <button class="btn ghost" data-act="back">戻る</button>`,
+       ${
+         invite
+           ? `<div class="row">
+                <button class="btn big primary" data-act="joinInvite">この部屋に 入る</button>
+              </div>
+              <button class="btn ghost" data-act="noInvite">ほかの 遊び方</button>`
+           : `<div class="row">
+                <button class="btn big primary" data-act="create">部屋を 作る</button>
+                <button class="btn big" data-act="join">合言葉で 入る</button>
+              </div>
+              <button class="btn big tour-create" data-act="createTour">🏆 トーナメントの 部屋を 作る<small>（16人まで。足りない分は CPU）</small></button>
+              <button class="btn ghost" data-act="back">戻る</button>`
+       }`,
     );
     whenFonts(() => drawEraserPreview(el.querySelector('.online-eraser-cv'), eraser));
     const nameInput = el.querySelector('.online-name');
@@ -104,6 +164,25 @@ export function setupOnline(ui) {
         },
         onBack: () => showMenu(),
       });
+    // さそわれた 部屋に 入る
+    el.querySelector('[data-act=joinInvite]')?.addEventListener('click', async () => {
+      if (!needName()) return;
+      const code = st.inviteCode;
+      try {
+        loading('部屋を 探しているよ…');
+        await joinRoom(code, { name: st.name, eraserId: st.eraserId, wins: collection.tournamentWins() });
+        st.inviteCode = null;
+        await openLobby(code);
+      } catch (err) {
+        st.inviteCode = null;
+        showMenu(`${errorText(err)}（合言葉 ${code}）`);
+      }
+    });
+    el.querySelector('[data-act=noInvite]')?.addEventListener('click', () => {
+      st.inviteCode = null;
+      showMenu();
+    });
+    if (invite) return;
     el.querySelector('[data-act=create]').onclick = async () => {
       if (!needName()) return;
       try {
@@ -199,6 +278,7 @@ export function setupOnline(ui) {
          <small>合言葉</small>
          <div class="big-code">${session.code}</div>
          <small>この 数字を 友だちに 教えてね</small>
+         <button class="btn small invite-btn" data-act="invite">📨 友だちを さそう（LINE など）</button>
        </div>
        <div class="lobby-members" data-el="members"></div>
        <div class="lobby-desk" data-el="desk"></div>
@@ -211,6 +291,7 @@ export function setupOnline(ui) {
       'lobby-screen',
     );
     const $ = (n) => el.querySelector(`[data-el=${n}]`);
+    el.querySelector('[data-act=invite]').onclick = () => shareInvite(session.code, el);
     let room = null;
     let gone = false;
     let starting = false;
@@ -544,6 +625,12 @@ export function setupOnline(ui) {
   return {
     showMenu: () => {
       getDb().catch(() => {});
+      showMenu();
+    },
+    /** 招待リンク（?room=1234）から 来たとき */
+    joinInvite: (code) => {
+      getDb().catch(() => {});
+      st.inviteCode = code;
       showMenu();
     },
   };

@@ -2917,3 +2917,39 @@ canvas.board {
   border-radius: 10px;
   background: #000;
 }
+
+/* 📨 招待 */
+.invite-btn {
+  margin-top: 6px;
+}
+.invite-banner {
+  background: #fff3cd;
+  border: 2px solid #ffcc66;
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin: 0 auto 8px;
+  max-width: 460px;
+  font-weight: 700;
+}
+.invite-modal {
+  width: min(520px, 94vw);
+  text-align: center;
+}
+.invite-head {
+  font-weight: 800;
+  font-size: 18px;
+}
+.invite-url {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 2px solid #e6dccb;
+  border-radius: 8px;
+  margin: 6px 0;
+}
+.line-btn {
+  background: #06c755;
+  color: #fff;
+  text-decoration: none;
+}

@@ -13,6 +13,7 @@ import { drawEraser, drawEraserPreview } from './render/drawEraser.js';
 import { flipCardHTML } from './ui/cardView.js';
 import { sfx, unlockAudio, isMuted, setMuted, setVolume, resetSound } from './audio/sfx.js';
 import { setupOnline } from './onlineScreens.js';
+import { ONLINE } from './config/online.js';
 import { rewardsHTML } from './ui/rewardView.js';
 import { setupPwa, isInstalled, showInstallGuide } from './ui/installApp.js';
 import { watchFit, stopFit } from './ui/fitScreen.js';
@@ -1301,4 +1302,15 @@ const online = setupOnline({
   },
 });
 
-showTitle();
+// 招待リンク（?room=1234）から 来たら、その部屋に 入る 画面へ
+{
+  const params = new URLSearchParams(location.search);
+  const code = params.get('room');
+  if (code && new RegExp(`^\\d{${ONLINE.codeDigits}}$`).test(code)) {
+    params.delete('room'); // 読みこみなおしても もう一度 入らないように
+    const q = params.toString().replace(/=(&|$)/g, '$1');
+    history.replaceState(null, '', `${location.pathname}${q ? `?${q}` : ''}`);
+    setup.mode = 'online';
+    online.joinInvite(code);
+  } else showTitle();
+}
