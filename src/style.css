@@ -3277,3 +3277,143 @@ canvas.board {
     height: 22px;
   }
 }
+
+/* ---- コンパクトな 選ぶ画面（2026-11-11） ---- */
+/* 机：小さな タイル */
+.desk-choices {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  width: min(820px, 100%);
+}
+.desk-choices .choice {
+  padding: 8px 6px 8px;
+  border-radius: 12px;
+  gap: 2px;
+  text-align: center;
+  align-items: stretch;
+}
+.desk-choices .desk-thumb-wrap {
+  height: 46px;
+}
+.desk-choices .desk-thumb {
+  margin: 0 auto;
+  border-bottom-width: 5px;
+  transform: scale(0.8);
+}
+.desk-choices .desk-thumb-wrap {
+  height: 44px;
+}
+.desk-choices .choice-name {
+  font-size: 14px;
+}
+.desk-choices .choice-desc {
+  font-size: 10px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.desk-choices .badge {
+  top: 3px;
+  right: 3px;
+  font-size: 9px;
+  padding: 1px 6px;
+}
+
+/* 消しゴム：絵と 名前だけの タイル */
+.eraser-choices {
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 6px;
+  width: min(820px, 100%);
+}
+.eraser-choice.tile {
+  padding: 6px 4px 6px;
+  border-radius: 12px;
+  gap: 2px;
+  align-items: center;
+  text-align: center;
+}
+.eraser-choice.tile .eraser-thumb {
+  height: 42px;
+}
+.eraser-choice.tile .choice-name {
+  font-size: 12px;
+  line-height: 1.2;
+  word-break: keep-all;
+}
+.eraser-choice.tile .fav-btn {
+  top: 1px;
+  right: 3px;
+  font-size: 14px;
+}
+.eraser-choice.tile .win-badge,
+.eraser-choice.tile .name-trophy {
+  font-size: 9px;
+}
+/* えらんだ 消しゴムの くわしい ところ */
+.pick-detail {
+  width: min(620px, 100%);
+  margin: 6px auto 0;
+  padding: 6px 10px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  text-align: left;
+}
+.pick-detail:empty {
+  display: none;
+}
+.pick-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pick-detail-head b {
+  font-size: 15px;
+}
+.pick-detail-head span {
+  color: var(--sub);
+  font-size: 11px;
+}
+.pick-detail .rarity-tag {
+  position: static;
+  font-size: 9px;
+  padding: 1px 6px;
+}
+.pick-detail .trait {
+  font-size: 12px;
+  margin: 3px 0;
+}
+.pick-detail .stats {
+  font-size: 11px;
+}
+.small-note {
+  font-size: 11px;
+  margin: 2px 0;
+}
+/* シリーズの タブ：1行で よこに スクロール */
+.tab-nav .tabs {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  padding: 3px;
+  gap: 3px;
+}
+.tab-nav .tab {
+  font-size: 13px;
+  padding: 5px 10px;
+  flex-direction: row;
+  gap: 4px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.tab-nav .tab small {
+  font-size: 10px;
+}
+.tab-arrow {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}

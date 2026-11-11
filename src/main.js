@@ -491,28 +491,24 @@ function showEraserSelect(opts) {
   const lockedCount = REGULAR_ERASERS.filter((e) => !collection.owns(e.id)).length;
   const el = screen(
     `<h2 class="head">${title}</h2>
-     <p class="note tip">👆 2回タップで すぐ 決定！　☆で お気に入り（${GAME.collection.maxFavorites}つまで）　◀ ▶・スワイプで シリーズを かえる</p>
+     <p class="note tip">👆 2回タップで 決定　☆ お気に入り</p>
      ${tabNavHTML(tabs, tab, (t) => `<small>${t.items.length}</small>`)}
      <div class="choices eraser-choices fit-scroll ${opts.slide > 0 ? 'slide-l' : opts.slide < 0 ? 'slide-r' : ''}">
        ${list
          .map(
            (e) => `
-         <button class="choice eraser-choice ${rarityClass(e)} ${e.id === selected ? 'selected' : ''} ${collection.isFavorite(e.id) ? 'fav' : ''}" data-id="${e.id}">
-           ${rarityTag(e)}
+         <button class="choice eraser-choice tile ${rarityClass(e)} ${e.id === selected ? 'selected' : ''} ${collection.isFavorite(e.id) ? 'fav' : ''}" data-id="${e.id}">
            <span class="fav-btn ${collection.isFavorite(e.id) ? 'on' : ''}" data-fav="${e.id}" role="button" aria-label="お気に入り">${collection.isFavorite(e.id) ? '★' : '☆'}</span>
-           ${e.champion ? '<div class="badge gacha">🏆優勝</div>' : e.gacha ? '<div class="badge gacha">ガチャ</div>' : e.kind === 'chara' ? '<div class="badge chara">キャラ</div>' : ''}
            ${winBadgeHTML(e.id)}
            <canvas class="eraser-thumb"></canvas>
-           <div class="choice-name">${collection.isKira(e.id) ? '<span class="kira-mark">✨キラ</span>' : ''}${e.name}</div>
-           <div class="choice-desc">${e.desc}</div>
-           ${traitLine(e)}
-           <div class="stats">${statMeters(e.stats)}</div>
+           <div class="choice-name">${collection.isKira(e.id) ? '✨' : ''}${e.name}</div>
          </button>`,
          )
          .join('')}
      </div>
-     <p class="note">消しゴム ${collection.ownedErasers().length} / ${ERASERS.length} 個 集めた${
-       lockedCount ? `　🔒 あと${lockedCount}個は CPUに勝つと 手に入るよ（図鑑で見られる）` : ''
+     <div class="pick-detail" data-el="detail"></div>
+     <p class="note small-note">消しゴム ${collection.ownedErasers().length} / ${ERASERS.length} 個 集めた${
+       lockedCount ? `　🔒 あと${lockedCount}個は CPUに勝つと 手に入るよ` : ''
      }</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
@@ -521,6 +517,19 @@ function showEraserSelect(opts) {
      </div>`,
   );
   bindTabNav(el, tabs, tab, (id, d) => showEraserSelect({ ...opts, selectedId: selected, tab: id, slide: d }));
+  // えらんだ 消しゴムの くわしい ところ（能力・メーター）
+  const showDetail = () => {
+    const def = findEraser(selected);
+    const box = el.querySelector('[data-el=detail]');
+    if (!def) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = `<div class="pick-detail-head">${rarityTag(def)}<b>${collection.isKira(def.id) ? '✨' : ''}${def.name}</b><span>${def.desc}</span></div>
+      ${traitLine(def)}
+      <div class="stats">${statMeters(def.stats)}</div>`;
+  };
+  showDetail();
   const cards = [...el.querySelectorAll('.eraser-choice')];
   whenFonts(() =>
     cards.forEach((c) => {
@@ -545,6 +554,7 @@ function showEraserSelect(opts) {
       selected = c.dataset.id;
       choosable.forEach((x) => x.classList.toggle('selected', x === c));
       el.querySelector('[data-el=picked]').innerHTML = `いま：<b>${findEraser(selected).name}</b>`;
+      showDetail();
     };
   });
   // ☆：お気に入りに 入れる／はずす（入れると いちばん上へ）
