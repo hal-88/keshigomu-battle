@@ -18,6 +18,8 @@ import { sfx, isMuted, setMuted } from './audio/sfx.js';
 import { collection } from './progress/collection.js';
 import { packView, unpackView, packEvent, unpackEvent } from './online/viewCodec.js';
 import { createReplayRecorder } from './replay/replay.js';
+import { drawEraser } from './render/drawEraser.js';
+import { eraserExtent } from './logic/geometry.js';
 
 // 名前を HTML に入れるときは、記号をそのまま文字として出す
 const esc = (s) =>
@@ -55,6 +57,8 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     </div>
     <div class="stage">
       <canvas class="board"></canvas>
+      <div class="eraser-bar" data-el="ebar"></div>
+      <div class="ebar-info" data-el="ebarInfo"></div>
       <div class="toast" data-el="toast"></div>
       <div class="hint" data-el="hint"></div>
       <button class="card-btn" data-el="cardBtn"></button>
@@ -149,7 +153,53 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     $('turn').style.background = p.color;
     $('count').textContent = `${label ? label + ' ' : ''}ターン ${game.turnCount}`;
     $('sd').classList.toggle('show', game.turnCount >= GAME.suddenDeath.startTurn);
+    updateEbar();
   }
+
+  // 上の 帯：みんなの 消しゴムと 能力（タップで くわしく）
+  function updateEbar() {
+    $('ebar').innerHTML = game.players
+      .map((p, i) => {
+        const e = game.erasers[i];
+        const def = e?.def || p.eraser;
+        const t = def.trait;
+        return `<button class="ebar-chip ${i === game.turnIndex ? 'now' : ''} ${e && !e.alive ? 'out' : ''}" data-i="${i}" style="--c:${p.color}">
+            <canvas class="ebar-pic" width="76" height="56"></canvas>
+            <b>${esc(p.name)}</b><span>${esc(def.name)}</span><small>${t ? `✨${esc(t.name)}` : 'とくせい なし'}</small>
+          </button>`;
+      })
+      .join('');
+    // 小さな 消しゴムの 絵
+    $('ebar').querySelectorAll('.ebar-chip').forEach((chip) => {
+      const i = Number(chip.dataset.i);
+      const def = game.erasers[i]?.def || game.players[i].eraser;
+      const cv = chip.querySelector('canvas');
+      const ctx = cv.getContext('2d');
+      const k = Math.min(1.4, 24 / (eraserExtent(def) || 20));
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      drawEraser(ctx, def, cv.width / 2, cv.height / 2, -0.15, { scale: k, shadow: false });
+    });
+  }
+  $('ebar').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-i]');
+    if (!b) return;
+    const i = Number(b.dataset.i);
+    const def = game.erasers[i]?.def || game.players[i].eraser;
+    const t = def.trait;
+    // くわしい 説明は 帯の 下に 小さく（数秒で 消える。もう一度 タップでも 消える）
+    const box = $('ebarInfo');
+    if (box.classList.contains('show') && box.dataset.i === String(i)) {
+      box.classList.remove('show');
+      return;
+    }
+    box.dataset.i = String(i);
+    box.style.top = `${$('ebar').offsetTop + $('ebar').offsetHeight + 4}px`; // 帯の すぐ下
+    box.style.setProperty('--c', game.players[i].color);
+    box.innerHTML = `<b>${esc(def.name)}</b>${t ? `　✨${esc(t.name)}<br>${esc(t.desc)}` : '　とくせい なし'}`;
+    box.classList.add('show');
+    clearTimeout(box._t);
+    box._t = setTimeout(() => box.classList.remove('show'), 5000);
+  });
 
   function toast(text, color = '#fff') {
     const el = $('toast');
@@ -447,6 +497,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     sfx.fall();
     toast(`${p.name}が 落ちた！`, p.color);
+    updateEbar();
     // 名場面：倒した・倒された 場面（この端末の 人が かかわったもの）を クリップに
     {
       const shooter = game.turnIndex;

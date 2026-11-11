@@ -416,16 +416,84 @@ function traitLine(def) {
   return `${countryLine(def)}${t ? `<div class="trait"><b>✨ ${t.name}</b> ${t.desc}</div>` : ''}`;
 }
 
+// 消しゴムを 選ぶ 画面の シリーズ（図鑑と 同じ わけかた。持っている ものが ある シリーズだけ）
+function pickerTabs() {
+  const own = (list) => list.filter((e) => collection.owns(e.id));
+  const favs = collection.favorites().map(findEraser).filter((e) => e && collection.owns(e.id));
+  return [
+    { id: 'fav', label: '⭐お気に入り', items: favs },
+    { id: 'eraser', label: '消しゴム', items: own(REGULAR_ERASERS.filter((e) => e.kind !== 'chara')) },
+    { id: 'chara', label: 'キャラ', items: own(REGULAR_ERASERS.filter((e) => e.kind === 'chara')) },
+    { id: 'special', label: '特別', items: own(SPECIAL_ERASERS) },
+    { id: 'kyushoku', label: '🍱給食', items: own(KYUSHOKU_ERASERS) },
+    { id: 'mukashi', label: '🎍昔あそび', items: own(MUKASHI_ERASERS) },
+    { id: 'sekai', label: '🌏世界', items: own(SEKAI_ERASERS) },
+    { id: 'gacha', label: '文房具', items: own(STATIONERY_ERASERS) },
+    { id: 'champion', label: '🏆優勝', items: own(CHAMPION_ERASERS) },
+  ].filter((t) => t.items.length);
+}
+
+/** シリーズの タブ（◀ ▶ つき）。いまの タブが 見えるように よこに スクロール */
+function tabNavHTML(tabs, cur, extra = () => '') {
+  const i = tabs.findIndex((t) => t.id === cur);
+  return `<div class="tab-nav">
+      <button class="tab-arrow" data-go="-1" ${i > 0 ? '' : 'disabled'} aria-label="前の シリーズ">◀</button>
+      <div class="tabs">${tabs
+        .map((t) => `<button class="tab ${t.id === cur ? 'on' : ''}" data-tab="${t.id}">${t.label}${extra(t)}</button>`)
+        .join('')}</div>
+      <button class="tab-arrow" data-go="1" ${i < tabs.length - 1 ? '' : 'disabled'} aria-label="次の シリーズ">▶</button>
+    </div>`;
+}
+
+/** タブ・◀ ▶・左右スワイプで シリーズを かえる。go(id, 向き) を よぶ */
+function bindTabNav(el, tabs, cur, go) {
+  const i = tabs.findIndex((t) => t.id === cur);
+  const move = (d) => {
+    const next = tabs[i + d];
+    if (next) {
+      sfx.tap();
+      go(next.id, d);
+    }
+  };
+  el.querySelectorAll('.tab-nav [data-go]').forEach((b) => (b.onclick = () => move(Number(b.dataset.go))));
+  el.querySelectorAll('.tab-nav [data-tab]').forEach((b) => (b.onclick = () => b.dataset.tab !== cur && go(b.dataset.tab, tabs.findIndex((t) => t.id === b.dataset.tab) - i)));
+  el.querySelector('.tab-nav .tab.on')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  // 一覧の上で 左右に スワイプ
+  const area = el.querySelector('.fit-scroll') || el;
+  let sx = null;
+  let sy = 0;
+  area.addEventListener('pointerdown', (e) => {
+    sx = e.clientX;
+    sy = e.clientY;
+  });
+  area.addEventListener('pointerup', (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx;
+    const dy = e.clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      // スワイプの あとの タップで 消しゴムを えらばないように
+      area.addEventListener('click', (ev) => ev.stopPropagation(), { capture: true, once: true });
+      move(dx < 0 ? 1 : -1);
+    }
+  });
+  area.addEventListener('pointercancel', () => (sx = null));
+}
+
 function showEraserSelect(opts) {
   const { title, selectedId, goLabel, onPick, onBack } = opts;
   let selected = selectedId;
-  // 持っている消しゴム・文房具だけ出す（持っていないものは図鑑で見られる）
-  const list = collection.ownedErasers();
+  // 持っている消しゴム・文房具だけ出す（持っていないものは図鑑で見られる）。シリーズごとに わける
+  const tabs = pickerTabs();
+  const tabOf = (id) => tabs.find((t) => t.id !== 'fav' && t.items.some((e) => e.id === id))?.id;
+  let tab = opts.tab && tabs.some((t) => t.id === opts.tab) ? opts.tab : tabs[0]?.id === 'fav' ? 'fav' : tabOf(selected) || tabs[0]?.id;
+  const list = tabs.find((t) => t.id === tab)?.items || [];
   const lockedCount = REGULAR_ERASERS.filter((e) => !collection.owns(e.id)).length;
   const el = screen(
     `<h2 class="head">${title}</h2>
-     <p class="note tip">👆 2回タップで すぐ 決定！　☆を押すと お気に入り（${GAME.collection.maxFavorites}つまで・いちばん上に 出る）</p>
-     <div class="choices eraser-choices fit-scroll">
+     <p class="note tip">👆 2回タップで すぐ 決定！　☆で お気に入り（${GAME.collection.maxFavorites}つまで）　◀ ▶・スワイプで シリーズを かえる</p>
+     ${tabNavHTML(tabs, tab, (t) => `<small>${t.items.length}</small>`)}
+     <div class="choices eraser-choices fit-scroll ${opts.slide > 0 ? 'slide-l' : opts.slide < 0 ? 'slide-r' : ''}">
        ${list
          .map(
            (e) => `
@@ -448,9 +516,11 @@ function showEraserSelect(opts) {
      }</p>
      <div class="row">
        <button class="btn ghost" data-act="back">戻る</button>
+       <span class="picked-name" data-el="picked">${selected && findEraser(selected) ? `いま：<b>${findEraser(selected).name}</b>` : ''}</span>
        <button class="btn big primary" data-act="go">${goLabel}</button>
      </div>`,
   );
+  bindTabNav(el, tabs, tab, (id, d) => showEraserSelect({ ...opts, selectedId: selected, tab: id, slide: d }));
   const cards = [...el.querySelectorAll('.eraser-choice')];
   whenFonts(() =>
     cards.forEach((c) => {
@@ -474,6 +544,7 @@ function showEraserSelect(opts) {
       lastTap = { id: c.dataset.id, at: now };
       selected = c.dataset.id;
       choosable.forEach((x) => x.classList.toggle('selected', x === c));
+      el.querySelector('[data-el=picked]').innerHTML = `いま：<b>${findEraser(selected).name}</b>`;
     };
   });
   // ☆：お気に入りに 入れる／はずす（入れると いちばん上へ）
@@ -486,7 +557,7 @@ function showEraserSelect(opts) {
         return;
       }
       sfx.tap();
-      showEraserSelect({ ...opts, selectedId: selected }); // ならびかえて 出しなおす
+      showEraserSelect({ ...opts, selectedId: selected, tab, slide: 0 }); // ならびかえて 出しなおす
     });
   });
   el.querySelector('[data-act=back]').onclick = onBack;
@@ -1054,12 +1125,7 @@ function showZukan(tab = 'eraser') {
 
   const el = screen(
     `<h2 class="head">📖 図鑑</h2>
-     <div class="tabs">
-       ${TABS.map(
-         (t) => `<button class="tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.label}
-           <small>${count(t)}/${total(t)}</small></button>`,
-       ).join('')}
-     </div>
+     ${tabNavHTML(TABS, tab, (t) => `<small>${count(t)}/${total(t)}</small>`)}
      <div class="zukan-grid fit-scroll ${cur.id === 'card' ? 'cards' : ''} ${cur.id === 'fav' ? 'favs' : ''}">${
        cur.id === 'fav' && !cur.items.length
          ? '<div class="fav-empty">まだ お気に入りが ないよ。<br>消しゴムを選ぶ画面の ☆ か、図鑑で 消しゴムを タップして「☆ お気に入りに する」を 押してね</div>'
@@ -1073,7 +1139,7 @@ function showZukan(tab = 'eraser') {
     'zukan-screen',
   );
 
-  el.querySelectorAll('.tab').forEach((b) => (b.onclick = () => showZukan(b.dataset.tab)));
+  bindTabNav(el, TABS, tab, (id) => showZukan(id)); // タブ・◀ ▶・スワイプで ページを かえる
   if (cur.id !== 'card') {
     const cells = [...el.querySelectorAll('.zukan-cell')];
     whenFonts(() =>

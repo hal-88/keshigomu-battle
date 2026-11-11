@@ -64,7 +64,7 @@ export function setupOnline(ui) {
         if (e?.name === 'AbortError') return;
       }
     }
-    // 共有メニューが ない 端末：LINE で 送る・コピー
+    // 共有メニューが ない 端末：リンクを コピー
     const ov = document.createElement('div');
     ov.className = 'overlay fixed show';
     ov.innerHTML = `<div class="modal invite-modal">
@@ -72,8 +72,7 @@ export function setupOnline(ui) {
         <p class="note">このリンクを 送ると、タップするだけで 部屋に 入れるよ</p>
         <input class="invite-url" readonly value="${esc(url)}">
         <div class="row">
-          <a class="btn line-btn" href="https://line.me/R/share?text=${encodeURIComponent(`${text}\n${url}`)}" target="_blank" rel="noopener">LINEで 送る</a>
-          <button class="btn" data-act="copy">リンクを コピー</button>
+          <button class="btn primary" data-act="copy">リンクを コピー</button>
           <button class="btn ghost" data-act="close">閉じる</button>
         </div>
       </div>`;
@@ -278,7 +277,6 @@ export function setupOnline(ui) {
          <small>合言葉</small>
          <div class="big-code">${session.code}</div>
          <small>この 数字を 友だちに 教えてね</small>
-         <button class="btn small invite-btn" data-act="invite">📨 友だちを さそう（LINE など）</button>
        </div>
        <div class="lobby-members" data-el="members"></div>
        <div class="lobby-desk" data-el="desk"></div>
@@ -286,6 +284,7 @@ export function setupOnline(ui) {
        <div class="row">
          <button class="btn ghost" data-act="leave">部屋を 出る</button>
          <button class="btn" data-act="changeEraser">🔄 消しゴムを 変える</button>
+         <button class="btn" data-act="invite">📨 友だちを さそう</button>
          <button class="btn big primary hidden" data-act="start">スタート！</button>
        </div>`,
       'lobby-screen',

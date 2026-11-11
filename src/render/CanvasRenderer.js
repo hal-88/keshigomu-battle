@@ -916,6 +916,7 @@ export class CanvasRenderer {
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,193,7,0.12)';
     ctx.fill();
+    ctx.rotate(-(this.view.rot || 0)); // 画面が 回っていても 文字は まっすぐ
     ctx.fillStyle = 'rgba(160,110,0,0.9)';
     ctx.font = '800 14px "M PLUS Rounded 1c", sans-serif';
     ctx.textAlign = 'center';

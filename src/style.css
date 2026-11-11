@@ -3143,3 +3143,137 @@ canvas.board {
   from { transform: translateX(-60px); opacity: 0.2; }
   to { transform: none; opacity: 1; }
 }
+
+/* シリーズの タブ（◀ ▶） */
+.tab-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 auto 6px;
+}
+.tab-nav .tabs {
+  overflow-x: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+.tab-nav .tab {
+  flex: none;
+}
+.tab-arrow {
+  flex: none;
+  font: inherit;
+  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e6dccb;
+  background: #fff;
+  cursor: pointer;
+}
+.tab-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.eraser-choices,
+.zukan-grid {
+  touch-action: pan-y;
+}
+.eraser-choices.slide-l {
+  animation: gacha-in-l 0.25s ease-out;
+}
+.eraser-choices.slide-r {
+  animation: gacha-in-r 0.25s ease-out;
+}
+.picked-name {
+  font-size: 13px;
+  align-self: center;
+  color: #6d5d49;
+}
+
+/* 対戦の 上の 帯：みんなの 消しゴムと 能力 */
+.eraser-bar {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 96%;
+  z-index: 4;
+}
+.ebar-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 2px solid var(--c);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink, #333);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ebar-chip b {
+  color: var(--c);
+}
+.ebar-chip small {
+  font-size: 11px;
+  color: #8a6d00;
+}
+.ebar-chip.now {
+  box-shadow: 0 0 0 2px var(--c);
+}
+.ebar-chip.out {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+@media (max-width: 560px) {
+  .ebar-chip {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  .ebar-chip small {
+    font-size: 9px;
+  }
+}
+.ebar-info {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, 92%);
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--c, #ccc);
+  background: rgba(255, 255, 255, 0.96);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink, #333);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+  z-index: 5;
+  display: none;
+}
+.ebar-info.show {
+  display: block;
+}
+.ebar-chip {
+  align-items: center;
+}
+.ebar-pic {
+  width: 38px;
+  height: 28px;
+  flex: none;
+  margin: -4px 0 -4px -4px;
+}
+@media (max-width: 560px) {
+  .ebar-pic {
+    width: 30px;
+    height: 22px;
+  }
+}
