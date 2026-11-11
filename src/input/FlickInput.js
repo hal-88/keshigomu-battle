@@ -19,8 +19,6 @@ export class FlickInput {
     this.placement = null; // { kind, def, playerIndex, onPlace(params) }
     this.preview = null; // 描画用：置く場所のプレビュー
     this.steerDrag = null;
-    // 回転（右下の ボタンで えらぶ。-1〜1。0 なら 消しゴムを つかんだ 場所で きまる）
-    this.spinPreset = 0;
 
     this._down = this._down.bind(this);
     this._move = this._move.bind(this);
@@ -121,10 +119,10 @@ export class FlickInput {
       sy: p.y,
       playerIndex: g.turnIndex,
       // 画面の どこからでも 引っぱれる（画面の 端に いても 大きく 引けるように）。
-      // 自分の 消しゴムを つかんだ ときは、中心からの ずれで 回転も かかる
+      // 回転は 指を 置いた 場所で きまる：消しゴムを 通る ねらいの 線の 右から 引くか 左から 引くか
       anywhere: !mine,
-      gx: mine ? w.x - st.x : 0,
-      gy: mine ? w.y - st.y : 0,
+      gx: w.x - st.x,
+      gy: w.y - st.y,
       ext: g.extentOf(g.turnIndex),
     };
     this.aim = { playerIndex: g.turnIndex, dirX: 0, dirY: 0, strength: 0, spin: 0 };
@@ -181,8 +179,8 @@ export class FlickInput {
       rawX: d.x, // Game.flick にわたす向き
       rawY: d.y,
       strength: pull < minPullPx ? 0 : Math.min(1, pull / maxPullPx),
-      // 回転：ボタンで えらんでいれば それ。なければ つかんだ 場所で
-      spin: this.spinPreset || (this.drag.anywhere ? 0 : this._spin(ax, ay)),
+      // 回転：指を 置いた 場所が、ねらいの 線の 右か 左か
+      spin: this._spin(ax, ay),
     };
   }
 
@@ -192,7 +190,9 @@ export class FlickInput {
     if (l < 1e-6) return 0;
     const ux = dirX / l;
     const uy = dirY / l;
-    const cross = (this.drag.gx * uy - this.drag.gy * ux) / this.drag.ext;
+    // 消しゴムを つかんだ ときは 消しゴムの 大きさで、どこかから 引いた ときは anySpinFull で わる
+    const scale = this.drag.anywhere ? GAME.input.anySpinFull ?? 170 : this.drag.ext;
+    const cross = (this.drag.gx * uy - this.drag.gy * ux) / scale;
     const c = Math.max(-1, Math.min(1, cross));
     const dz = PHYSICS.spin.deadZone;
     if (Math.abs(c) < dz) return 0;
