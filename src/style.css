@@ -3417,3 +3417,44 @@ canvas.board {
   height: 32px;
   font-size: 14px;
 }
+/* えらんだ 消しゴムの 箱：絵と お気に入り */
+.pick-detail-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pick-detail-pic {
+  width: 64px;
+  height: 48px;
+  flex: none;
+}
+.pick-detail-top .pick-detail-head {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pick-fav {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 2px solid #f0c94a;
+  background: #fffbea;
+  color: #8a6d00;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pick-fav.on {
+  background: #ffd54f;
+  color: #5d4300;
+}
+/* タイルの ★（さわっても なにも おきない しるし） */
+.fav-mark {
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  font-size: 13px;
+  color: #f5b800;
+  pointer-events: none;
+}

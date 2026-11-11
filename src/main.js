@@ -491,14 +491,14 @@ function showEraserSelect(opts) {
   const lockedCount = REGULAR_ERASERS.filter((e) => !collection.owns(e.id)).length;
   const el = screen(
     `<h2 class="head">${title}</h2>
-     <p class="note tip">👆 2回タップで 決定　☆ お気に入り</p>
+     <p class="note tip">👆 2回タップで 決定　お気に入りは 下の ☆ で</p>
      ${tabNavHTML(tabs, tab, (t) => `<small>${t.items.length}</small>`)}
      <div class="choices eraser-choices fit-scroll ${opts.slide > 0 ? 'slide-l' : opts.slide < 0 ? 'slide-r' : ''}">
        ${list
          .map(
            (e) => `
          <button class="choice eraser-choice tile ${rarityClass(e)} ${e.id === selected ? 'selected' : ''} ${collection.isFavorite(e.id) ? 'fav' : ''}" data-id="${e.id}">
-           <span class="fav-btn ${collection.isFavorite(e.id) ? 'on' : ''}" data-fav="${e.id}" role="button" aria-label="お気に入り">${collection.isFavorite(e.id) ? '★' : '☆'}</span>
+           ${collection.isFavorite(e.id) ? '<span class="fav-mark" aria-label="お気に入り">★</span>' : ''}
            ${winBadgeHTML(e.id)}
            <canvas class="eraser-thumb"></canvas>
            <div class="choice-name">${collection.isKira(e.id) ? '✨' : ''}${e.name}</div>
@@ -525,9 +525,25 @@ function showEraserSelect(opts) {
       box.innerHTML = '';
       return;
     }
-    box.innerHTML = `<div class="pick-detail-head">${rarityTag(def)}<b>${collection.isKira(def.id) ? '✨' : ''}${def.name}</b><span>${def.desc}</span></div>
+    const fav = collection.isFavorite(def.id);
+    box.innerHTML = `<div class="pick-detail-top">
+        <canvas class="pick-detail-pic"></canvas>
+        <div class="pick-detail-head">${rarityTag(def)}<b>${collection.isKira(def.id) ? '✨' : ''}${def.name}</b><span>${def.desc}</span></div>
+        <button class="pick-fav ${fav ? 'on' : ''}" data-act="fav">${fav ? '★ お気に入り' : '☆ お気に入りに する'}</button>
+      </div>
       ${traitLine(def)}
       <div class="stats">${statMeters(def.stats)}</div>`;
+    whenFonts(() => drawEraserPreview(box.querySelector('.pick-detail-pic'), def, -0.18, { kira: collection.isKira(def.id) }));
+    // ☆：お気に入りに 入れる／はずす（タイルで まちがえて おさないように、ここだけに した）
+    box.querySelector('[data-act=fav]').onclick = () => {
+      const r = collection.toggleFavorite(def.id);
+      if (!r.ok) {
+        miniToast(el, r.reason);
+        return;
+      }
+      sfx.tap();
+      showEraserSelect({ ...opts, selectedId: selected, tab, slide: 0 }); // ならびかえて 出しなおす
+    };
   };
   showDetail();
   const cards = [...el.querySelectorAll('.eraser-choice')];
@@ -556,19 +572,6 @@ function showEraserSelect(opts) {
       el.querySelector('[data-el=picked]').innerHTML = `いま：<b>${findEraser(selected).name}</b>`;
       showDetail();
     };
-  });
-  // ☆：お気に入りに 入れる／はずす（入れると いちばん上へ）
-  el.querySelectorAll('.fav-btn').forEach((b) => {
-    b.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const r = collection.toggleFavorite(b.dataset.fav);
-      if (!r.ok) {
-        miniToast(el, r.reason);
-        return;
-      }
-      sfx.tap();
-      showEraserSelect({ ...opts, selectedId: selected, tab, slide: 0 }); // ならびかえて 出しなおす
-    });
   });
   el.querySelector('[data-act=back]').onclick = onBack;
   el.querySelector('[data-act=go]').onclick = () => onPick(selected);
