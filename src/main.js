@@ -5,7 +5,9 @@ import { DESKS, findDesk } from './config/desks.js';
 import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, MUKASHI_ERASERS, SEKAI_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection, isMukashiSeason, mukashiUntil, gachaModes } from './progress/collection.js';
-import { clipsHTML, bindClips } from './replay/replayUI.js';
+import { resultActionsHTML, bindResultActions } from './replay/replayUI.js';
+import { getLastReplay, openReplayViewer } from './replay/replayView.js';
+const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 import { countryLine } from './ui/flags.js';
 import { cardHTML } from './ui/cardView.js';
 import { GAME } from './config/game.js';
@@ -144,12 +146,14 @@ function showTitle() {
            collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
          }</button>
        </div>
+       ${getLastReplay() ? '<button class="install-link" data-act="review">🎬 前回の 試合を ふりかえる</button>' : ''}
        <button class="install-link" data-act="settings">⚙️ 設定（効果音）</button>
        ${isInstalled() ? '' : '<button class="install-link" data-act="install">📲 アプリにする（ホーム画面に置く）</button>'}
      </div>`,
     'title-screen',
   );
   el.querySelector('[data-act=settings]').onclick = showSettings;
+  el.querySelector('[data-act=review]')?.addEventListener('click', () => openReplayViewer(getLastReplay(), { title: '前回の 試合' }));
   el.querySelector('[data-act=install]')?.addEventListener('click', () => showInstallGuide(el));
   const cv = el.querySelector('.title-art');
   whenFonts(() => {
@@ -829,11 +833,11 @@ function showResult(result, players) {
        ${streakHTML}
        ${rewardHTML}
        ${ranking}
-       ${clipsHTML(result.clips)}
+       ${resultActionsHTML(result)}
        <div class="row">${buttons}</div>
      </div>`,
   );
-  bindClips(el, result.clips); // 📹 名場面を 動画に
+  bindResultActions(el, result, players, { headline: plain(headline), sub: plain(sub) }); // 📤 結果をシェア・🎬 ふりかえる
   if (w != null && players[w].type === 'human') confetti(el);
   if (w != null) whenFonts(() => drawEraserPreview(el.querySelector('.result-eraser'), players[w].eraser));
   if (reward) {

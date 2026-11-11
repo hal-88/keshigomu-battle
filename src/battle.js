@@ -475,15 +475,12 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     sfx.fall();
     toast(`${p.name}が 落ちた！`, p.color);
     updateEbar();
-    // 名場面：倒した・倒された 場面（この端末の 人が かかわったもの）を クリップに
+    // ふりかえり：落ちた ときを しるしに
     {
       const shooter = game.turnIndex;
-      const mine = (i) => (online ? i === online.myIndex : game.players[i]?.type === 'human');
-      if (mine(playerIndex) || mine(shooter)) {
-        const sp = game.players[shooter];
-        const text = shooter === playerIndex || !sp ? `${p.name}が 落ちた…！` : `${sp.name}が ${p.name}を 落とした！`;
-        replay.knockout(performance.now(), game.turnCount, { text, fallen: playerIndex, shooter }, renderer.flip);
-      }
+      const sp = game.players[shooter];
+      const text = shooter === playerIndex || !sp ? `${p.name}が 落ちた` : `${sp.name}が ${p.name}を 落とした`;
+      replay.knockout(performance.now(), { text, fallen: playerIndex, shooter, color: p.color });
     }
     slow = { start: performance.now(), idx: playerIndex };
   });
@@ -941,7 +938,9 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
       else sfx.lose();
     });
     later(GAME.resultDelayMs, () => {
-      result.clips = replay.finish(performance.now()); // 名場面（動画に できる）
+      result.replay = replay.finish(); // 試合の ふりかえり（結果画面から 見られる）
+      result.turns = game.turnCount;
+      result.deskName = desk.name;
       onEnd(result, game.players);
     });
   }
@@ -1222,7 +1221,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
     if (seat) st.seatMoved = seat.chosen.map((c) => c.pid); // 元の場所は うすくする
     renderer.draw(st, input.aim || cpuAim, now, preview, input.targeting?.candidates);
-    replay.frame(now, st, input.aim || cpuAim, renderer.cam);
+    replay.frame(now, st, input.aim || cpuAim, renderer.cam, renderer.flip);
     raf = requestAnimationFrame(frame);
   }
   raf = requestAnimationFrame(frame);

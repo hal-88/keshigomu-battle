@@ -1,83 +1,72 @@
-// 結果画面の「📹 名場面を 動画に」。ボタン → 動画を 作る → 見る・シェア・保存
-import { videoMime, makeReplayVideo, shareOrSave, saveVideo } from './replay.js';
+// 結果画面の 右上：「📤 結果をシェア」（画像）と「🎬 ふりかえる」（試合を はじめから 見なおす）
+import { makeResultImage, shareOrSaveFile, saveFile } from './resultImage.js';
+import { openReplayViewer, setLastReplay } from './replayView.js';
 
-const esc = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-
-/** 結果画面の 右上に 出す 小さな ボタン（名場面が ない・動画が 作れない 端末では 空） */
-export function clipsHTML(clips) {
-  if (!clips?.length || !videoMime()) return '';
-  return '<button class="replay-mini" data-act="clips">📹 シェアする</button>';
+/** 結果画面に 入れる HTML */
+export function resultActionsHTML(result) {
+  return `<div class="result-actions">
+      <button class="replay-mini" data-act="shareImg">📤 結果をシェア</button>
+      ${result?.replay ? '<button class="replay-mini" data-act="review">🎬 ふりかえる</button>' : ''}
+    </div>`;
 }
 
-/** ボタンを つなぐ（名場面が 1つなら すぐ 動画に。2つ以上なら えらぶ） */
-export function bindClips(root, clips) {
-  const btn = root.querySelector('[data-act=clips]');
-  if (!btn || !clips?.length) return;
-  btn.onclick = () => {
-    if (clips.length === 1) return openClip(root, clips[0]);
-    const ov = document.createElement('div');
-    ov.className = 'overlay fixed show';
-    ov.innerHTML = `<div class="modal replay-pick">
-        <div class="replay-head">📹 どの 場面を 動画に する？</div>
-        <div class="replay-list">${clips
-          .map((c, i) => `<button class="btn replay-btn" data-clip="${i}">🎬 ${esc(c.info?.text || '名場面')}</button>`)
-          .join('')}</div>
-        <button class="btn ghost" data-act="close">閉じる</button>
-      </div>`;
-    root.appendChild(ov);
-    ov.addEventListener('click', (e) => {
-      if (e.target === ov || e.target.closest('[data-act=close]')) ov.remove();
-    });
-    ov.querySelectorAll('[data-clip]').forEach((b) => {
-      b.onclick = () => {
-        ov.remove();
-        openClip(root, clips[Number(b.dataset.clip)]);
-      };
-    });
-  };
+/**
+ * ボタンを つなぐ
+ * @param info { headline, sub }（文字だけ）
+ */
+export function bindResultActions(root, result, players, info = {}) {
+  if (result?.replay) setLastReplay(result.replay);
+  root.querySelector('[data-act=review]')?.addEventListener('click', () => openReplayViewer(result.replay));
+  root.querySelector('[data-act=shareImg]')?.addEventListener('click', () => openShareImage(root, result, players, info));
 }
 
-async function openClip(root, clip) {
-  if (!clip) return;
+async function openShareImage(root, result, players, info) {
   const ov = document.createElement('div');
   ov.className = 'overlay fixed show';
-  ov.innerHTML = `<div class="modal replay-modal">
-      <div class="replay-head">🎬 動画を 作っているよ…</div>
-      <div class="replay-bar"><span></span></div>
-      <p class="note">少し 待ってね（動画の 長さ ぶん かかるよ）</p>
-    </div>`;
+  ov.innerHTML = '<div class="modal share-modal"><div class="replay-head">📤 画像を 作っているよ…</div></div>';
   root.appendChild(ov);
   const modal = ov.querySelector('.modal');
-  const bar = ov.querySelector('.replay-bar span');
   let url = null;
   const close = () => {
     if (url) URL.revokeObjectURL(url);
     ov.remove();
   };
-  let video;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov) close();
+  });
+  let blob;
   try {
-    video = await makeReplayVideo(clip, (p) => (bar.style.width = `${Math.round(p * 100)}%`));
-  } catch (e) {
-    modal.innerHTML = `<p>${esc(e?.message || '動画を 作れなかったよ')}</p><button class="btn" data-act="close">閉じる</button>`;
+    blob = await makeResultImage({
+      headline: info.headline,
+      sub: info.sub,
+      players,
+      ranking: result.ranking,
+      winner: result.winner,
+      deskName: result.deskName,
+      turns: result.turns,
+    });
+  } catch {
+    blob = null;
+  }
+  if (!ov.isConnected) return;
+  if (!blob) {
+    modal.innerHTML = '<p>画像を 作れなかったよ</p><button class="btn" data-act="close">閉じる</button>';
     modal.querySelector('[data-act=close]').onclick = close;
     return;
   }
-  if (!ov.isConnected) return; // 待っている間に 画面が かわった
-  url = URL.createObjectURL(video.blob);
-  const title = clip.info?.text || '消しゴムバトルの 名場面';
-  const testFile = new File([video.blob], `a.${video.ext}`, { type: video.type });
-  const canShare = !!navigator.canShare?.({ files: [testFile] });
+  url = URL.createObjectURL(blob);
+  const name = `keshigomu-battle-${Date.now()}.png`;
+  const title = info.headline ? `消しゴムバトル：${info.headline}` : '消しゴムバトル';
+  const canShare = !!navigator.canShare?.({ files: [new File([blob], name, { type: 'image/png' })] });
   modal.innerHTML = `
-    <div class="replay-head">🎬 ${esc(title)}</div>
-    <video class="replay-video" src="${url}" controls autoplay muted loop playsinline></video>
-    <p class="note">音は 入っていないよ。SNS に のせるときは おうちの人に きいてね</p>
+    <img class="share-img" src="${url}" alt="結果の 画像">
+    <p class="note">SNS に のせるときは おうちの人に きいてね</p>
     <div class="row">
       ${canShare ? '<button class="btn primary" data-act="share">📤 シェア</button>' : ''}
       <button class="btn ${canShare ? '' : 'primary'}" data-act="save">💾 保存</button>
       <button class="btn ghost" data-act="close">閉じる</button>
     </div>`;
-  modal.querySelector('[data-act=share]')?.addEventListener('click', () => shareOrSave(video, title));
-  modal.querySelector('[data-act=save]').onclick = () => saveVideo(video);
+  modal.querySelector('[data-act=share]')?.addEventListener('click', () => shareOrSaveFile(blob, name, title));
+  modal.querySelector('[data-act=save]').onclick = () => saveFile(blob, name);
   modal.querySelector('[data-act=close]').onclick = close;
 }

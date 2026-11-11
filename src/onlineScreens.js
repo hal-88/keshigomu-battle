@@ -12,7 +12,8 @@ import { drawEraserPreview } from './render/drawEraser.js';
 import { flipCardHTML } from './ui/cardView.js';
 import { collection } from './progress/collection.js';
 import { sfx } from './audio/sfx.js';
-import { clipsHTML, bindClips } from './replay/replayUI.js';
+import { resultActionsHTML, bindResultActions } from './replay/replayUI.js';
+const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 import { rewardsHTML } from './ui/rewardView.js';
 import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers, roomCapacity } from './online/room.js';
 import { makeBracket, bracketSize } from './tournament/bracket.js';
@@ -597,7 +598,7 @@ export function setupOnline(ui) {
              )
              .join('')}
          </ol>
-         ${clipsHTML(result.clips)}
+         ${resultActionsHTML(result)}
          <div class="row">
            <button class="btn big primary" data-act="lobby">部屋に 戻る</button>
            <button class="btn ghost" data-act="leave">出る</button>
@@ -605,7 +606,7 @@ export function setupOnline(ui) {
        </div>`,
     );
     if (w != null) whenFonts(() => drawEraserPreview(el.querySelector('.result-eraser'), players[w].eraser));
-    bindClips(el, result.clips); // 📹 名場面を 動画に
+    bindResultActions(el, result, players, { headline: plain(headline) }); // 📤 結果をシェア・🎬 ふりかえる
     el.querySelector('[data-act=lobby]').onclick = async () => {
       // 👑 の人がもどったら、へやを まちあい室にもどす
       const room = await session.db.get(`rooms/${session.code}`);
