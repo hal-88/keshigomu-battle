@@ -5,6 +5,7 @@ import { DESKS, findDesk } from './config/desks.js';
 import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ERASERS, KYUSHOKU_ERASERS, MUKASHI_ERASERS, SEKAI_ERASERS, CHAMPION_ERASERS, STAT_LABELS, ERASER_RARITY, findEraser, pickByRarity } from './config/erasers.js';
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection, isMukashiSeason, mukashiUntil, gachaModes } from './progress/collection.js';
+import { rating, tierOf } from './progress/rating.js';
 import { resultActionsHTML, bindResultActions } from './replay/replayUI.js';
 import { getLastReplay, openReplayViewer } from './replay/replayView.js';
 const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
@@ -28,10 +29,11 @@ import { engraveHTML, winBadgeHTML, plateHTML, myPlayerName } from './ui/engrave
 setupPwa(); // アプリとしてホーム画面に置けるように（オフラインでも動く）
 
 const MODES = [
-  { id: 'cpu', name: 'CPU 連勝チャレンジ', desc: '次々 違う消しゴムのCPUと1対1。相手を倒して 消しゴムを ゲットしよう！ 何連勝できるかな？', enabled: true },
-  { id: 'tournament', name: '🏆 トーナメント', desc: 'CPUと 16人で 勝ち抜き戦。優勝すると 限定の消しゴムが もらえる！（相手の消しゴムは もらえないよ）', enabled: true },
-  { id: 'local', name: '1台でみんなで', desc: '2〜4人で交代で（CPUも混ぜられる）', enabled: true },
-  { id: 'online', name: 'オンライン', desc: '合言葉（数字）で 友だちと対戦', enabled: true },
+  // icon・name・desc（1〜2行の 短い 説明）・cls（色）
+  { id: 'cpu', icon: '🤖', name: '連勝チャレンジ', desc: 'CPUと 1対1<br>勝つと 消しゴム ゲット', cls: 'om-cpu', enabled: true },
+  { id: 'tournament', icon: '🏆', name: 'トーナメント', desc: 'CPUと 16人で<br>勝ち抜き戦', cls: 'om-tour', enabled: true },
+  { id: 'local', icon: '👫', name: '1台でみんなで', desc: '2〜4人で<br>交代で 遊ぶ', cls: 'om-join', enabled: true },
+  { id: 'online', icon: '🌐', name: 'オンライン', desc: '友だちや<br>だれかと 対戦', cls: 'om-random', enabled: true },
 ];
 
 const app = document.getElementById('app');
@@ -180,21 +182,30 @@ function showTitle() {
 function showModeSelect() {
   const el = screen(
     `<h2 class="head">遊び方を 選ぼう</h2>
-     <div class="choices">
-       ${MODES.map(
-         (m) => `
-         <button class="choice ${m.enabled ? '' : 'disabled'}" data-id="${m.id}" ${m.enabled ? '' : 'disabled'}>
-           <div class="choice-name">${m.name}</div>
-           <div class="choice-desc">${m.desc}</div>
-           ${m.id === 'cpu' && collection.bestStreak() ? `<div class="choice-desc best">🏆 ベスト ${collection.bestStreak()}連勝</div>` : ''}
-           ${m.id === 'tournament' && collection.tournamentWins() ? `<div class="choice-desc best">🏆 優勝 ${collection.tournamentWins()}回</div>` : ''}
+     <div class="online-modes mode-grid">
+       ${MODES.map((m) => {
+         // 右上の 小さな 記録
+         const pill =
+           m.id === 'cpu' && collection.bestStreak()
+             ? `ベスト ${collection.bestStreak()}連勝`
+             : m.id === 'tournament' && collection.tournamentWins()
+               ? `優勝 ${collection.tournamentWins()}回`
+               : m.id === 'online' && rating.games()
+                 ? `${tierOf(rating.get()).icon} ${rating.get()}`
+                 : '';
+         return `
+         <button class="om-tile ${m.cls} ${m.enabled ? '' : 'disabled'}" data-id="${m.id}" ${m.enabled ? '' : 'disabled'}>
+           ${pill ? `<span class="om-rate">${pill}</span>` : ''}
+           <span class="om-icon">${m.icon}</span>
+           <b>${m.name}</b>
+           <small>${m.desc}</small>
            ${m.enabled ? '' : '<div class="badge">準備中</div>'}
-         </button>`,
-       ).join('')}
+         </button>`;
+       }).join('')}
      </div>
      <button class="btn ghost" data-act="back">戻る</button>`,
   );
-  el.querySelectorAll('.choice:not(.disabled)').forEach((b) => {
+  el.querySelectorAll('.om-tile:not(.disabled)').forEach((b) => {
     b.onclick = () => {
       setup.mode = b.dataset.id;
       if (setup.mode === 'local') showPlayerSetup();

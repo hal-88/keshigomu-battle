@@ -2618,6 +2618,22 @@ canvas.board {
   white-space: nowrap;
   text-shadow: 0 1px 0 var(--d);
 }
+.om-cpu { --a: #ff8a7a; --b: #e8504a; --d: #b23a35; }
+/* 遊び方を 選ぶ 画面（同じ タイルを 大きめに） */
+.mode-grid .om-tile {
+  min-height: 172px;
+  gap: 5px;
+  padding-top: 30px; /* 右上の 記録の 札と 絵が かさならないように */
+}
+.mode-grid .om-icon {
+  width: 62px;
+  height: 62px;
+  font-size: 34px;
+}
+.mode-grid .om-tile small {
+  white-space: normal;
+  line-height: 1.35;
+}
 .om-random { --a: #5cc0f5; --b: #2f8fd8; --d: #1f6aa8; }
 .om-create { --a: #ff9a6b; --b: #f2603a; --d: #c4462a; }
 .om-join { --a: #5fd39a; --b: #2fa66b; --d: #217a4e; }
@@ -3769,7 +3785,7 @@ canvas.board {
   padding: 2px 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
-  color: #1f6aa8;
+  color: var(--d, #1f6aa8);
   font-size: 12px;
   font-weight: 800;
   text-shadow: none;
