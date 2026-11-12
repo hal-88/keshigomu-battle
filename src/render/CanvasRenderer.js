@@ -1464,11 +1464,14 @@ export class CanvasRenderer {
     const spin = aim.spin || 0;
     const p0 = { x: start, y: 0 };
     const p1 = { x: start + L * 0.6, y: 0 };
-    const p2 = { x: start + L, y: spin * L * 0.35 };
+    // 曲がり：回転（＝指を 置いた 場所）で 曲がる。見やすいように 表示だけ 少し 大きめ（物理は かえない）
+    const p2 = { x: start + L, y: spin * L * 0.5 };
     const ta = Math.atan2(p2.y - p1.y, p2.x - p1.x);
     const head = 24;
     const end = { x: p2.x - Math.cos(ta) * head * 0.7, y: p2.y - Math.sin(ta) * head * 0.7 };
     const color = this._strengthColor(aim.strength);
+    const max = aim.strength >= 0.999; // いちばん 強い
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 90);
 
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -1476,13 +1479,22 @@ export class CanvasRenderer {
     ctx.rotate(Math.atan2(aim.dirY, aim.dirX) + wobble);
     ctx.globalAlpha = 0.92;
     ctx.lineCap = 'round';
-    for (const [lw, col] of [[18, 'white'], [11, color]]) {
+    // 強さの 色：根もとは みどり → 先は いまの 強さの 色（弱い みどり → 黄 → 赤）。MAX は 金の ふちで 光る
+    const grad = ctx.createLinearGradient(p0.x, p0.y, p2.x, p2.y);
+    for (let k = 0; k <= 4; k++) grad.addColorStop(k / 4, this._strengthColor((aim.strength * k) / 4)); // 色を まぜると にごるので、とちゅうの 色も 入れる
+    const rim = max ? '#ffd54f' : 'white';
+    if (max) {
+      ctx.shadowColor = 'rgba(255, 90, 0, 0.95)';
+      ctx.shadowBlur = 12 + 12 * pulse;
+    }
+    for (const [lw, col] of [[max ? 22 + 3 * pulse : 18, rim], [11, grad]]) {
       ctx.strokeStyle = col;
       ctx.lineWidth = lw;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.quadraticCurveTo(p1.x, p1.y, end.x, end.y);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
     // ハジキング：当たる 相手と、その相手が 飛ぶ 向きまで 見える
     if (e.def.trait?.id === 'hajiki') this._drawHajikiGuide(ctx, state, e, aim);
@@ -1508,10 +1520,15 @@ export class CanvasRenderer {
     ctx.lineTo(-head, -16);
     ctx.lineTo(-head, 16);
     ctx.closePath();
+    if (max) {
+      ctx.shadowColor = 'rgba(255, 90, 0, 0.95)';
+      ctx.shadowBlur = 12 + 12 * pulse;
+    }
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'white';
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = max ? 4 : 3;
+    ctx.strokeStyle = rim;
     ctx.stroke();
     ctx.restore();
   }

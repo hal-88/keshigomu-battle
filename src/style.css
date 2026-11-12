@@ -852,6 +852,21 @@ canvas.board {
 .hint.show {
   display: block;
 }
+/* 自分の番の「ひっぱれ！」 */
+.hint.pull {
+  font-size: 20px;
+  padding: 6px 22px;
+  color: #ff6b4a;
+  letter-spacing: 0.08em;
+  animation: hint-pull 1.6s ease-in-out infinite;
+}
+.hint.pull.dragging {
+  display: none;
+}
+@keyframes hint-pull {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.08); }
+}
 
 /* ---- 結果 ---- */
 .result {
@@ -3619,4 +3634,41 @@ canvas.board {
   .rv-bar [data-a='hide'] {
     font-size: 11px;
   }
+}
+
+/* はじめての人に 1回だけ：弾き方の ガイド */
+.pull-guide {
+  width: min(360px, 92vw);
+  text-align: center;
+  background: #fff;
+  border-radius: 20px;
+  padding: 14px 14px 16px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+}
+.pg-title {
+  font-weight: 800;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.pg-item {
+  background: #fffaf2;
+  border: 2px solid #eee3d2;
+  border-radius: 14px;
+  padding: 8px 10px 6px;
+  margin-bottom: 10px;
+}
+.pg-pic {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.pg-item p {
+  margin: 4px 0 2px;
+  font-weight: 800;
+  font-size: 17px;
+}
+.pull-guide .btn {
+  margin-top: 4px;
 }

@@ -202,9 +202,10 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     el.classList.add('show');
   }
 
-  function setHint(text) {
+  function setHint(text, kind = '') {
     $('hint').textContent = text || '';
     $('hint').classList.toggle('show', !!text);
+    $('hint').classList.toggle('pull', kind === 'pull');
   }
 
   function updateSoundBtn() {
@@ -255,7 +256,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     } else if (game.extrasOf(game.turnIndex).length) {
       setHint('2つに分かれているよ。弾くほうを 触ってね');
     } else {
-      setHint(flickedOnce.has(game.turnIndex) ? '' : `画面の どこからでも 引っぱって 離そう！ 消しゴムの 横の ほうから 引くと 回転するよ`);
+      setHint(flickedOnce.has(game.turnIndex) ? '' : 'ひっぱれ！', 'pull'); // 試合の 最初の 自分の番だけ、この1語（説明は 初回ガイドで）
     }
   }
 
@@ -1204,6 +1205,7 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     }
 
     refreshCardBtn();
+    $('hint').classList.toggle('dragging', !!input.drag); // 引っぱっている間は「ひっぱれ！」を かくす
     const st = online && !isMyTurn() && remoteView ? smoothRemote(remoteView) : game.getState();
     st.viewer = viewerIndex; // とうめい（カード）：自分のは うすく見える
     st.online = !!online;
@@ -1302,17 +1304,77 @@ export function createBattle(root, { desk, players, onEnd, onQuit, label = '', h
     renderer.resize(desk);
   }
 
+  // ---- はじめての人に 1回だけ：弾き方の ガイド（閉じたら 二度と 出さない） ----
+  const GUIDE_KEY = 'keshigomu-guide-pull';
+  function needGuide() {
+    if (online) return false; // オンラインは 相手を 待たせないように 出さない（ほかの モードで 1回 見る）
+    if (!game.players.some((p) => p.type === 'human')) return false;
+    try {
+      return !localStorage.getItem(GUIDE_KEY);
+    } catch {
+      return false;
+    }
+  }
+  function showGuide(done) {
+    const ov = openOverlay(`
+      <div class="modal pull-guide">
+        <div class="pg-title">はじく ときは…</div>
+        <div class="pg-item">
+          <svg viewBox="0 0 220 90" class="pg-pic" aria-hidden="true">
+            <line x1="26" y1="45" x2="10" y2="45" stroke="#9a8b78" stroke-width="3.5" stroke-dasharray="5 5" stroke-linecap="round"/>
+            <circle cx="10" cy="45" r="9" fill="#ffd8c8" stroke="#c98b74" stroke-width="2.5"/>
+            <rect x="26" y="33" width="30" height="24" rx="5" fill="#fff" stroke="#3a7bd5" stroke-width="3"/>
+            <rect x="26" y="33" width="12" height="24" rx="3" fill="#3a7bd5"/>
+            <path d="M66 45 L180 45" stroke="#fff" stroke-width="14" stroke-linecap="round"/>
+            <path d="M66 45 L180 45" stroke="url(#pgGrad1)" stroke-width="8" stroke-linecap="round"/>
+            <path d="M200 45 L178 32 L178 58 Z" fill="#e53935" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
+            <defs><linearGradient id="pgGrad1" gradientUnits="userSpaceOnUse" x1="66" y1="0" x2="190" y2="0"><stop offset="0" stop-color="#43a047"/><stop offset="0.5" stop-color="#fbc02d"/><stop offset="1" stop-color="#e53935"/></linearGradient></defs>
+          </svg>
+          <p>ひっぱって はなすと とぶよ</p>
+        </div>
+        <div class="pg-item">
+          <svg viewBox="0 0 220 90" class="pg-pic" aria-hidden="true">
+            <line x1="27" y1="54" x2="27" y2="76" stroke="#9a8b78" stroke-width="3.5" stroke-dasharray="5 5" stroke-linecap="round"/>
+            <circle cx="27" cy="79" r="9" fill="#ffd8c8" stroke="#c98b74" stroke-width="2.5"/>
+            <rect x="12" y="30" width="30" height="24" rx="5" fill="#fff" stroke="#3a7bd5" stroke-width="3"/>
+            <rect x="12" y="30" width="12" height="24" rx="3" fill="#3a7bd5"/>
+            <path d="M52 42 Q140 44 182 12" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round"/>
+            <path d="M52 42 Q140 44 182 12" fill="none" stroke="url(#pgGrad2)" stroke-width="8" stroke-linecap="round"/>
+            <defs><linearGradient id="pgGrad2" gradientUnits="userSpaceOnUse" x1="52" y1="0" x2="190" y2="0"><stop offset="0" stop-color="#43a047"/><stop offset="0.5" stop-color="#fbc02d"/><stop offset="1" stop-color="#e53935"/></linearGradient></defs>
+            <path d="M199 0 L171 7 L188 26 Z" fill="#e53935" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
+          </svg>
+          <p>消しゴムの 横を ひっぱると<br>カーブするよ</p>
+        </div>
+        <button class="btn primary" data-act="ok">わかった！</button>
+      </div>`);
+    ov.querySelector('[data-act=ok]').onclick = () => {
+      try {
+        localStorage.setItem(GUIDE_KEY, '1');
+      } catch {}
+      sfx.tap();
+      closeOverlay();
+      done();
+    };
+  }
+
   updateHud();
+  const begin = () => {
+    if (game.turnCount === 1 && game.time === 0 && game.players.length > 1) {
+      // ルーレットが止まるまで、左上の「○○のばん」で答えがわからないようにする
+      $('turn').textContent = '🎡 だれが 先？';
+      $('turn').style.background = '#888';
+      showRoulette(() => {
+        updateHud();
+        onTurnStart();
+      });
+    } else onTurnStart();
+  };
   if (game.phase === 'over') showOver(game.result);
-  else if (game.turnCount === 1 && game.time === 0 && game.players.length > 1) {
-    // ルーレットが止まるまで、左上の「○○のばん」で答えがわからないようにする
+  else if (game.turnCount === 1 && game.time === 0 && needGuide()) {
     $('turn').textContent = '🎡 だれが 先？';
     $('turn').style.background = '#888';
-    showRoulette(() => {
-      updateHud();
-      onTurnStart();
-    });
-  } else onTurnStart();
+    showGuide(begin);
+  } else begin();
 
   return {
     destroy() {
