@@ -128,12 +128,12 @@ export function setupOnline(ui) {
                 <button class="btn big primary" data-act="joinInvite">この部屋に 入る</button>
               </div>
               <button class="btn ghost" data-act="noInvite">ほかの 遊び方</button>`
-           : `<button class="btn big random-match" data-act="random">🎲 ランダムマッチ<small>（だれかと 1対1。60秒 さがすよ）</small></button>
-              <div class="row">
-                <button class="btn big primary" data-act="create">部屋を 作る</button>
-                <button class="btn big" data-act="join">合言葉で 入る</button>
+           : `<div class="online-modes">
+                <button class="om-tile om-random" data-act="random"><span class="om-icon">🎲</span><b>ランダムマッチ</b><small>だれかと 1対1</small></button>
+                <button class="om-tile om-create" data-act="create"><span class="om-icon">🏠</span><b>部屋を 作る</b><small>友だちと 2〜4人</small></button>
+                <button class="om-tile om-join" data-act="join"><span class="om-icon">🔢</span><b>合言葉で 入る</b><small>数字を 入れる</small></button>
+                <button class="om-tile om-tour" data-act="createTour"><span class="om-icon">🏆</span><b>トーナメント</b><small>16人まで（CPUも）</small></button>
               </div>
-              <button class="btn big tour-create" data-act="createTour">🏆 トーナメントの 部屋を 作る<small>（16人まで。足りない分は CPU）</small></button>
               <button class="btn ghost" data-act="back">戻る</button>`
        }`,
     );

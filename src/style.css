@@ -2545,18 +2545,87 @@ canvas.board {
   font-size: 12px;
   color: var(--sub);
 }
-/* 🎲 ランダムマッチ */
-.random-match {
+/* オンラインの メニュー：4つの 遊び方を 2×2 で */
+.online-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(520px, 100%);
+  margin: 6px auto 10px;
+}
+/* 色つきの 大きな 長方形（押すと 沈む） */
+.om-tile {
+  --a: #ff8a5c; /* 上の 色 */
+  --b: #f2603a; /* 下の 色 */
+  --d: #c9472a; /* かげ */
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  background: linear-gradient(#f3fbff, #d9f0ff);
-  border: 3px solid #3a9bd5;
+  justify-content: center;
+  gap: 4px;
+  min-height: 132px;
+  padding: 14px 8px 12px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(160deg, var(--a), var(--b));
+  box-shadow: 0 6px 0 var(--d), 0 10px 16px rgba(0, 0, 0, 0.12);
+  font: inherit;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s, box-shadow 0.08s;
 }
-.random-match small {
+/* 上の つや */
+.om-tile::before {
+  content: '';
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: -60%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+}
+.om-tile:active {
+  transform: translateY(5px);
+  box-shadow: 0 1px 0 var(--d), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+.om-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.om-tile b {
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 var(--d);
+}
+.om-tile small {
   font-size: 12px;
-  color: var(--sub);
+  font-weight: 700;
+  opacity: 0.95;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 var(--d);
+}
+.om-random { --a: #5cc0f5; --b: #2f8fd8; --d: #1f6aa8; }
+.om-create { --a: #ff9a6b; --b: #f2603a; --d: #c4462a; }
+.om-join { --a: #5fd39a; --b: #2fa66b; --d: #217a4e; }
+.om-tour { --a: #ffcf4a; --b: #f2a300; --d: #b97b00; }
+@media (max-width: 380px) {
+  .om-tile b {
+    font-size: 16px;
+  }
 }
 .random-left {
   font-size: 40px;
