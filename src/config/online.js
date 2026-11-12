@@ -28,6 +28,22 @@ export const ONLINE = {
   randomJoinWaitSec: 12, // 相手が「組む」と 書いてから 部屋に 入ってくるまで 待つ 時間
   randomScanMs: 2000, // 待っている 間に 待合リストを 見なおす 間かく
   randomStartMs: 3000, // 相手が 見つかってから 対戦が はじまるまで
+  // ランダムマッチの レート（src/progress/rating.js）
+  rating: {
+    start: 1000,
+    min: 100, // これより 下がらない
+    kNew: 40, // はじめの 10試合は 大きく 動く
+    newGames: 10,
+    k: 24,
+    // 段位（min 以上で その段位）
+    tiers: [
+      { id: 'bronze', name: 'ブロンズ', icon: '🥉', color: '#b8733d', min: 0 },
+      { id: 'silver', name: 'シルバー', icon: '🥈', color: '#8d99a6', min: 1100 },
+      { id: 'gold', name: 'ゴールド', icon: '🥇', color: '#e0a400', min: 1250 },
+      { id: 'diamond', name: 'ダイヤ', icon: '💎', color: '#2fa6d8', min: 1400 },
+      { id: 'master', name: 'マスター', icon: '👑', color: '#9b4dd6', min: 1600 },
+    ],
+  },
   stampCooldownMs: 1500, // スタンプを続けて送れない時間
   // 送れるスタンプ（チャットのかわり。決まったことばだけ）
   stamps: [

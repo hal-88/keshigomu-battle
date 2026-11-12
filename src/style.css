@@ -3760,3 +3760,67 @@ canvas.board {
 .pull-guide .btn {
   margin-top: 4px;
 }
+
+/* ランダムマッチの レート */
+.om-rate {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f6aa8;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: none;
+  z-index: 1;
+}
+.rate-now {
+  margin: 6px 0 0;
+  font-size: 15px;
+}
+.vs-rate {
+  font-size: 12px;
+  font-weight: 800;
+}
+.rate-result {
+  margin: 6px auto 4px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+  font-size: 15px;
+  text-align: center;
+}
+.rate-tier {
+  font-weight: 800;
+  font-size: 15px;
+}
+.rate-num {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.rate-num b {
+  font-size: 20px;
+}
+.rate-result .rate-delta {
+  font-weight: 800;
+  margin-left: 4px;
+}
+.rate-result.plus .rate-delta {
+  color: #2fa66b;
+}
+.rate-result.minus .rate-delta {
+  color: #d9534f;
+}
+.rate-up {
+  margin-top: 4px;
+  font-weight: 800;
+  color: #e08a00;
+  animation: rate-pop 0.6s ease-out;
+}
+@keyframes rate-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}

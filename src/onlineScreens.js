@@ -17,6 +17,7 @@ const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '
 import { rewardsHTML } from './ui/rewardView.js';
 import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers, roomCapacity } from './online/room.js';
 import { startRandomMatch } from './online/matchQueue.js';
+import { rating, tierOf, ratingLabel } from './progress/rating.js';
 import { makeBracket, bracketSize } from './tournament/bracket.js';
 import { setupTourScreens } from './tourScreens.js';
 
@@ -129,7 +130,7 @@ export function setupOnline(ui) {
               </div>
               <button class="btn ghost" data-act="noInvite">ほかの 遊び方</button>`
            : `<div class="online-modes">
-                <button class="om-tile om-random" data-act="random"><span class="om-icon">🎲</span><b>ランダムマッチ</b><small>だれかと 1対1</small></button>
+                <button class="om-tile om-random" data-act="random"><span class="om-rate">${tierOf(rating.get()).icon} ${rating.get()}</span><span class="om-icon">🎲</span><b>ランダムマッチ</b><small>だれかと 1対1</small></button>
                 <button class="om-tile om-create" data-act="create"><span class="om-icon">🏠</span><b>部屋を 作る</b><small>友だちと 2〜4人</small></button>
                 <button class="om-tile om-join" data-act="join"><span class="om-icon">🔢</span><b>合言葉で 入る</b><small>数字を 入れる</small></button>
                 <button class="om-tile om-tour" data-act="createTour"><span class="om-icon">🏆</span><b>トーナメント</b><small>16人まで（CPUも）</small></button>
@@ -464,7 +465,8 @@ export function setupOnline(ui) {
          <p>相手を さがしているよ…</p>
          <p class="random-left" data-el="left">${ONLINE.randomWaitSec}</p>
        </div>
-       <p class="note">相手の 名前は 出ないよ（「相手」と 出る）。スタンプだけ 送れるよ</p>
+       <p class="rate-now">あなたの レート：<b>${ratingLabel(rating.get())}</b></p>
+       <p class="note">相手の 名前は 出ないよ（「相手」と 出る）。スタンプだけ 送れるよ<br>対戦の とちゅうで やめると 負けに なるよ</p>
        <button class="btn ghost" data-act="cancel">やめる</button>`,
     );
     const left = el.querySelector('[data-el=left]');
@@ -500,6 +502,7 @@ export function setupOnline(ui) {
   async function openRandomRoom(code, host) {
     const session = await RoomSession.open(code);
     session.random = true;
+    session.updateMe({ rating: rating.get() }).catch(() => {});
     const el = screen(
       `<h2 class="head">🎲 相手が 見つかった！</h2>
        <div class="vs online-vs random-vs" data-el="vs"></div>
@@ -537,15 +540,16 @@ export function setupOnline(ui) {
         return;
       }
       const members = sortedMembers(room);
-      if (!drawn && members.length >= 2) {
-        drawn = true;
+      const vsKey = members.map((m) => `${m.uid}:${m.rating ?? ''}`).join(',');
+      if (members.length >= 2 && drawn !== vsKey) {
+        drawn = vsKey; // 相手の レートが あとから とどいたら かきなおす
         $('vs').innerHTML = members
           .slice(0, 2)
           .map(
             (m, i) => `${i ? '<div class="vs-mark">VS</div>' : ''}
             <div class="vs-side">
               <canvas class="vs-eraser small" data-id="${esc(m.eraserId)}"></canvas>
-              <div class="vs-name"><b style="color:${GAME.playerColors[i]}">${m.uid === session.uid ? esc(m.name) + '（あなた）' : '相手'}</b><br>${esc(findEraser(m.eraserId)?.name || '')}</div>
+              <div class="vs-name"><b style="color:${GAME.playerColors[i]}">${m.uid === session.uid ? esc(m.name) + '（あなた）' : '相手'}</b><br>${esc(findEraser(m.eraserId)?.name || '')}<br><span class="vs-rate">${ratingLabel(m.uid === session.uid ? rating.get() : typeof m.rating === 'number' ? m.rating : ONLINE.rating.start)}</span></div>
             </div>`,
           )
           .join('');
@@ -672,6 +676,10 @@ export function setupOnline(ui) {
   // ---------- 対戦 ----------
   function startBattle(session, room, g, myIndex) {
     const players = playersFrom(session, room, g);
+    if (session.random && g.gid) {
+      const opp = g.order.find((u) => u !== session.uid);
+      rating.begin(g.gid, room.members?.[opp]?.rating);
+    }
     const el = screen('', 'battle-screen');
     ui.setBattle(
       createBattle(el, {
@@ -706,10 +714,19 @@ export function setupOnline(ui) {
     // ごほうび：オンラインも「5戦するごとに かならずチケット」に数える（消しゴムは手に入らない）
     const reward = collection.finishMatch({ won: w === myIndex });
     const random = !!session.random;
+    const rated = random ? rating.finish(session.lastGid, w == null ? 0.5 : w === myIndex ? 1 : 0) : null;
+    const rateHTML = rated
+      ? `<div class="rate-result ${rated.delta > 0 ? 'plus' : rated.delta < 0 ? 'minus' : ''}">
+           <div class="rate-tier" style="color:${tierOf(rated.after).color}">${tierOf(rated.after).icon} ${tierOf(rated.after).name}</div>
+           <div class="rate-num">レート ${rated.before} → <b>${rated.after}</b> <span class="rate-delta">${rated.delta > 0 ? '+' : ''}${rated.delta}</span></div>
+           ${rated.up ? `<div class="rate-up">${tierOf(rated.after).icon} ${tierOf(rated.after).name}に 上がった！</div>` : ''}
+         </div>`
+      : '';
     const el = screen(
       `<div class="result ${cls}">
          <div class="result-title" ${w != null && w !== myIndex ? `style="color:${players[w].color}"` : ''}>${headline}</div>
          ${w != null ? '<canvas class="result-eraser"></canvas>' : ''}
+         ${rateHTML}
          ${rewardsHTML(reward)}
          <ol class="ranking">
            ${result.ranking
