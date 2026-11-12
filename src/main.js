@@ -6,6 +6,7 @@ import { ERASERS, REGULAR_ERASERS, GACHA_ERASERS, STATIONERY_ERASERS, SPECIAL_ER
 import { CARDS, drawRandomCard } from './config/cards.js';
 import { collection, isMukashiSeason, mukashiUntil, gachaModes } from './progress/collection.js';
 import { rating, tierOf } from './progress/rating.js';
+import { startTitleHero } from './ui/titleHero.js';
 import { resultActionsHTML, bindResultActions } from './replay/replayUI.js';
 import { getLastReplay, openReplayViewer } from './replay/replayView.js';
 const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
@@ -137,20 +138,31 @@ const whenFonts = (fn) => fontsReady.then(() => requestAnimationFrame(fn));
 function showTitle() {
   const el = screen(
     `<div class="title-box">
+       ${collection.tournamentWins() ? `<div class="ttl-trophy">🏆 優勝 ${collection.tournamentWins()}回</div>` : ''}
        <canvas class="title-art"></canvas>
-       <h1 class="title">消しゴム<span>バトル</span></h1>
-       <p class="subtitle">弾いて、ぶつけて、机から落とせ！</p>
-       ${collection.tournamentWins() ? `<div class="title-trophy">🏆 優勝 ${collection.tournamentWins()}回</div>` : ''}
-       <button class="btn big primary" data-act="start">始める</button>
-       <div class="row title-sub">
-         <button class="btn" data-act="zukan">📖 図鑑 <small>${collection.ownedErasers().length}/${ERASERS.length}</small></button>
-         <button class="btn" data-act="gacha">${isMukashiSeason() ? '🎍' : '🎰'} ガチャ ${
-           collection.tickets() ? `<span class="ticket-badge">🎫${collection.tickets()}</span>` : ''
-         }</button>
+       <h1 class="ttl-logo" aria-label="消しゴムバトル">
+         <span class="ttl-l1">消しゴム</span>
+         <span class="ttl-l2">バトル</span>
+       </h1>
+       <p class="ttl-tape">弾いて、ぶつけて、机から落とせ！</p>
+       <button class="ttl-start" data-act="start"><span class="ttl-play">▶</span>始める</button>
+       <div class="ttl-sub">
+         <button class="ttl-card ttl-zukan" data-act="zukan">
+           <span class="ttl-ic">📖</span>
+           <span class="ttl-txt"><b>図鑑</b><small>${collection.ownedErasers().length} / ${ERASERS.length}</small>
+             <i class="ttl-bar"><i style="width:${Math.round((collection.ownedErasers().length / ERASERS.length) * 100)}%"></i></i></span>
+         </button>
+         <button class="ttl-card ttl-gacha" data-act="gacha">
+           <span class="ttl-ic">${isMukashiSeason() ? '🎍' : '🎰'}</span>
+           <span class="ttl-txt"><b>ガチャ</b><small>${collection.tickets() ? `🎫 チケット ${collection.tickets()}枚` : 'チケットで 引く'}</small></span>
+           ${collection.tickets() ? `<span class="ttl-dot">${collection.tickets()}</span>` : ''}
+         </button>
        </div>
-       ${getLastReplay() ? '<button class="install-link" data-act="review">🎬 前回の 試合を ふりかえる</button>' : ''}
-       <button class="install-link" data-act="settings">⚙️ 設定（効果音）</button>
-       ${isInstalled() ? '' : '<button class="install-link" data-act="install">📲 アプリにする（ホーム画面に置く）</button>'}
+       <div class="ttl-icons">
+         ${getLastReplay() ? '<button class="ttl-icon" data-act="review"><span>🎬</span>ふりかえり</button>' : ''}
+         <button class="ttl-icon" data-act="settings"><span>⚙️</span>設定</button>
+         ${isInstalled() ? '' : '<button class="ttl-icon" data-act="install"><span>📲</span>アプリに</button>'}
+       </div>
      </div>`,
     'title-screen',
   );
@@ -158,21 +170,7 @@ function showTitle() {
   el.querySelector('[data-act=review]')?.addEventListener('click', () => openReplayViewer(getLastReplay(), { title: '前回の 試合' }));
   el.querySelector('[data-act=install]')?.addEventListener('click', () => showInstallGuide(el));
   const cv = el.querySelector('.title-art');
-  whenFonts(() => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    const w = cv.clientWidth;
-    const h = cv.clientHeight;
-    cv.width = w * dpr;
-    cv.height = h * dpr;
-    const ctx = cv.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const s = h / 75;
-    drawEraser(ctx, findEraser('nerikeshi'), w * 0.08, h * 0.62, 0, { scale: s });
-    drawEraser(ctx, findEraser('fuwakaru'), w * 0.25, h * 0.55, 0.35, { scale: s });
-    drawEraser(ctx, findEraser('jumbo'), w * 0.5, h * 0.45, -0.12, { scale: s });
-    drawEraser(ctx, findEraser('white-standard'), w * 0.75, h * 0.55, -0.4, { scale: s });
-    drawEraser(ctx, findEraser('kadodarake'), w * 0.92, h * 0.62, 0.3, { scale: s });
-  });
+  whenFonts(() => startTitleHero(cv)); // 消しゴムが 弾かれて ドン！（画面が かわると 止まる）
   el.querySelector('[data-act=start]').onclick = showModeSelect;
   el.querySelector('[data-act=zukan]').onclick = () => showZukan();
   el.querySelector('[data-act=gacha]').onclick = () => showGacha();

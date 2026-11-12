@@ -151,8 +151,267 @@ body {
   text-align: center;
 }
 .title-art {
-  width: min(360px, 86vw);
-  height: 110px;
+  width: min(440px, 92vw);
+  height: 128px;
+}
+
+/* ロゴ：ノートに 貼った ステッカー */
+.ttl-logo {
+  margin: -6px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.98;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.ttl-l1 {
+  font-size: clamp(34px, 9.5vw, 60px);
+  color: var(--ink);
+  transform: rotate(-3deg) translateX(-0.4em);
+  text-shadow:
+    3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff,
+    2px 2px 0 #fff, -2px 2px 0 #fff, 2px -2px 0 #fff, -2px -2px 0 #fff,
+    0 7px 0 rgba(58, 48, 38, 0.14);
+}
+.ttl-l2 {
+  font-size: clamp(56px, 17vw, 104px);
+  color: var(--accent);
+  margin-top: -2px;
+  transform: rotate(-3deg) translateX(0.25em);
+  background: linear-gradient(180deg, #ff8a5c 0%, #ff6b4a 55%, #e9492c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(4px 0 0 #fff) drop-shadow(-4px 0 0 #fff) drop-shadow(0 4px 0 #fff) drop-shadow(0 -4px 0 #fff)
+    drop-shadow(0 6px 0 #b3361f) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.18));
+}
+/* マスキングテープの 合言葉 */
+.ttl-tape {
+  margin: 4px 0 6px;
+  padding: 6px 18px;
+  font-weight: 800;
+  font-size: clamp(13px, 3.6vw, 16px);
+  color: #6b5a3e;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0 6px, transparent 6px 12px),
+    rgba(255, 214, 102, 0.78);
+  transform: rotate(1.5deg);
+  clip-path: polygon(1% 0, 99% 4%, 100% 50%, 98.5% 100%, 1.5% 96%, 0 50%);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+.ttl-trophy {
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: linear-gradient(#fff6d6, #ffe58a);
+  color: #8a5a00;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 2px 0 #e0b400;
+}
+
+/* 始める */
+.ttl-start {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(320px, 82vw);
+  height: 76px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff9466 0%, #ff6b4a 55%, #f0512f 100%);
+  box-shadow: 0 7px 0 #c13d22, 0 14px 22px rgba(240, 81, 47, 0.32);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 2px 0 #c13d22;
+  cursor: pointer;
+  animation: ttl-breathe 2.4s ease-in-out infinite;
+}
+.ttl-start::after {
+  /* ひかりが すーっと 通る */
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-20deg);
+  animation: ttl-shine 3.2s ease-in-out infinite;
+}
+.ttl-start:active {
+  transform: translateY(6px);
+  box-shadow: 0 1px 0 #c13d22, 0 4px 8px rgba(240, 81, 47, 0.25);
+  animation: none;
+}
+.ttl-play {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  color: #ff6b4a;
+  font-size: 18px;
+  text-shadow: none;
+  letter-spacing: 0;
+  padding-left: 3px;
+}
+@keyframes ttl-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+@keyframes ttl-shine {
+  0%, 55% { left: -60%; }
+  100% { left: 130%; }
+}
+
+/* 図鑑・ガチャ */
+.ttl-sub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(360px, 90vw);
+  margin-top: 6px;
+}
+.ttl-card {
+  --c: #8e6cf0;
+  --d: #6a4dc6;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 66px;
+  border: none;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 5px 0 var(--d), 0 0 0 3px var(--c) inset;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ttl-card:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--d), 0 0 0 3px var(--c) inset;
+}
+.ttl-gacha {
+  --c: #ff6fa5;
+  --d: #d6457e;
+}
+.ttl-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--c);
+  font-size: 24px;
+  box-shadow: 0 2px 0 var(--d);
+}
+.ttl-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.ttl-txt b {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.ttl-txt small {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sub);
+  white-space: nowrap;
+}
+.ttl-bar {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #ece6f9;
+  overflow: hidden;
+}
+.ttl-bar i {
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #a98bff, #8e6cf0);
+}
+.ttl-dot {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ffcf33;
+  color: #6b4a00;
+  font-size: 13px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 0 #d9a400;
+  animation: ttl-bounce 1.8s ease-in-out infinite;
+}
+@keyframes ttl-bounce {
+  0%, 70%, 100% { transform: translateY(0); }
+  80% { transform: translateY(-5px); }
+  90% { transform: translateY(0); }
+}
+
+/* 下の 小さな アイコン */
+.ttl-icons {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.ttl-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--sub);
+  cursor: pointer;
+  padding: 0;
+}
+.ttl-icon span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 21px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12), 0 0 0 2px var(--line) inset;
+}
+.ttl-icon:active span {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12), 0 0 0 2px var(--line) inset;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ttl-start,
+  .ttl-start::after,
+  .ttl-dot {
+    animation: none;
+  }
 }
 .title {
   margin: 0;
