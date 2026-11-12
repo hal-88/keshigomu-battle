@@ -8,6 +8,7 @@
 //   stamps  … スタンプ（{ uid, id, at }）
 //   tour    … トーナメント表（{ tid, size, entries, rounds }）。トーナメントの部屋だけ
 //   matches … トーナメントの 人どうしの試合（matches/回戦-番号/game・stream）
+//   （ランダムマッチの 部屋は meta.random: true。待合リストは queue/uid … { code, at, claim }。matchQueue.js）
 
 import { FIREBASE_CONFIG, ONLINE } from '../config/online.js';
 
@@ -52,14 +53,14 @@ export function sortedMembers(room) {
 }
 
 /** 部屋をつくる。あいことばを返す */
-export async function createRoom({ name, eraserId, deskId, mode = 'battle', wins = 0 }) {
+export async function createRoom({ name, eraserId, deskId, mode = 'battle', wins = 0, random = false }) {
   const db = await getDb();
   for (let tries = 0; tries < 30; tries++) {
     const code = randomCode();
     const meta = await db.get(P(code, 'meta'));
     if (meta && db.now() - meta.createdAt < ONLINE.roomExpireHours * 3600e3) continue; // 使われている
     await db.set(P(code), {
-      meta: { createdAt: db.now(), host: db.uid, status: 'lobby', deskId, mode },
+      meta: { createdAt: db.now(), host: db.uid, status: 'lobby', deskId, mode, ...(random ? { random: true } : {}) },
       members: { [db.uid]: { name: cleanName(name), eraserId, joinedAt: db.now(), online: true, wins } },
     });
     return code;

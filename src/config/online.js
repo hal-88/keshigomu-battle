@@ -24,6 +24,10 @@ export const ONLINE = {
   disconnectSec: 15, // 自分の番で、通信が切れたままこの秒数たつと脱落
   idleTurnSec: 90, // 自分の番で、なにもしないままこの秒数たつと脱落
   roomExpireHours: 6, // これより古い部屋は、同じあいことばで作りなおせる
+  randomWaitSec: 60, // ランダムマッチで 相手を 待つ 時間（これを すぎたら「今は 相手が いないよ」）
+  randomJoinWaitSec: 12, // 相手が「組む」と 書いてから 部屋に 入ってくるまで 待つ 時間
+  randomScanMs: 2000, // 待っている 間に 待合リストを 見なおす 間かく
+  randomStartMs: 3000, // 相手が 見つかってから 対戦が はじまるまで
   stampCooldownMs: 1500, // スタンプを続けて送れない時間
   // 送れるスタンプ（チャットのかわり。決まったことばだけ）
   stamps: [

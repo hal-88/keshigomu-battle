@@ -7,7 +7,7 @@ export async function createFirebaseDb(config) {
     import('firebase/database'),
     import('firebase/auth'),
   ]);
-  const { getDatabase, ref, get, set, update, push, remove, onValue, onChildAdded, onDisconnect, serverTimestamp } = dbMod;
+  const { getDatabase, ref, get, set, update, push, remove, onValue, onChildAdded, onDisconnect, serverTimestamp, runTransaction } = dbMod;
   const { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserSessionPersistence } = authMod;
 
   const app = initializeApp(config);
@@ -55,6 +55,15 @@ export async function createFirebaseDb(config) {
       return r.key;
     },
     remove: (path) => remove(ref(db, path)),
+    /** 早い者勝ち：path が 空っぽの ときだけ value を 書く。書けたら true（ランダムマッチで 相手を とりあう ため） */
+    async claim(path, value) {
+      try {
+        const res = await runTransaction(ref(db, path), (cur) => (cur == null ? value : undefined), { applyLocally: false });
+        return res.committed && res.snapshot.val() === value;
+      } catch {
+        return false; // ルールで ことわられた（もう だれかが 書いた など）
+      }
+    },
     listen(path, cb) {
       return onValue(ref(db, path), (snap) => cb(snap.exists() ? snap.val() : null));
     },

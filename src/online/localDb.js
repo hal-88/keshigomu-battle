@@ -127,6 +127,12 @@ export function createLocalDb() {
     async remove(path) {
       write((t) => setAt(t, path, null));
     },
+    /** 早い者勝ち：path が 空っぽの ときだけ value を 書く。書けたら true */
+    async claim(path, value) {
+      if (getAt(readTree(), path) != null) return false;
+      write((t) => setAt(t, path, value));
+      return true;
+    },
     /** path の値が変わるたびに cb(value)。もどり値でやめる */
     listen(path, cb) {
       const l = { path, cb, last: undefined, kind: 'value' };

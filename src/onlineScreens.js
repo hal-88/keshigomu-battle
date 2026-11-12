@@ -16,6 +16,7 @@ import { resultActionsHTML, bindResultActions } from './replay/replayUI.js';
 const plain = (h) => String(h).replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 import { rewardsHTML } from './ui/rewardView.js';
 import { RoomSession, createRoom, joinRoom, getDb, isTestMode, sortedMembers, roomCapacity } from './online/room.js';
+import { startRandomMatch } from './online/matchQueue.js';
 import { makeBracket, bracketSize } from './tournament/bracket.js';
 import { setupTourScreens } from './tourScreens.js';
 
@@ -127,7 +128,8 @@ export function setupOnline(ui) {
                 <button class="btn big primary" data-act="joinInvite">この部屋に 入る</button>
               </div>
               <button class="btn ghost" data-act="noInvite">ほかの 遊び方</button>`
-           : `<div class="row">
+           : `<button class="btn big random-match" data-act="random">🎲 ランダムマッチ<small>（だれかと 1対1。60秒 さがすよ）</small></button>
+              <div class="row">
                 <button class="btn big primary" data-act="create">部屋を 作る</button>
                 <button class="btn big" data-act="join">合言葉で 入る</button>
               </div>
@@ -205,6 +207,9 @@ export function setupOnline(ui) {
     };
     el.querySelector('[data-act=join]').onclick = () => {
       if (needName()) showJoin();
+    };
+    el.querySelector('[data-act=random]').onclick = () => {
+      if (needName()) showRandomSearch();
     };
     el.querySelector('[data-act=back]').onclick = ui.showModeSelect;
   }
@@ -381,19 +386,7 @@ export function setupOnline(ui) {
           await startTournament(session, room);
           return;
         }
-        const members = sortedMembers(room).slice(0, ONLINE.maxPlayers);
-        const order = members.map((m) => m.uid);
-        const players = members.map((m, i) => ({
-          name: m.name,
-          type: 'remote',
-          eraser: findEraser(m.eraserId) || findEraser('white-standard'),
-          color: GAME.playerColors[i],
-          card: drawRandomCard(),
-        }));
-        // 先攻は へやを作った人の端末で決めて、みんなに送る（ルーレットは みんな同じ結果になる）
-        const firstTurn = Math.floor(Math.random() * players.length);
-        const game = new Game({ desk: findDesk(room.meta.deskId), players, firstTurn });
-        await session.start(order, game.exportState());
+        await startMatch(session, room);
       } catch (err) {
         starting = false;
         $('status').textContent = errorText(err);
@@ -444,6 +437,136 @@ export function setupOnline(ui) {
     };
   }
 
+  /** 対戦を はじめる（部屋を 作った人）：ならび順・カード・最初の状態を 部屋に 書く */
+  async function startMatch(session, room) {
+    const members = sortedMembers(room).slice(0, ONLINE.maxPlayers);
+    const order = members.map((m) => m.uid);
+    const players = members.map((m, i) => ({
+      name: m.name,
+      type: 'remote',
+      eraser: findEraser(m.eraserId) || findEraser('white-standard'),
+      color: GAME.playerColors[i],
+      card: drawRandomCard(),
+    }));
+    // 先攻は へやを作った人の端末で決めて、みんなに送る（ルーレットは みんな同じ結果になる）
+    const firstTurn = Math.floor(Math.random() * players.length);
+    const game = new Game({ desk: findDesk(room.meta.deskId), players, firstTurn });
+    await session.start(order, game.exportState());
+  }
+
+  // ---------- 🎲 ランダムマッチ ----------
+  let searching = null; // さがしている 間の { cancel }
+  function showRandomSearch() {
+    const el = screen(
+      `<h2 class="head">🎲 ランダムマッチ</h2>
+       ${testBadge()}
+       <div class="loading random-search"><div class="spinner"></div>
+         <p>相手を さがしているよ…</p>
+         <p class="random-left" data-el="left">${ONLINE.randomWaitSec}</p>
+       </div>
+       <p class="note">相手の 名前は 出ないよ（「相手」と 出る）。スタンプだけ 送れるよ</p>
+       <button class="btn ghost" data-act="cancel">やめる</button>`,
+    );
+    const left = el.querySelector('[data-el=left]');
+    searching = startRandomMatch({
+      name: st.name,
+      eraserId: st.eraserId,
+      wins: collection.tournamentWins(),
+      onTick: (sec) => {
+        left.textContent = sec;
+      },
+      onMatched: ({ code, host }) => {
+        searching = null;
+        openRandomRoom(code, host);
+      },
+      onTimeout: () => {
+        searching = null;
+        showMenu('今は 相手が いないよ。また ためしてね');
+      },
+      onError: (err) => {
+        searching = null;
+        showMenu(errorText(err));
+      },
+    });
+    el.querySelector('[data-act=cancel]').onclick = async () => {
+      const s = searching;
+      searching = null;
+      showMenu();
+      await s?.cancel();
+    };
+  }
+
+  /** 相手が 見つかった：少し 見せてから 自動で はじめる（部屋を 作った人が スタートする） */
+  async function openRandomRoom(code, host) {
+    const session = await RoomSession.open(code);
+    session.random = true;
+    const el = screen(
+      `<h2 class="head">🎲 相手が 見つかった！</h2>
+       <div class="vs online-vs random-vs" data-el="vs"></div>
+       <p class="note" data-el="status">まもなく スタート！</p>`,
+    );
+    const $ = (n) => el.querySelector(`[data-el=${n}]`);
+    let done = false;
+    let drawn = false;
+    let started = false;
+    const startAt = Date.now() + ONLINE.randomStartMs;
+    const finish = (msg) => {
+      if (done) return;
+      done = true;
+      clearTimeout(giveUp);
+      session.leave();
+      showMenu(msg);
+    };
+    // 相手が いなくなって はじまらない ときは あきらめる
+    const giveUp = setTimeout(
+      () => finish('相手が いなくなったよ。もう一度 さがしてね'),
+      ONLINE.randomStartMs + ONLINE.randomJoinWaitSec * 1000,
+    );
+    session.watchRoom(async (room) => {
+      if (done) return;
+      if (!room?.meta) {
+        finish('相手が いなくなったよ。もう一度 さがしてね');
+        return;
+      }
+      if (room.meta.status === 'playing' && room.game?.gid && room.game.gid !== session.lastGid) {
+        done = true;
+        clearTimeout(giveUp);
+        session.stopAll();
+        session.lastGid = room.game.gid;
+        showDeal(session, room);
+        return;
+      }
+      const members = sortedMembers(room);
+      if (!drawn && members.length >= 2) {
+        drawn = true;
+        $('vs').innerHTML = members
+          .slice(0, 2)
+          .map(
+            (m, i) => `${i ? '<div class="vs-mark">VS</div>' : ''}
+            <div class="vs-side">
+              <canvas class="vs-eraser small" data-id="${esc(m.eraserId)}"></canvas>
+              <div class="vs-name"><b style="color:${GAME.playerColors[i]}">${m.uid === session.uid ? esc(m.name) + '（あなた）' : '相手'}</b><br>${esc(findEraser(m.eraserId)?.name || '')}</div>
+            </div>`,
+          )
+          .join('');
+        whenFonts(() =>
+          $('vs').querySelectorAll('canvas').forEach((c) => drawEraserPreview(c, findEraser(c.dataset.id) || findEraser('white-standard'))),
+        );
+      }
+      // 部屋を 作った人が、少し 待ってから スタート
+      if (host && !started && members.length >= 2 && room.meta.status === 'lobby') {
+        started = true;
+        await new Promise((r) => setTimeout(r, Math.max(0, startAt - Date.now())));
+        if (done) return;
+        try {
+          await startMatch(session, (await session.db.get(`rooms/${session.code}`)) || room);
+        } catch (err) {
+          finish(errorText(err));
+        }
+      }
+    });
+  }
+
   /** トーナメントを はじめる（まとめ役）：表を作って 部屋に書く */
   async function startTournament(session, room) {
     const members = sortedMembers(room).slice(0, ONLINE.tournamentMaxPlayers);
@@ -473,7 +596,8 @@ export function setupOnline(ui) {
     return g.order.map((uid, i) => {
       const piece = g.state.pieces.find((p) => p.pi === i && !p.extra);
       return {
-        name: members[uid]?.name || '？',
+        // ランダムマッチでは 相手の 名前は 出さない（知らない人なので）
+        name: room.meta?.random && uid !== session.uid ? '相手' : members[uid]?.name || '？',
         type: uid === session.uid ? 'human' : 'remote',
         eraser: findEraser(piece?.defId) || findEraser('white-standard'),
         color: GAME.playerColors[i],
@@ -581,6 +705,7 @@ export function setupOnline(ui) {
     }
     // ごほうび：オンラインも「5戦するごとに かならずチケット」に数える（消しゴムは手に入らない）
     const reward = collection.finishMatch({ won: w === myIndex });
+    const random = !!session.random;
     const el = screen(
       `<div class="result ${cls}">
          <div class="result-title" ${w != null && w !== myIndex ? `style="color:${players[w].color}"` : ''}>${headline}</div>
@@ -600,21 +725,29 @@ export function setupOnline(ui) {
          </ol>
          ${resultActionsHTML(result)}
          <div class="row">
-           <button class="btn big primary" data-act="lobby">部屋に 戻る</button>
+           ${
+             random
+               ? '<button class="btn big primary" data-act="again">🎲 もう一回 さがす</button>'
+               : '<button class="btn big primary" data-act="lobby">部屋に 戻る</button>'
+           }
            <button class="btn ghost" data-act="leave">出る</button>
          </div>
        </div>`,
     );
     if (w != null) whenFonts(() => drawEraserPreview(el.querySelector('.result-eraser'), players[w].eraser));
     bindResultActions(el, result, players, { headline: plain(headline) }); // 📤 結果をシェア・🎬 ふりかえる
-    el.querySelector('[data-act=lobby]').onclick = async () => {
+    el.querySelector('[data-act=again]')?.addEventListener('click', async () => {
+      await session.leave();
+      showRandomSearch();
+    });
+    el.querySelector('[data-act=lobby]')?.addEventListener('click', async () => {
       // 👑 の人がもどったら、へやを まちあい室にもどす
       const room = await session.db.get(`rooms/${session.code}`);
       const members = sortedMembers(room);
       if (members[0]?.uid === session.uid && room?.meta?.status === 'playing') await session.backToLobby();
       session.keepPresence();
       showLobby(session);
-    };
+    });
     el.querySelector('[data-act=leave]').onclick = async () => {
       await session.leave();
       ui.showTitle();
